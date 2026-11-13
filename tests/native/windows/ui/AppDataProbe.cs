@@ -1,6 +1,6 @@
 using System.IO;
 using System.Text.Json;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 internal static class AppDataProbe
 {
@@ -10,7 +10,7 @@ internal static class AppDataProbe
     var packaged = directory != AppDataDirectory.Unpackaged;
     if (packaged)
     {
-      if (!global::Windows.ApplicationModel.Package.Current.Id.Name.StartsWith("app.workfleet.storageprobe.", StringComparison.Ordinal))
+      if (!global::Windows.ApplicationModel.Package.Current.Id.Name.StartsWith("dev.sammykenny2.pinitanywhere.storageprobe.", StringComparison.Ordinal))
         throw new Exception("Packaged writes are allowed only in an isolated storage probe package.");
       var root = global::Windows.Storage.ApplicationData.Current.LocalCacheFolder.Path;
       if (!directory.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))

@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>Explorer hosts only; never substitutes an arbitrary bottom window for wallpaper.</summary>
 public sealed record NativeShellLayers(IntPtr Desktop, IntPtr Wallpaper, IntPtr Shell)

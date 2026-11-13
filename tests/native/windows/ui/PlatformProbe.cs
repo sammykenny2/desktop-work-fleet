@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 internal static class PlatformProbe
 {
@@ -89,7 +89,7 @@ internal static class PlatformProbe
     Console.WriteLine("PASS native hotkey registration/conflict/suspend/resume/dispose and stale-message isolation; callback messages are synthetic, no keyboard input injected");
     // The shared manifest selects Common Controls 6, so the update, data and startup message boxes draw themed buttons
     // instead of the classic ones. The probe shows one, reads its button's theme, and closes it.
-    var caption = "Work Fleet probe " + Guid.NewGuid().ToString("N"); bool? themed = null;
+    var caption = "Pin It Anywhere probe " + Guid.NewGuid().ToString("N"); bool? themed = null;
     var reader = Task.Run(async () =>
     {
       for (var waited = 0; waited < 200; waited++, await Task.Delay(50))
@@ -101,7 +101,7 @@ internal static class PlatformProbe
 
       }
     });
-    System.Windows.MessageBox.Show("Version 0.3.9 is available (you have 0.3.8).\n\nUpdate and restart Work Fleet now? Unsaved text is saved first.", caption, System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question);
+    System.Windows.MessageBox.Show("Version 0.3.9 is available (you have 0.3.8).\n\nUpdate and restart Pin It Anywhere now? Unsaved text is saved first.", caption, System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question);
     await reader;
     if (themed != true) throw new Exception(themed is null ? "The probe message box did not appear." : "Message boxes draw classic, unthemed buttons.");
     Console.WriteLine("PASS native message boxes draw themed buttons");

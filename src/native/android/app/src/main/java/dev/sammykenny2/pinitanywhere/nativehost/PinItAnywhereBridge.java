@@ -1,0 +1,118 @@
+package dev.sammykenny2.pinitanywhere.nativehost;
+
+import android.util.Base64;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+
+final class PinItAnywhereBridge implements AutoCloseable {
+    private static final class Transfer {
+        final String kind, digest; final int size; final WipingBuffer bytes = new WipingBuffer(); final byte[] download; long used = System.currentTimeMillis();
+        Transfer(String kind, int size, String digest, byte[] data) { this.kind = kind; this.size = size; this.digest = digest; download = data == null ? null : data.clone(); }
+    }
+    private static final class WipingBuffer extends ByteArrayOutputStream { @Override public synchronized void reset() { Arrays.fill(buf, (byte) 0); super.reset(); } }
+    private final PinItAnywhereDatabase database;
+    private final PinItAnywhereActivity activity;
+    private final BackupFiles backups;
+    private final HashMap<String, Transfer> transfers = new HashMap<>();
+    private final HashSet<String> staged = new HashSet<>();
+    private boolean closed;
+    boolean ready, closeReady;
+    // Answers requests naming another profile (ADR-066), with its own transfers and staged data on its own view of the database.
+    PinItAnywhereBridge companion;
+    private static final String[] COMPANION_METHODS = { "storage.", "transfer.", "backup.", "attachment.", "file." };
+    // A request naming data this session does not hold is refused rather than answered from the wrong profile.
+    PinItAnywhereBridge route(String method, JSONObject args) throws Exception {
+        if (args == null || !args.has("profile")) return this;
+        String named = args.optString("profile", "");
+        if (named.equals(database.profile)) return this;
+        boolean allowed = false; for (String prefix : COMPANION_METHODS) allowed |= method.startsWith(prefix);
+        Protocol.require(companion != null && named.equals(companion.database.profile) && allowed, "invalid-profile", "This request names data that isn't open.");
+        return companion;
+    }
+    PinItAnywhereBridge(PinItAnywhereDatabase database, PinItAnywhereActivity activity) throws Exception { this.database = database; this.activity = activity; backups = new BackupFiles(activity, database); }
+    synchronized Object invoke(String method, JSONObject args) throws Exception {
+        Protocol.require(!closed, "native-closed", "The native workspace is closed."); sweep();
+        if (method.startsWith("backup.")) return backups.invoke(method, args, this);
+        switch (method) {
+            case "host.info": return Protocol.object("protocol", 1, "platform", "android", "profileId", database.profile, "companionProfile", companion == null ? JSONObject.NULL : companion.database.profile, "appVersion", BuildConfig.VERSION_NAME, "distribution", "android", "storage", "sqlite-keystore",
+                "maxChunkBytes", Protocol.CHUNK, "maxMessageBytes", 1024 * 1024, "maxRecordBytes", Protocol.RECORD, "maxAttachmentBytes", Protocol.ATTACHMENT, "maxBackupBytes", Protocol.BACKUP,
+                "capabilities", Protocol.object("nativeStorage", true, "recordStorage", true, "automaticFiles", true, "backupFiles", true, "secureBackup", true, "google", activity.googleConfigured(), "desktopPresentation", false, "fileExport", true, "fileShare", true, "shareInbox", activity.capturesAvailable(), "languagePreference", true),
+                "language", activity.languageInfo());
+            case "host.language.set": return activity.setLanguage(Protocol.text(args, "preference", 16));
+            case "host.ready": ready = true; return null;
+            case "host.closeReady": closeReady = true; return null;
+            case "host.closeCancel": closeReady = false; return null;
+            case "transfer.begin": {
+                String kind = Protocol.text(args, "kind", 32), digest = Protocol.text(args, "sha256", 64); Protocol.digest(digest);
+                Protocol.require(kind.equals("workspace") || kind.equals("journal") || kind.equals("attachment") || kind.equals("backup"), "invalid-transfer", "The transfer kind is invalid.");
+                int maximum = kind.equals("backup") ? Protocol.BACKUP : kind.equals("attachment") ? Protocol.ATTACHMENT : Protocol.RECORD;
+                return Protocol.object("token", add(new Transfer(kind, (int) Protocol.number(args, "size", maximum), digest, null)));
+            }
+            case "transfer.append": {
+                Transfer value = transfer(Protocol.text(args, "token", 36)); long offset = Protocol.number(args, "offset", Protocol.BACKUP);
+                Protocol.require(!value.kind.equals("download") && offset == value.bytes.size(), "transfer-offset", "The transfer arrived out of order.");
+                byte[] chunk = Base64.decode(Protocol.text(args, "base64", Protocol.CHUNK * 4 / 3 + 4), Base64.DEFAULT);
+                try { Protocol.require(chunk.length > 0 && chunk.length <= Protocol.CHUNK && value.bytes.size() + chunk.length <= value.size, "transfer-size", "The transfer is larger than allowed."); value.bytes.write(chunk); return Protocol.object("offset", value.bytes.size()); }
+                finally { Arrays.fill(chunk, (byte) 0); }
+            }
+            case "transfer.finish": {
+                String token = Protocol.text(args, "token", 36); Transfer value = transfer(token);
+                Protocol.require(!value.kind.equals("download") && value.bytes.size() == value.size, "transfer-incomplete", "The transfer isn't complete."); byte[] bytes = value.bytes.toByteArray();
+                try { String sealed = database.stage(value.kind, bytes, value.digest); staged.add(sealed); drop(token); return Protocol.object("token", sealed); }
+                finally { Arrays.fill(bytes, (byte) 0); }
+            }
+            case "transfer.discard": { String token = Protocol.text(args, "token", 36); drop(token); if (staged.remove(token)) database.discard(token); return null; }
+            case "transfer.read": {
+                Transfer value = transfer(Protocol.text(args, "token", 36)); int offset = (int) Protocol.number(args, "offset", Protocol.BACKUP);
+                Protocol.require(value.kind.equals("download") && offset <= value.size, "invalid-transfer", "The download position is invalid.");
+                int count = Math.min(Protocol.CHUNK, value.size - offset);
+                return Protocol.object("offset", offset, "base64", Base64.encodeToString(value.download, offset, count, Base64.NO_WRAP), "done", offset + count == value.size);
+            }
+            case "storage.reset": {
+                for (String token : new HashSet<>(transfers.keySet())) drop(token);
+                staged.clear(); database.reset(); return Protocol.object("profileId", database.profile);
+            }
+            case "storage.load": return download(database.record(Protocol.text(args, "kind", 32)));
+            case "storage.records.status": return database.recordStatus();
+            case "storage.records.get": return download(database.recordEntry(Protocol.text(args, "collection", 32), Protocol.text(args, "key", 256)));
+            case "storage.records.page": return download(database.recordPage(args));
+            case "storage.attachment": return download(database.attachment(Protocol.text(args, "id", 64)));
+            case "storage.putAttachment": { String token = owned(args); String id = database.putAttachment(token); staged.remove(token); return Protocol.object("id", id); }
+            case "storage.commit":
+            case "storage.records.commit": {
+                String token = owned(args); JSONArray attachments = args.optJSONArray("attachments"); if (attachments == null) attachments = new JSONArray();
+                for (int i = 0; i < attachments.length(); i++) Protocol.require(staged.contains(attachments.getString(i)), "transfer-missing", "The attachment transfer doesn't belong to this window.");
+                Protocol.require(args.has("expectedRevision"), "invalid-request", "The expected revision is missing.");
+                Long expected = args.isNull("expectedRevision") ? null : Protocol.number(args, "expectedRevision", Protocol.SAFE_INTEGER);
+                if (method.equals("storage.records.commit")) {
+                    JSONObject result = database.commitRecords(token, expected, attachments); staged.remove(token);
+                    for (int i = 0; i < attachments.length(); i++) staged.remove(attachments.getString(i)); return result;
+                }
+                Protocol.require(!args.has("replaceAttachments") || args.get("replaceAttachments") instanceof Boolean, "invalid-request", "A Boolean field is invalid.");
+                database.commit(Protocol.text(args, "kind", 32), token, expected, attachments, args.optBoolean("replaceAttachments", false)); staged.remove(token);
+                for (int i = 0; i < attachments.length(); i++) staged.remove(attachments.getString(i)); return null;
+            }
+            default: throw new Protocol.Failure("unsupported-method", "The native host doesn't support this operation.");
+        }
+    }
+    synchronized byte[] upload(JSONObject args, String kind) throws Exception { return database.staged(owned(args), kind); }
+    private String owned(JSONObject args) throws Exception { String token = Protocol.text(args, "token", 36); Protocol.require(staged.contains(token), "transfer-missing", "The native transfer doesn't belong to this window."); return token; }
+    synchronized Object download(byte[] bytes) throws Exception {
+        if (bytes == null) return null;
+        try { String digest = Protocol.digest(bytes); return Protocol.object("token", add(new Transfer("download", bytes.length, digest, bytes)), "size", bytes.length, "sha256", digest); }
+        finally { Arrays.fill(bytes, (byte) 0); }
+    }
+    private String add(Transfer value) throws Exception {
+        long total = value.size; for (Transfer item : transfers.values()) total += item.size;
+        Protocol.require(transfers.size() < 8 && total <= 256L * 1024 * 1024, "transfer-busy", "Too many native transfers are in progress."); String id = Protocol.uuid(); transfers.put(id, value); return id;
+    }
+    private Transfer transfer(String token) throws Exception { Transfer value = transfers.get(token); Protocol.require(value != null, "transfer-missing", "The native transfer has expired."); value.used = System.currentTimeMillis(); return value; }
+    private void drop(String token) { Transfer value = transfers.remove(token); if (value != null) { value.bytes.reset(); if (value.download != null) Arrays.fill(value.download, (byte) 0); } }
+    private void sweep() { for (String id : new HashSet<>(transfers.keySet())) if (System.currentTimeMillis() - transfers.get(id).used > 300000) drop(id); }
+    @Override public synchronized void close() { if (companion != null) companion.close(); closed = true; for (String token : staged) database.discard(token); staged.clear(); for (String token : new HashSet<>(transfers.keySet())) drop(token); }
+}

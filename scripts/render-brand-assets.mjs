@@ -48,7 +48,7 @@ function options(argv) {
 const INSTALLED = {
   appleResources: 'src/native/apple/resources',
   androidResources: 'src/native/android/app/src/main/res',
-  windowsIcon: 'src/native/windows/app/WorkFleet.ico',
+  windowsIcon: 'src/native/windows/app/PinItAnywhere.ico',
   windowsPackageAssets: 'src/native/windows/package-assets',
   linuxTheme: 'src/native/linux/icons/hicolor',
 };

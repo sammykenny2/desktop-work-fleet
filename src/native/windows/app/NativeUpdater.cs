@@ -4,14 +4,14 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>
 /// ADR-044 Windows updater. GitHub Releases of the configured public repository, no credentials, HTTPS only, a fixed host
 /// allowlist with at most three redirects, size limits and a streamed SHA-256. One check or download runs at a time;
-/// repeated requests join it. Installing is FleetWindow's job, after the durable close.
+/// repeated requests join it. Installing is PinItAnywhereWindow's job, after the durable close.
 /// </summary>
 public sealed class NativeUpdater : IDisposable
 {
@@ -58,7 +58,7 @@ public sealed class NativeUpdater : IDisposable
       // Only the isolated update probe identity (Test-WindowsUpdate.ps1) reads a local folder instead of GitHub and
       // updates itself once started; any other package ignores the probe file.
       var probe = Path.Combine(dataDirectory, "update-probe.txt");
-      if (id.Name.StartsWith("app.workfleet.updateprobe.", StringComparison.Ordinal) && File.Exists(probe)
+      if (id.Name.StartsWith("dev.sammykenny2.pinitanywhere.updateprobe.", StringComparison.Ordinal) && File.Exists(probe)
         && File.ReadAllText(probe).Trim() is { Length: > 0 } feed && Directory.Exists(feed)) testFeed = Path.GetFullPath(feed);
     }
     Capable = identity is not null && repository.Length > 0;
@@ -243,7 +243,7 @@ public sealed class NativeUpdater : IDisposable
       if (uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || uri.UserInfo.Length > 0 || !hosts.Contains(uri.IdnHost, StringComparer.OrdinalIgnoreCase))
         throw new HostError("provider_rejected", HostText.Get("update.locationRejected"));
       using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-      request.Headers.UserAgent.ParseAdd($"WorkFleet/{currentText}"); request.Headers.Accept.ParseAdd(accept);
+      request.Headers.UserAgent.ParseAdd($"PinItAnywhere/{currentText}"); request.Headers.Accept.ParseAdd(accept);
       var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
       if ((int)response.StatusCode is 301 or 302 or 303 or 307 or 308 && response.Headers.Location is { } location)
       {

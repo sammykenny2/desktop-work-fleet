@@ -444,7 +444,7 @@ try {
           const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
           const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profile);
           try {
-            await storage.putJob('dataset-ui-error', { kind: 'dataset-ui-error', code: 'native-outcome-unknown', message: 'Keep your text and reopen Work Fleet to check.' });
+            await storage.putJob('dataset-ui-error', { kind: 'dataset-ui-error', code: 'native-outcome-unknown', message: 'Keep your text and reopen Pin It Anywhere to check.' });
           } finally { storage.close(); }
         }, profileId);
         await page.reload();
@@ -474,7 +474,7 @@ try {
       }
       await expect.poll(async () => (await read()).reset?.phase, { timeout: 30000 }).toBe('complete');
       const after = await read();
-      assert.equal(after.state.format, 'work-fleet-workspace-current'); assert.equal(after.state.cards.length, 0);
+      assert.equal(after.state.format, 'pin-it-anywhere-workspace-current'); assert.equal(after.state.cards.length, 0);
       assert.equal(after.state.groups.length, 0);
       assert.deepEqual([...provider.files.values()].map(item => item.file.kind).sort(),
         ['dataset', 'dataset-root', 'ready', 'reset', ...retainedFolder ? ['folder'] : []].sort());

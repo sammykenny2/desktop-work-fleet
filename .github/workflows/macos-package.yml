@@ -1,7 +1,7 @@
 name: macOS package
 
 # Called by preview-release.yml for one vX.Y.Z release. Archives the universal app, signs it with Developer ID, notarizes
-# it and saves the DMG, the Sparkle update ZIP, their .sha256, appcast.xml and work-fleet-update-macos.json as the
+# it and saves the DMG, the Sparkle update ZIP, their .sha256, appcast.xml and pin-it-anywhere-update-macos.json as the
 # release-macos artifact; the caller publishes every platform at once. Requires the settings in docs/deployment.md,
 # including a Developer ID profile for this app's Keychain entitlement. No Installer certificate is needed.
 
@@ -13,7 +13,7 @@ on:
         type: string
         required: true
       version:
-        description: Version in src/native/apple/config/WorkFleet.xcconfig (MARKETING_VERSION)
+        description: Version in src/native/apple/config/PinItAnywhere.xcconfig (MARKETING_VERSION)
         type: string
         required: true
       summary:
@@ -30,14 +30,14 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     env:
-      WORK_FLEET_APP_ID: ${{ vars.WORK_FLEET_APP_ID }}
-      WORK_FLEET_APPLE_TEAM_ID: ${{ vars.WORK_FLEET_APPLE_TEAM_ID }}
-      WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
-      WORK_FLEET_GOOGLE_MACOS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_MACOS_CLIENT_ID }}
-      WORK_FLEET_SPARKLE_PUBLIC_KEY: ${{ vars.WORK_FLEET_SPARKLE_PUBLIC_KEY }}
-      WORK_FLEET_PRIVACY_URL: ${{ vars.WORK_FLEET_PRIVACY_URL }}
-      WORK_FLEET_SUPPORT_URL: ${{ vars.WORK_FLEET_SUPPORT_URL }}
-      WORK_FLEET_SUPPORT_EMAIL: ${{ vars.WORK_FLEET_SUPPORT_EMAIL }}
+      PIN_IT_ANYWHERE_APP_ID: ${{ vars.PIN_IT_ANYWHERE_APP_ID }}
+      PIN_IT_ANYWHERE_APPLE_TEAM_ID: ${{ vars.PIN_IT_ANYWHERE_APPLE_TEAM_ID }}
+      PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID }}
+      PIN_IT_ANYWHERE_GOOGLE_MACOS_CLIENT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_MACOS_CLIENT_ID }}
+      PIN_IT_ANYWHERE_SPARKLE_PUBLIC_KEY: ${{ vars.PIN_IT_ANYWHERE_SPARKLE_PUBLIC_KEY }}
+      PIN_IT_ANYWHERE_PRIVACY_URL: ${{ vars.PIN_IT_ANYWHERE_PRIVACY_URL }}
+      PIN_IT_ANYWHERE_SUPPORT_URL: ${{ vars.PIN_IT_ANYWHERE_SUPPORT_URL }}
+      PIN_IT_ANYWHERE_SUPPORT_EMAIL: ${{ vars.PIN_IT_ANYWHERE_SUPPORT_EMAIL }}
       APPLICATION_IDENTITY: ${{ vars.MACOS_APPLICATION_IDENTITY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -60,7 +60,7 @@ jobs:
         run: |
           node scripts/check-config.mjs --platform macos
           [ -n "$APPLICATION_IDENTITY" ] || { echo 'Variable MACOS_APPLICATION_IDENTITY is not set.'; exit 1; }
-          [ -n "$WORK_FLEET_SPARKLE_PUBLIC_KEY" ] || { echo 'Variable WORK_FLEET_SPARKLE_PUBLIC_KEY is not set.'; exit 1; }
+          [ -n "$PIN_IT_ANYWHERE_SPARKLE_PUBLIC_KEY" ] || { echo 'Variable PIN_IT_ANYWHERE_SPARKLE_PUBLIC_KEY is not set.'; exit 1; }
       # A throwaway keychain holds the Developer ID identities and the notary profile for this job only.
       - name: Import signing identity, profile and notary credentials
         env:
@@ -77,7 +77,7 @@ jobs:
           umask 077
           keychain="$RUNNER_TEMP/release.keychain-db"; password="$(uuidgen)"
           echo "::add-mask::$password"
-          echo "WORK_FLEET_SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          echo "PIN_IT_ANYWHERE_SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
           security create-keychain -p "$password" "$keychain"
           security set-keychain-settings -lut 21600 "$keychain"
           security unlock-keychain -p "$password" "$keychain"
@@ -91,14 +91,14 @@ jobs:
           printf '%s' "$PROFILE" | base64 --decode > "$RUNNER_TEMP/release.provisionprofile"
           security cms -D -i "$RUNNER_TEMP/release.provisionprofile" > "$RUNNER_TEMP/profile.plist"
           profile_uuid=$(python3 scripts/check-macos-profile.py --profile "$RUNNER_TEMP/profile.plist" --certificate "$RUNNER_TEMP/certificate.cer" \
-            --team "$WORK_FLEET_APPLE_TEAM_ID" --app-id "$WORK_FLEET_APP_ID")
-          echo "WORK_FLEET_MACOS_PROFILE_UUID=$profile_uuid" >> "$GITHUB_ENV"
+            --team "$PIN_IT_ANYWHERE_APPLE_TEAM_ID" --app-id "$PIN_IT_ANYWHERE_APP_ID")
+          echo "PIN_IT_ANYWHERE_MACOS_PROFILE_UUID=$profile_uuid" >> "$GITHUB_ENV"
           for directory in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
             mkdir -p "$directory"
             cp "$RUNNER_TEMP/release.provisionprofile" "$directory/$profile_uuid.provisionprofile"
           done
           printf '%s' "$NOTARY_KEY" | base64 --decode > "$RUNNER_TEMP/notary.p8"
-          xcrun notarytool store-credentials work-fleet-notary --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --keychain "$keychain"
+          xcrun notarytool store-credentials pin-it-anywhere-notary --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --keychain "$keychain"
       # Since 2026-10-12 hosted runners drop the HTTP/3 (UDP 443) connection that xcrun stapler opens to Apple's ticket
       # service ("The network connection was lost", error 68), while HTTPS over TCP works (actions/runner-images#14924,
       # GitHub's workaround). Blocking outbound UDP 443 for this job makes stapler fall back to TCP; the rule ends with
@@ -115,9 +115,9 @@ jobs:
           [ -n "$SPARKLE_PRIVATE_KEY" ] || { echo 'Secret SPARKLE_PRIVATE_KEY is not set.'; exit 1; }
           umask 077; printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle.key"
           export SPARKLE_PRIVATE_KEY_FILE="$RUNNER_TEMP/sparkle.key"
-          bash scripts/macos/build-native-app.sh --platform macos --release --application-identity "$APPLICATION_IDENTITY" --provisioning-profile "$WORK_FLEET_MACOS_PROFILE_UUID"
+          bash scripts/macos/build-native-app.sh --platform macos --release --application-identity "$APPLICATION_IDENTITY" --provisioning-profile "$PIN_IT_ANYWHERE_MACOS_PROFILE_UUID"
           bash scripts/macos/package-native-app.sh --platform macos --method developer-id --application-identity "$APPLICATION_IDENTITY" \
-            --provisioning-profile "$WORK_FLEET_MACOS_PROFILE_UUID" --notary-profile work-fleet-notary --dmg --no-pkg --update-summary "$SUMMARY"
+            --provisioning-profile "$PIN_IT_ANYWHERE_MACOS_PROFILE_UUID" --notary-profile pin-it-anywhere-notary --dmg --no-pkg --update-summary "$SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-macos
@@ -127,7 +127,7 @@ jobs:
             build/PinItAnywhere-${{ inputs.version }}-macos-universal.zip
             build/PinItAnywhere-${{ inputs.version }}-macos-universal.zip.sha256
             build/appcast.xml
-            build/work-fleet-update-macos.json
+            build/pin-it-anywhere-update-macos.json
           if-no-files-found: error
           # A re-run of this job replaces the artifact its failed attempt may have left.
           overwrite: true
@@ -135,9 +135,9 @@ jobs:
       - name: Remove temporary signing material
         if: always()
         run: |
-          if [ -n "${WORK_FLEET_MACOS_PROFILE_UUID:-}" ]; then
-            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$WORK_FLEET_MACOS_PROFILE_UUID.provisionprofile" \
-              "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$WORK_FLEET_MACOS_PROFILE_UUID.provisionprofile"
+          if [ -n "${PIN_IT_ANYWHERE_MACOS_PROFILE_UUID:-}" ]; then
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$PIN_IT_ANYWHERE_MACOS_PROFILE_UUID.provisionprofile" \
+              "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$PIN_IT_ANYWHERE_MACOS_PROFILE_UUID.provisionprofile"
           fi
           if [ -f "$RUNNER_TEMP/release.keychain-db" ]; then security delete-keychain "$RUNNER_TEMP/release.keychain-db"; fi
           rm -f "$RUNNER_TEMP/identity.p12" "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/sparkle.key" \

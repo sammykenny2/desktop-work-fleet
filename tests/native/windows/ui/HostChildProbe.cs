@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Interop;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 /// <summary>
 /// Reproduces Explorer-attached scenes without Explorer. Another process owns a topmost host window created like
@@ -25,16 +25,16 @@ internal static class HostChildProbe
     var display = NativeDisplays.Read().First(d => d.Primary); var scale = display.Dpi / 96d;
     // Use a fixed black GDI brush, independent of system colors or an empty WPF window's rendering.
     var instance = GetModuleHandleW(null);
-    var windowClass = new BlackWindowClass { Procedure = BlackProcedure, Instance = instance, Background = GetStockObject(4), Name = "WorkFleetBlackHostFixture" };
+    var windowClass = new BlackWindowClass { Procedure = BlackProcedure, Instance = instance, Background = GetStockObject(4), Name = "PinItAnywhereBlackHostFixture" };
     if (RegisterClassW(ref windowClass) == 0) throw new Exception("Unable to register the black host fixture.");
-    var handle = CreateWindowExW(0x8 | 0x80 | 0x08000000, windowClass.Name, "Work Fleet host probe", 0x90000000,
+    var handle = CreateWindowExW(0x8 | 0x80 | 0x08000000, windowClass.Name, "Pin It Anywhere host probe", 0x90000000,
       display.Bounds.X + (int)(40 * scale), display.Bounds.Y + (int)(40 * scale), (int)(360 * scale), (int)(240 * scale),
       IntPtr.Zero, IntPtr.Zero, instance, IntPtr.Zero);
     if (handle == IntPtr.Zero) throw new Exception("Unable to create the black host backdrop.");
     if (!redirection)
     {
       if (!GetWindowRect(handle, out var bounds)) throw new Exception("Unable to read the backdrop bounds.");
-      handle = CreateWindowExW(0x00200000 | 0x8 | 0x80 | 0x08000000, windowClass.Name, "Work Fleet host probe", 0x90000000,
+      handle = CreateWindowExW(0x00200000 | 0x8 | 0x80 | 0x08000000, windowClass.Name, "Pin It Anywhere host probe", 0x90000000,
         bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top,
         IntPtr.Zero, IntPtr.Zero, instance, IntPtr.Zero);
       if (handle == IntPtr.Zero) throw new Exception("Unable to create the host window.");

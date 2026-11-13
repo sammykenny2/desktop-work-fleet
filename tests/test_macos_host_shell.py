@@ -15,16 +15,16 @@ import uuid
 class MacOSHostShellTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.temporary = tempfile.TemporaryDirectory(prefix="work-fleet-host-shell-")
+        cls.temporary = tempfile.TemporaryDirectory(prefix="pin-it-anywhere-host-shell-")
         cls.addClassCleanup(cls.temporary.cleanup)
         cls.folder = Path(cls.temporary.name)
         root = Path(__file__).resolve().parents[1]
         cls.executable = cls.folder / "HostShellProbe"
         result = subprocess.run([
             "swiftc", "-module-cache-path", str(cls.folder / "module-cache"),
-            str(root / "src/native/apple/Shared/FleetProtocol.swift"),
-            str(root / "src/native/apple/Shared/FleetText.swift"),
-            str(root / "src/native/apple/macos/FleetHostShell.swift"),
+            str(root / "src/native/apple/Shared/PinItAnywhereProtocol.swift"),
+            str(root / "src/native/apple/Shared/PinItAnywhereText.swift"),
+            str(root / "src/native/apple/macos/PinItAnywhereHostShell.swift"),
             str(root / "tests/native/apple/HostShellProbe.swift"),
             "-o", str(cls.executable),
         ], text=True, capture_output=True, timeout=120)
@@ -68,17 +68,17 @@ class MacOSHostShellTests(unittest.TestCase):
     def test_display_language_rules_and_host_text(self):
         self.run_probe("language-rules")
 
-    @unittest.skipUnless(os.environ.get("WORK_FLEET_TEST_LOGIN_ITEMS") == "1",
+    @unittest.skipUnless(os.environ.get("PIN_IT_ANYWHERE_TEST_LOGIN_ITEMS") == "1",
                          "Opt-in: temporarily registers a unique sandboxed login-item probe")
     def test_real_sandboxed_login_item_registration_and_removal(self):
         app = self.folder / "Login Item Probe.app"
         binary = app / "Contents/MacOS/HostShellProbe"
         binary.parent.mkdir(parents=True)
         shutil.copy2(self.executable, binary)
-        identity = "app.workfleet.loginprobe.p" + uuid.uuid4().hex
+        identity = "dev.sammykenny2.pinitanywhere.loginprobe.p" + uuid.uuid4().hex
         (app / "Contents/Info.plist").write_bytes(plistlib.dumps({
             "CFBundleIdentifier": identity, "CFBundleExecutable": "HostShellProbe",
-            "CFBundleName": "Work Fleet Login Item Probe", "CFBundlePackageType": "APPL",
+            "CFBundleName": "Pin It Anywhere Login Item Probe", "CFBundlePackageType": "APPL",
             "CFBundleVersion": "1", "LSUIElement": True,
         }))
         entitlements = self.folder / "probe.entitlements"

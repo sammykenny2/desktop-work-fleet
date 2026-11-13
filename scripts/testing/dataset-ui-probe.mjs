@@ -52,7 +52,7 @@ try {
   await page.getByRole('button', { name: t('app.incompatible.openSettings'), exact: true }).click();
   await page.locator('#discard-old-local-agree').check(); await page.locator('#discard-old-local').click();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
-  assert.equal((await read()).format, 'work-fleet-workspace-current');
+  assert.equal((await read()).format, 'pin-it-anywhere-workspace-current');
   await page.goto(new URL('/app/style.css', base).href);
   const seeded = await page.evaluate(async profile => {
     const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');

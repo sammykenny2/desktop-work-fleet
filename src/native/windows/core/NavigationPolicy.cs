@@ -1,10 +1,10 @@
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 public static class NavigationPolicy
 {
-  public const string Host = "work-fleet.invalid";
-  public const string Document = "https://work-fleet.invalid/app/index.html";
-  public const string DesktopDocument = "https://work-fleet.invalid/desktop/index.html";
+  public const string Host = "pin-it-anywhere.invalid";
+  public const string Document = "https://pin-it-anywhere.invalid/app/index.html";
+  public const string DesktopDocument = "https://pin-it-anywhere.invalid/desktop/index.html";
   public static bool IsDesktopDocument(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)
     && IsAsset(value) && uri.AbsolutePath == "/desktop/index.html" && uri.Query.Length == 0;
   public static bool IsDocument(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)

@@ -1,4 +1,4 @@
-import { copy, FleetError, requireValue } from '../core/contracts.js';
+import { copy, PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { canonicalJson, parseJson } from './json.js';
 import { encodeRevision, revisionRecord } from './revisions.js';
 import { sha256, validDigest, validFileId, validateFile, verifyFile } from './files.js';
@@ -13,7 +13,7 @@ const cursorValue = value => {
   return value;
 };
 const pageArray = value => requireValue(Array.isArray(value) && value.length <= 1000, 'invalid-source-page', t('errors.sources.pageInvalid'));
-const sourceReset = () => new FleetError('source-reset', t('errors.sources.resetElsewhere'));
+const sourceReset = () => new PinItAnywhereError('source-reset', t('errors.sources.resetElsewhere'));
 // Existing V1 snapshots may have a cursor/files/reservations without the optional generation field.
 const sourceGeneration = sync => sync.sourceResetIds ?? (sync.cursor !== null || sync.lastSuccessfulSyncAt
   || Object.keys(sync.files || {}).length || Object.keys(sync.uploads || {}).length ? resetFileIds(sync.files) : null);
@@ -60,9 +60,9 @@ export class FileSync {
 
   sync({ force = false } = {}) {
     if (this.#running) return this.#running;
-    if (this.#closed) return Promise.reject(new FleetError('stale-session', t('errors.sources.sessionEnded')));
+    if (this.#closed) return Promise.reject(new PinItAnywhereError('stale-session', t('errors.sources.sessionEnded')));
     if (!force && this.#now() < this.#status.nextAttemptAt) {
-      return Promise.reject(new FleetError('sync-backoff', t('errors.sources.backoff'), { retryAt: this.#status.nextAttemptAt }));
+      return Promise.reject(new PinItAnywhereError('sync-backoff', t('errors.sources.backoff'), { retryAt: this.#status.nextAttemptAt }));
     }
     this.#running = this.#run().finally(() => { this.#running = null; });
     return this.#running;
@@ -87,7 +87,7 @@ export class FileSync {
       requireValue(!this.#workspace.state.sourceReset, 'source-reset-pending', t('errors.sources.resetPending'));
       if (!this.#session) {
         this.#session = await this.#workspace.beginSync(this.#store.sourceId);
-        if (this.#closed) { await this.#workspace.endSync(this.#session); throw new FleetError('stale-session', t('errors.sources.sessionEnded')); }
+        if (this.#closed) { await this.#workspace.endSync(this.#session); throw new PinItAnywhereError('stale-session', t('errors.sources.sessionEnded')); }
       }
       this.#check(); await this.#pull();
       if (!await this.#initialize()) return this.#waiting();
@@ -179,7 +179,7 @@ export class FileSync {
         (deferred ? deferred.controls : controls).push(record);
       } else if (file.kind === 'reset') {
         const marker = parseJson(bytes);
-        requireValue(marker?.format === 'work-fleet-reset' && marker.schema === 1, 'invalid-initialization', t('errors.sources.resetMarkerInvalid'));
+        requireValue(marker?.format === 'pin-it-anywhere-reset' && marker.schema === 1, 'invalid-initialization', t('errors.sources.resetMarkerInvalid'));
         if (marker.initialization === initializationProtocol) {
           if (deferred) deferred.expected = true; else initializationExpected = true;
         }

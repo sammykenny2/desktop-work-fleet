@@ -26,7 +26,7 @@
 .PARAMETER SdkBin
     Directory containing MakeAppx.exe and SignTool.exe, or auto-detect Windows SDK.
 .PARAMETER UpdateSummary
-    Plain-text release summary (at most 500 characters) written into build/work-fleet-update-windows.json, the
+    Plain-text release summary (at most 500 characters) written into build/pin-it-anywhere-update-windows.json, the
     in-app update manifest (ADR-044) that the vX.Y.Z GitHub release carries beside the MSIX.
 .EXAMPLE
     .\scripts\windows\Build-WindowsPackage.ps1 -SkipRestore
@@ -87,17 +87,17 @@ try {
     if (Test-Path -LiteralPath $Work) { Remove-Item -LiteralPath $Work -Recurse -Force }
     $Stage = Join-Path $Work 'content'
     New-Item -ItemType Directory -Path $Stage -Force | Out-Null
-    & dotnet publish src/native/windows/app/WorkFleet.Windows.csproj --configuration Release --no-restore --runtime win-x64 --self-contained true --output $Stage -p:PlatformTarget=x64
+    & dotnet publish src/native/windows/app/PinItAnywhere.Windows.csproj --configuration Release --no-restore --runtime win-x64 --self-contained true --output $Stage -p:PlatformTarget=x64
     if ($LASTEXITCODE -ne 0) { throw 'Windows publish failed.' }
     # The WebView debugging port is Debug-only; its argument is a UTF-16 IL string at either byte alignment.
-    $AppAssembly = [IO.File]::ReadAllBytes((Join-Path $Stage 'WorkFleet.dll'))
+    $AppAssembly = [IO.File]::ReadAllBytes((Join-Path $Stage 'PinItAnywhere.dll'))
     if ([Text.Encoding]::Unicode.GetString($AppAssembly).Contains('remote-debugging') -or
         [Text.Encoding]::Unicode.GetString($AppAssembly, 1, $AppAssembly.Length - 1).Contains('remote-debugging')) {
-        throw 'Release WorkFleet.dll contains the Debug-only WebView debugging path.'
+        throw 'Release PinItAnywhere.dll contains the Debug-only WebView debugging path.'
     }
     $RuntimeLicenseDirectory = Join-Path $Stage 'Licenses/dotnet'
     New-Item -ItemType Directory -Path $RuntimeLicenseDirectory -Force | Out-Null
-    $RuntimeOptions = (Get-Content -LiteralPath (Join-Path $Stage 'WorkFleet.runtimeconfig.json') -Raw | ConvertFrom-Json).runtimeOptions
+    $RuntimeOptions = (Get-Content -LiteralPath (Join-Path $Stage 'PinItAnywhere.runtimeconfig.json') -Raw | ConvertFrom-Json).runtimeOptions
     foreach ($RuntimePackage in @(
         @{ Framework = 'Microsoft.NETCore.App'; Package = 'microsoft.netcore.app.runtime.win-x64'; Notice = 'core-runtime.nuspec' },
         @{ Framework = 'Microsoft.WindowsDesktop.App'; Package = 'microsoft.windowsdesktop.app.runtime.win-x64'; Notice = 'desktop-runtime.nuspec' }
@@ -154,7 +154,7 @@ try {
     Compress-Archive -LiteralPath $PublishedFiles -DestinationPath $Zip
     Write-Checksum $Msix; Write-Checksum $Zip
     # ADR-044: the release's update manifest names this exact MSIX by size and SHA-256 for the in-app updater.
-    $UpdateManifest = Join-Path $Work 'work-fleet-update-windows.json'
+    $UpdateManifest = Join-Path $Work 'pin-it-anywhere-update-windows.json'
     $MsixFile = Get-Item -LiteralPath $Msix
     $Update = [ordered]@{ schemaVersion = 1; platform = 'windows'; version = $PackageVersion; tag = "v$PackageVersion"; summary = $UpdateSummary
         assets = @([ordered]@{ arch = 'x64'; name = $MsixFile.Name; size = $MsixFile.Length; sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $Msix).Hash.ToLowerInvariant() }) }
@@ -168,7 +168,7 @@ try {
     if ($LocalTestSign) { $PublicCertificate = Join-Path $Delivery 'PinItAnywhere-preview.cer' }
     Write-Output "MSIX: $Msix"
     Write-Output "Portable ZIP: $Zip"
-    Write-Output "Update manifest: $(Join-Path $Delivery 'work-fleet-update-windows.json')"
+    Write-Output "Update manifest: $(Join-Path $Delivery 'pin-it-anywhere-update-windows.json')"
     if ($LocalTestSign) { Write-Output "Locally trusted signed MSIX; public certificate: $PublicCertificate" }
     Write-Output 'Includes the .NET 10 Desktop runtime; WebView2 is required separately.'
     if (-not $CertificateThumbprint) { Write-Output 'MSIX is unsigned. Installation needs a trusted signature.' }

@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>Current Windows user DPAPI; no plaintext fallback or renderer-visible key.</summary>
 public static class UserProtection
@@ -24,7 +24,7 @@ public static class UserProtection
   public static byte[] Unprotect(byte[] bytes, string scope) => Transform(bytes, scope, false);
   private static byte[] Transform(byte[] bytes, string scope, bool encrypt)
   {
-    var entropyBytes = SHA256.HashData(Encoding.UTF8.GetBytes("work-fleet/windows/v1\0" + scope));
+    var entropyBytes = SHA256.HashData(Encoding.UTF8.GetBytes("pin-it-anywhere/windows/v1\0" + scope));
     var input = new DataBlob { Size = bytes.Length, Data = Marshal.AllocHGlobal(Math.Max(1, bytes.Length)) };
     var entropy = new DataBlob { Size = entropyBytes.Length, Data = Marshal.AllocHGlobal(entropyBytes.Length) };
     var output = new DataBlob();

@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>SPEC-002 portable envelope. Passwords never return through the renderer bridge.</summary>
 public static class BackupEncryption
@@ -22,7 +22,7 @@ public static class BackupEncryption
     HostError.Require(plaintext.Length is > 0 and <= 136 * 1024 * 1024, "backup-limit", "The backup to encrypt has an invalid size.");
     var salt = RandomNumberGenerator.GetBytes(16); var nonce = RandomNumberGenerator.GetBytes(12);
     // All fields are fixed ASCII or lowercase hex. This order is the canonical JSON AAD used by the portable reader.
-    var aad = Utf8.GetBytes("{\"cipher\":\"AES-256-GCM\",\"format\":\"work-fleet-encrypted-backup\",\"iterations\":600000,\"kdf\":\"PBKDF2-HMAC-SHA256\",\"nonce\":\""
+    var aad = Utf8.GetBytes("{\"cipher\":\"AES-256-GCM\",\"format\":\"pin-it-anywhere-encrypted-backup\",\"iterations\":600000,\"kdf\":\"PBKDF2-HMAC-SHA256\",\"nonce\":\""
       + Convert.ToHexString(nonce).ToLowerInvariant() + "\",\"salt\":\"" + Convert.ToHexString(salt).ToLowerInvariant() + "\",\"schemaVersion\":1,\"tagBits\":128}");
     var key = Rfc2898DeriveBytes.Pbkdf2(password, salt, 600000, HashAlgorithmName.SHA256, 32);
     var ciphertext = new byte[plaintext.Length + 16];

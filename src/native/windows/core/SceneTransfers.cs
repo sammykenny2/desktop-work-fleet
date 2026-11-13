@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>Ephemeral, principal-bound scene bytes. No filesystem, vault or storage methods exist here.</summary>
 public sealed class SceneTransfers : IDisposable

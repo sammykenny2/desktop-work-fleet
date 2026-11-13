@@ -9,8 +9,8 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Microsoft.Win32;
-using WorkFleet.Windows;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows;
+using PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// ADR-019: the tray menu as the notification icon's own callback opens it, with the rows, the Fluent theme Windows is in
@@ -97,7 +97,7 @@ internal static class TrayMenuProbe
       Math.Min(r.Right - r.Left + 48, bounds.Width), Math.Min(r.Bottom - r.Top + 48, bounds.Height)), Path.Combine(output, "tray-menu.png"));
     // The shell lets the icon's owner come to the front; a probe started from a console usually may not.
     Console.WriteLine(GetForegroundWindow() == receiver
-      ? "PASS Work Fleet is in front while its tray menu is open, so a click anywhere else closes the menu"
+      ? "PASS Pin It Anywhere is in front while its tray menu is open, so a click anywhere else closes the menu"
       : "SKIP tray menu foreground: Windows did not let this probe come to the front; the shell allows it for the icon's owner");
 
     // The keyboard: Down three times passes the separator to "Quick capture"; Enter closes the menu, then runs it once.
@@ -121,7 +121,7 @@ internal static class TrayMenuProbe
     // Another app coming to the front, as after a click anywhere else, closes the menu the same way, leaving focus there.
     menu = await Open(menu);
     if (!PostMessageW(((HwndSource)PresentationSource.FromVisual(menu)!).Handle, 0x001C, IntPtr.Zero, IntPtr.Zero)) throw new Exception("Deactivation post failed");
-    await Wait(() => active.Count == 8, "menu finished after Work Fleet left the front");
+    await Wait(() => active.Count == 8, "menu finished after Pin It Anywhere left the front");
     Require(!menu.IsOpen && invoked.Count == 2 && !Field<bool>(tray, "escaped"), "Leaving the front ran an item, kept the menu open or counted as Esc.");
     // A second right-click on the icon closes the open menu and runs nothing.
     menu = await Open(menu); RightClick();

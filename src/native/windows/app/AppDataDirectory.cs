@@ -1,8 +1,8 @@
 using System.IO;
 using System.Runtime.InteropServices;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>MSIX uses its explicit private data store; ZIP and Debug keep the unpackaged workspace.</summary>
 internal static class AppDataDirectory
@@ -18,7 +18,7 @@ internal static class AppDataDirectory
     HostError.Require(result == 122 && length > 0, "storage-identity", "Windows did not report where this app keeps its data. Keep your data as it is and try again.");
     // Keep the existing MSIX redirected location, including SQLite/WAL, vaults, profile and WebView2 data.
     // An existing ZIP/Debug directory must not change the package's storage or uninstall lifecycle.
-    return Path.Combine(global::Windows.Storage.ApplicationData.Current.LocalCacheFolder.Path, "Local", "WorkFleet");
+    return Path.Combine(global::Windows.Storage.ApplicationData.Current.LocalCacheFolder.Path, "Local", "PinItAnywhere");
   }
 
   /// <summary>True for the MSIX; ZIP and Debug run without package identity.</summary>
@@ -27,5 +27,5 @@ internal static class AppDataDirectory
     get { uint length = 0; return GetCurrentPackageFullName(ref length, IntPtr.Zero) != 15700; }
   }
 
-  internal static string Unpackaged =>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WorkFleet");
+  internal static string Unpackaged =>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PinItAnywhere");
 }

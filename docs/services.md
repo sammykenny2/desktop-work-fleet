@@ -20,13 +20,13 @@ the actual URL. `--port` sets a test port; if it is taken, startup fails without
 This is not a note API or an authoritative data server; the UI saves data through local IndexedDB transactions.
 The native apps package these local assets and do not depend on this development listener.
 
-The Windows 1.0 main window loads `https://work-fleet.invalid/app/index.html` through WebView2 virtual host mapping.
+The Windows 1.0 main window loads `https://pin-it-anywhere.invalid/app/index.html` through WebView2 virtual host mapping.
 That name resolves to the packaged Assets only inside WebView2; there is no DNS, no TCP/HTTP listener and no new port.
 Native SQLite / DPAPI is reached through the WebMessage bridge; there is no local note server.
 
 ## Windows Debug WebView inspection
 
-Only in the Debug configuration, and only when the launching process has `WORK_FLEET_WEBVIEW_DEBUG_PORT`, does WebView2
+Only in the Debug configuration, and only when the launching process has `PIN_IT_ANYWHERE_WEBVIEW_DEBUG_PORT`, does WebView2
 open a CDP port on loopback. The developer chooses the port (1024–65535); there is no fixed default. Release and MSIX
 builds do not compile this path.
 If the port is taken, WebView2 provides no CDP and does not stop other listeners. Test probes use a free port assigned
@@ -55,7 +55,7 @@ bytes shown from a `blob:` URL, since the page loads nothing from the network.
 
 ## Linux native host and Google callback
 
-Linux GTK / WebKitGTK serves the packaged assets through the secure custom scheme `workfleet://app`; there is no resident
+Linux GTK / WebKitGTK serves the packaged assets through the secure custom scheme `pinitanywhere://app`; there is no resident
 HTTP listener. Only during Google sign-in is `127.0.0.1:0` used, with the fixed path `/oauth2/callback`; PKCE and state
 stay native, and the listener closes after completion, cancellation or a 110-second timeout. No fixed port, LAN listener
 or change to an external registry is added.

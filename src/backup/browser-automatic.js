@@ -1,18 +1,18 @@
-import { copy, FleetError, requireValue, safeKey } from '../core/contracts.js';
+import { copy, PinItAnywhereError, requireValue, safeKey } from '../core/contracts.js';
 import { t } from '../i18n/index.js';
 
 /** Account-scoped policy/inventory; directory and file handles stay out of Workspace and portable backups. */
 export class IndexedDbBackupJournal {
   #db;
   constructor(db) { this.#db = db; }
-  static open(name = 'work-fleet-backups-v1') {
+  static open(name = 'pin-it-anywhere-backups-v1') {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(name, 1); let failed = false;
       request.onupgradeneeded = () => {
         request.result.createObjectStore('journals', { keyPath: 'profileId' });
       };
       request.onerror = () => { failed = true; reject(request.error); };
-      request.onblocked = () => { failed = true; reject(new FleetError('backup-journal-blocked', t('errors.backup.journalBlocked'))); };
+      request.onblocked = () => { failed = true; reject(new PinItAnywhereError('backup-journal-blocked', t('errors.backup.journalBlocked'))); };
       request.onsuccess = () => {
         if (failed) { request.result.close(); return; }
         request.result.onversionchange = () => request.result.close(); resolve(new IndexedDbBackupJournal(request.result));
@@ -24,7 +24,7 @@ export class IndexedDbBackupJournal {
     return new Promise((resolve, reject) => {
       const transaction = this.#db.transaction([store], mode, { durability: 'strict' }); let value; let failure;
       transaction.oncomplete = () => resolve(value);
-      transaction.onabort = () => reject(failure || transaction.error || new FleetError('backup-journal-aborted', t('errors.backup.journalAborted')));
+      transaction.onabort = () => reject(failure || transaction.error || new PinItAnywhereError('backup-journal-aborted', t('errors.backup.journalAborted')));
       const context = { result: result => { value = result; }, fail: error => { failure = error; transaction.abort(); } };
       try { action(transaction.objectStore(store), context); } catch (error) { context.fail(error); }
     });
@@ -45,7 +45,7 @@ export class IndexedDbBackupJournal {
       const request = store.get(state.profileId);
       request.onsuccess = () => {
         if ((request.result?.revision ?? null) !== expectedRevision || state.revision !== (expectedRevision === null ? 0 : expectedRevision + 1)) {
-          context.fail(new FleetError('stale-backup-writer', t('errors.backup.journalStaleWriter'))); return;
+          context.fail(new PinItAnywhereError('stale-backup-writer', t('errors.backup.journalStaleWriter'))); return;
         }
         store.put(state);
       };

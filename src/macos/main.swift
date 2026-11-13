@@ -57,7 +57,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
   var qr = NSImageView()
   var inviteLink = NSTextField(wrappingLabelWithString: "")
   let dataDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    .appendingPathComponent(CommandLine.arguments.contains("--probe") ? "WorkFleet-Probe" : "WorkFleet", isDirectory: true)
+    .appendingPathComponent(CommandLine.arguments.contains("--probe") ? "PinItAnywhere-Probe" : "PinItAnywhere", isDirectory: true)
   var configURL: URL { dataDir.appendingPathComponent("connection.json") }
   var cacheURL: URL { dataDir.appendingPathComponent("snapshot.json") }
   let session: URLSession = {
@@ -96,7 +96,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     card.setFrameAutosaveName(probe ? "probe-card" : "backlog-card")
     controls = NSWindow(contentRect: NSRect(x: screen.minX + 70, y: screen.midY - 220, width: 470, height: 540),
                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
-    controls.title = "Work Fleet · Connection and display"
+    controls.title = "Pin It Anywhere · Connection and display"
     controls.isReleasedWhenClosed = false
     let modes = NSPopUpButton()
     modes.addItems(withTitles: ["Normal window", "Above desktop icons", "Below desktop icons (experimental)"])
@@ -122,7 +122,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     controlScroll.hasVerticalScroller = true; controlScroll.documentView = controlCanvas
     controls.contentView = controlScroll
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    statusItem.button?.title = "WF"
+    statusItem.button?.title = "PIA"
     let menu = NSMenu()
     for (title, selector) in [("Quick capture / Unlock", #selector(unlock)), ("Lock", #selector(lock)),
                                ("Connection and display…", #selector(showControls)), ("Quit", #selector(quit))] {
@@ -140,7 +140,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     if let n = args.firstIndex(of: "--invite"), n + 1 < args.count { inviteField.stringValue = args[n + 1]; pair() }
     if probe {
       probeBaseline = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
-      let outside = URL(fileURLWithPath: "/Users/Shared/work-fleet-denial-\(UUID().uuidString)")
+      let outside = URL(fileURLWithPath: "/Users/Shared/pin-it-anywhere-denial-\(UUID().uuidString)")
       do {
         try Data("sandbox-test".utf8).write(to: outside)
         try? FileManager.default.removeItem(at: outside)
@@ -173,7 +173,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
   @objc func showControls() { NSApp.activate(ignoringOtherApps: true); controls.makeKeyAndOrderFront(nil) }
   @objc func quit() {
     guard let editor = web else { NSApp.terminate(nil); return }
-    editor.evaluateJavaScript("typeof window.workFleetFlushDraft === 'function' ? window.workFleetFlushDraft() : !(document.getElementById('note-text')?.value)") { value, _ in
+    editor.evaluateJavaScript("typeof window.pinItAnywhereFlushDraft === 'function' ? window.pinItAnywhereFlushDraft() : !(document.getElementById('note-text')?.value)") { value, _ in
       if value as? Bool == true { NSApp.terminate(nil) }
       else {
         self.message.stringValue = "A draft is not stored yet or is still sending. Copy or export the text, or wait for the send to finish."
@@ -198,7 +198,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
   @objc func pair() {
     guard !pairing else { return }
     if let editor = web {
-      editor.evaluateJavaScript("typeof window.workFleetFlushDraft === 'function' ? window.workFleetFlushDraft() : !(document.getElementById('note-text')?.value)") { value, _ in
+      editor.evaluateJavaScript("typeof window.pinItAnywhereFlushDraft === 'function' ? window.pinItAnywhereFlushDraft() : !(document.getElementById('note-text')?.value)") { value, _ in
         if value as? Bool == true { self.performPair() }
         else { self.message.stringValue = "A draft is not stored yet. Copy or export the text, then pair again." }
       }
@@ -304,7 +304,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     cardStatus.frame = NSRect(x: 20, y: y, width: width - 40, height: 38)
     canvas.addSubview(cardStatus); y += 46
     let visible = (snapshot?.notes ?? []).filter { !$0.deleted && $0.status != "done" }
-    if visible.isEmpty { label("Use WF in the menu bar to capture a thought.", size: 15) }
+    if visible.isEmpty { label("Use PIA in the menu bar to capture a thought.", size: 15) }
     for note in visible {
       label("\(note.status == "in_progress" ? "◐ In Progress" : "○ Todo") · \(note.board)", size: 12, bold: true)
       label(note.text, size: 15); y += 12
@@ -335,7 +335,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
       }
       let encoded = String(data: try! JSONSerialization.data(withJSONObject: ["token": connection.token]), encoding: .utf8)!
       let origin = String(data: try! JSONSerialization.data(withJSONObject: [connection.server]), encoding: .utf8)!
-      let script = "if(location.origin === \(origin)[0]) { window.workFleetNative = \(encoded); }"
+      let script = "if(location.origin === \(origin)[0]) { window.pinItAnywhereNative = \(encoded); }"
       configuration.userContentController.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
       let view = WKWebView(frame: card.contentView?.bounds ?? .zero, configuration: configuration)
       view.navigationDelegate = self
@@ -348,7 +348,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
   @objc func lock() {
     guard !card.locked else { return }
     if let editor = web {
-      editor.evaluateJavaScript("typeof window.workFleetDraftState === 'function' ? window.workFleetDraftState() : null") { result, _ in
+      editor.evaluateJavaScript("typeof window.pinItAnywhereDraftState === 'function' ? window.pinItAnywhereDraftState() : null") { result, _ in
         guard let state = result as? [String: Any] else { return }
         if state["storageFailed"] as? Bool == true { self.draftSummary = " · A draft could not be stored; unlock to copy its text" }
         else if (state["count"] as? Int ?? 0) > 0 { self.draftSummary = " · Drafts remain on this Mac" }
@@ -372,7 +372,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     webProbeRunning = true
     diagnostic("web_start", ["phase": webProbePhase])
     DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-      webView.evaluateJavaScript("JSON.stringify({errors:window.validationErrors, ready:document.readyState, native:!!window.workFleetNative, initialized:typeof window.workFleetFlushDraft, state:document.getElementById('connection-state')?.textContent, text:document.getElementById('draft-state')?.textContent})") { value, error in
+      webView.evaluateJavaScript("JSON.stringify({errors:window.validationErrors, ready:document.readyState, native:!!window.pinItAnywhereNative, initialized:typeof window.pinItAnywhereFlushDraft, state:document.getElementById('connection-state')?.textContent, text:document.getElementById('draft-state')?.textContent})") { value, error in
         self.diagnostic("web_state", ["state": value as? String ?? "unavailable", "evaluationError": error != nil])
       }
     }

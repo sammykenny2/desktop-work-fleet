@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 public sealed record FileIdentity(ulong Volume, string Id, long Created);
 public sealed record BackupDirectoryReference(string NativePath, FileIdentity Identity);
@@ -156,7 +156,7 @@ public sealed class WindowsBackupDirectory : IDisposable
     Name(value.Name); LocalDatabase.CheckDigest(value.Sha256);
     HostError.Require(value.Size > 0 && value.Size <= MaxBackupBytes, "backup-limit", "The backup identity has an invalid size.");
   }
-  private static void Name(string name) => HostError.Require(Regex.IsMatch(name, @"\Awork-fleet-(auto|backup)-[a-zA-Z0-9-]+\.zip\z", RegexOptions.CultureInvariant)
+  private static void Name(string name) => HostError.Require(Regex.IsMatch(name, @"\Apin-it-anywhere-(auto|backup)-[a-zA-Z0-9-]+\.zip\z", RegexOptions.CultureInvariant)
     && name.Length <= 180, "backup-name", "The backup file name is invalid.");
   private static string Digest(Stream stream) => Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
   private static void MatchIdentity(SafeFileHandle handle, BackupFileIdentity expected)

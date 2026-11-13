@@ -175,7 +175,7 @@ function validateManifest(manifest) {
     exact(manifest.coverage, ['workspaceFormat', 'mode']);
     fail(manifest.coverage.workspaceFormat === CURRENT_WORKSPACE_FORMAT && DATASET_BACKUP_COVERAGE.includes(manifest.coverage.mode));
   }
-  fail(manifest.format === 'work-fleet-backup' && validId(manifest.backupId)
+  fail(manifest.format === 'pin-it-anywhere-backup' && validId(manifest.backupId)
     && date(manifest.createdAt) && typeof manifest.appVersion === 'string' && manifest.appVersion.length > 0 && manifest.appVersion.length <= 64
     && manifest.scope === 'known-local-data' && count(manifest.pendingOperations)
     && (manifest.lastSuccessfulSyncAt === null || date(manifest.lastSuccessfulSyncAt)) && Array.isArray(manifest.files));
@@ -258,7 +258,7 @@ export async function createBackup({ workspace, storage, appVersion = '0.1.0', p
   }
   const entries = [];
   for (const [name, bytes] of files) { entries.push({ name, size: bytes.length, sha256: await sha256(bytes) }); await checkpoint(); }
-  const manifest = { format: 'work-fleet-backup', schemaVersion: schemas.backup, backupId: uuid(), createdAt: now().toISOString(),
+  const manifest = { format: 'pin-it-anywhere-backup', schemaVersion: schemas.backup, backupId: uuid(), createdAt: now().toISOString(),
     appVersion, scope: 'known-local-data', pendingOperations: current ? state.sync.pendingCount ?? 0 : state.outbox.length,
     ...current ? { coverage: { workspaceFormat: CURRENT_WORKSPACE_FORMAT, mode: coverage } } : {},
     lastSuccessfulSyncAt: state.sync?.lastSuccessfulSyncAt || null, counts: validated.counts, files: entries };

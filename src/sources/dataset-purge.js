@@ -24,7 +24,7 @@ export class DatasetPurge {
   }
   async preview(ids) {
     const state = this.#workspace.state, binding = state.sync.dataset ?? null, store = this.#provider();
-    requireValue(state.format === 'work-fleet-workspace-current', 'incompatible-local-data', t('errors.storage.incompatibleLocalData'));
+    requireValue(state.format === 'pin-it-anywhere-workspace-current', 'incompatible-local-data', t('errors.storage.incompatibleLocalData'));
     requireValue(!state.profileId.startsWith('google:') || binding && store, 'history-offline', t('errors.sources.historyOffline'));
     stale(Array.isArray(ids) && ids.length > 0 && new Set(ids).size === ids.length);
     const shards = new Map(), items = [];

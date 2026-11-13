@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// ADR-043: startup behaviour and the display language for this data directory. Not part of any profile, backup or Google data.

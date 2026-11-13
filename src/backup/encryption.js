@@ -1,4 +1,4 @@
-import { FleetError, requireValue } from '../core/contracts.js';
+import { PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { canonicalJson, parseJson } from '../sources/json.js';
 import { BACKUP_LIMITS, checkCancelled, packZip, unpackZip } from './archive.js';
 import { schemas, requireSchemaVersion } from '../core/schema.js';
@@ -12,7 +12,7 @@ const encoded = value => new TextEncoder().encode(canonicalJson(value));
 function validateHeader(value) {
   requireSchemaVersion(value, 'encryptedBackup', { code: 'unsupported-backup-encryption' });
   requireValue(value && Object.keys(value).sort().join(',') === 'cipher,format,iterations,kdf,nonce,salt,schemaVersion,tagBits'
-    && value.format === 'work-fleet-encrypted-backup' && value.cipher === 'AES-256-GCM'
+    && value.format === 'pin-it-anywhere-encrypted-backup' && value.cipher === 'AES-256-GCM'
     && value.kdf === 'PBKDF2-HMAC-SHA256' && value.iterations === ITERATIONS && value.tagBits === 128
     && typeof value.salt === 'string' && /^[0-9a-f]{32}$/.test(value.salt)
     && typeof value.nonce === 'string' && /^[0-9a-f]{24}$/.test(value.nonce),
@@ -50,7 +50,7 @@ export async function encryptBackup(input, password, options = {}) {
   requireValue(typeof password === 'string' && password.length <= 1024 && [...password].length >= 12,
     'backup-password', t('errors.backup.passwordLength'));
   const bytes = new Uint8Array(input); checkCancelled(options.signal);
-  const header = validateHeader({ format: 'work-fleet-encrypted-backup', schemaVersion: schemas.encryptedBackup, cipher: 'AES-256-GCM',
+  const header = validateHeader({ format: 'pin-it-anywhere-encrypted-backup', schemaVersion: schemas.encryptedBackup, cipher: 'AES-256-GCM',
     kdf: 'PBKDF2-HMAC-SHA256', iterations: ITERATIONS, salt: hex(crypto.getRandomValues(new Uint8Array(16))),
     nonce: hex(crypto.getRandomValues(new Uint8Array(12))), tagBits: 128 });
   const aad = encoded(header);
@@ -79,7 +79,7 @@ export async function decryptBackup(entries, password, options = {}) {
   let bytes;
   try {
     bytes = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unhex(header.nonce), additionalData: aad, tagLength: 128 }, key, ciphertext));
-  } catch { throw new FleetError('backup-decryption', t('errors.backup.decryptionFailed')); }
+  } catch { throw new PinItAnywhereError('backup-decryption', t('errors.backup.decryptionFailed')); }
   try {
     checkCancelled(options.signal); const result = await unpackZip(bytes, options);
     requireValue(!result.has('encryption.json'), 'unsupported-backup-encryption', t('errors.backup.nestedEncryption'));

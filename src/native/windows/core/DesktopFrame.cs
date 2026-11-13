@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 public sealed record LogicalRect(double X, double Y, double Width, double Height);
 public sealed record PresentedCard(string Id, string Layer, LogicalRect Rect, bool Interactive, bool Operable);

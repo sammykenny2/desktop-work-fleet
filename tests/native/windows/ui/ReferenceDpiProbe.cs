@@ -4,12 +4,12 @@ using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 /// <summary>
 /// ADR-018 on real windows: once a display change is applied, the scenes use the new primary display's DPI, as a restart
 /// on those displays would. A machine started at 3840x2160 and 150% kept that reference after it switched to 2560x1306 at
-/// 100%, so its papers stayed half as large again until Work Fleet restarted. Here an offscreen primary display reported
+/// 100%, so its papers stayed half as large again until Pin It Anywhere restarted. Here an offscreen primary display reported
 /// at 192 DPI is replaced by one at 96 DPI while the app runs; the real monitor's DPI cancels out of every ratio checked.
 /// The replacement display also has another device name, as after a switch from a remote session to the local display:
 /// the Top layer must get a new scene there, which still carries adjust mode, while the attached scenes are reused.
@@ -25,11 +25,11 @@ internal static class ReferenceDpiProbe
   {
     using var json = JsonDocument.Parse(await core.ExecuteScriptAsync(script)); return json.RootElement.Clone();
   }
-  private static JsonElement Info(FleetWindow window) => JsonSerializer.SerializeToElement(window.Desktop!.Invoke("desktop.info", default));
+  private static JsonElement Info(PinItAnywhereWindow window) => JsonSerializer.SerializeToElement(window.Desktop!.Invoke("desktop.info", default));
   private static string[] ViewIds(JsonElement info, Func<string, bool> layer) => info.GetProperty("views").EnumerateArray()
     .Where(v => layer(v.GetProperty("layer").GetString()!)).Select(v => v.GetProperty("viewId").GetString()!).Order().ToArray();
   // Only the Top layer composes its browser into a layered window.
-  private static DesktopSurface? Floating(FleetWindow window) => window.Desktop!.Surfaces.SingleOrDefault(s => s.WebView is WebView2CompositionControl);
+  private static DesktopSurface? Floating(PinItAnywhereWindow window) => window.Desktop!.Surfaces.SingleOrDefault(s => s.WebView is WebView2CompositionControl);
   private static async Task Wait(CoreWebView2 core, string script, string description)
   {
     var until = DateTime.UtcNow.AddSeconds(15);
@@ -45,7 +45,7 @@ internal static class ReferenceDpiProbe
   {
     if (!condition) throw new Exception("Reference DPI: " + description);
   }
-  private static async Task<Paper?> Find(FleetWindow window)
+  private static async Task<Paper?> Find(PinItAnywhereWindow window)
   {
     foreach (var surface in window.Desktop!.Surfaces)
     {
@@ -60,7 +60,7 @@ internal static class ReferenceDpiProbe
     return null;
   }
   // Zoom reaches the browser asynchronously and the owner redraws after it applies, so each state is polled.
-  private static async Task<Paper> Until(FleetWindow window, Func<Paper, bool> done, string description)
+  private static async Task<Paper> Until(PinItAnywhereWindow window, Func<Paper, bool> done, string description)
   {
     var until = DateTime.UtcNow.AddSeconds(30); Paper? last = null;
     while (DateTime.UtcNow < until)
@@ -75,7 +75,7 @@ internal static class ReferenceDpiProbe
     var bounds = new PhysicalBounds(-20000, -20000, 1800, 1200);
     // The coordinator reads this list again on every display refresh, and Validate copies it.
     var displays = new List<DisplayInfo> { new("before", true, bounds, bounds, 192) };
-    var window = new FleetWindow(Program.English(Path.Combine(directory, "data")), desktopDisplays: displays)
+    var window = new PinItAnywhereWindow(Program.English(Path.Combine(directory, "data")), desktopDisplays: displays)
       { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false, Width = 1180, Height = 800 };
     window.Show();
     try

@@ -1,5 +1,5 @@
 {
-  "format": "work-fleet-runtime-inventory-v1",
+  "format": "pin-it-anywhere-runtime-inventory-v1",
   "version": "0.1.0",
   "date": "2026-10-03",
   "scope": "macOS app and source-distributed validation server, no store package",

@@ -3,7 +3,7 @@ import { canonicalJson, parseJson } from './json.js';
 import { schemas, requireSchemaVersion } from '../core/schema.js';
 import { t } from '../i18n/index.js';
 
-export const REVISION_FORMAT = 'work-fleet-revision';
+export const REVISION_FORMAT = 'pin-it-anywhere-revision';
 const envelopeKeys = ['entityId', 'format', 'kind', 'parents', 'revisionId', 'schemaVersion', 'value'].sort();
 export const validId = value => safeKey(value) && value.match(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/)?.[0] === value;
 const identity = record => JSON.stringify([record.kind, record.entityId]);

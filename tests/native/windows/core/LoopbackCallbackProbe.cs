@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// The Google sign-in callback listener over real loopback sockets. The first check is the 0.2.1 failure: Chrome's spare

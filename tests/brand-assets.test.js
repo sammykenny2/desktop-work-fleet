@@ -91,7 +91,7 @@ test('the installed app and tray icons are complete at the sizes each project re
     for (const layer of ['background', 'foreground', 'monochrome'])
       assert.deepEqual(await pixels(`${res}/mipmap-${density}/ic_launcher_${layer}.png`), [108 * factor, 108 * factor], `${density} ${layer}`);
   // Windows: the embedded icon (executable, windows and tray) and the unqualified scale-100 MSIX images.
-  const ico = await readFile(at('src/native/windows/app/WorkFleet.ico')), entries = ico.readUInt16LE(4);
+  const ico = await readFile(at('src/native/windows/app/PinItAnywhere.ico')), entries = ico.readUInt16LE(4);
   const sizes = Array.from({ length: entries }, (_, index) => {
     const entry = 6 + 16 * index, offset = ico.readUInt32LE(entry + 12);
     assert.equal(ico.subarray(offset, offset + 4).toString('hex'), '89504e47');

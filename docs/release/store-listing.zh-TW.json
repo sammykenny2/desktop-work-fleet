@@ -7,7 +7,7 @@
   "keywords": ["便箋", "靈感", "待辦", "Markdown", "checklist", "工作記錄"],
   "category": "PRODUCTIVITY",
   "publication": "draft",
-  "privacyUrlEnv": "WORK_FLEET_PRIVACY_URL",
-  "supportUrlEnv": "WORK_FLEET_SUPPORT_URL",
-  "supportEmailEnv": "WORK_FLEET_SUPPORT_EMAIL"
+  "privacyUrlEnv": "PIN_IT_ANYWHERE_PRIVACY_URL",
+  "supportUrlEnv": "PIN_IT_ANYWHERE_SUPPORT_URL",
+  "supportEmailEnv": "PIN_IT_ANYWHERE_SUPPORT_EMAIL"
 }

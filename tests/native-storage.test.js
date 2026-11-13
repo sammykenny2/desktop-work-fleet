@@ -14,10 +14,10 @@ import { AutomaticBackup } from '../src/backup/automatic.js';
 import { createBackup, openBackup } from '../src/backup/payload.js';
 import { prepareLocalRestore } from '../src/backup/restore.js';
 
-const configuration = process.env.WORK_FLEET_NATIVE_TEST_CONFIGURATION || 'Debug';
+const configuration = process.env.PIN_IT_ANYWHERE_NATIVE_TEST_CONFIGURATION || 'Debug';
 assert.ok(['Debug', 'Release'].includes(configuration), 'native test configuration must be Debug or Release');
-const executable = path.resolve(`tests/native/windows/core/bin/${configuration}/net10.0-windows/WorkFleet.Windows.Core.Tests.dll`);
-const enabled = process.env.WORK_FLEET_NATIVE_TEST === '1';
+const executable = path.resolve(`tests/native/windows/core/bin/${configuration}/net10.0-windows/PinItAnywhere.Windows.Core.Tests.dll`);
+const enabled = process.env.PIN_IT_ANYWHERE_NATIVE_TEST === '1';
 if (enabled) await access(executable); // An explicitly requested but missing native build must fail.
 const nativeTest = (name, action) => test(name, { skip: !enabled, timeout: 60_000 }, action);
 

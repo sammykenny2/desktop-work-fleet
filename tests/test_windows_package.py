@@ -10,8 +10,8 @@ import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
-STARTUP = ('\n    <Extensions><uap5:Extension Category="windows.startupTask" Executable="WorkFleet.exe" EntryPoint="Windows.FullTrustApplication">'
-           '<uap5:StartupTask TaskId="WorkFleetStartup" Enabled="false" DisplayName="Work Fleet" /></uap5:Extension></Extensions>')
+STARTUP = ('\n    <Extensions><uap5:Extension Category="windows.startupTask" Executable="PinItAnywhere.exe" EntryPoint="Windows.FullTrustApplication">'
+           '<uap5:StartupTask TaskId="PinItAnywhereStartup" Enabled="false" DisplayName="Pin It Anywhere" /></uap5:Extension></Extensions>')
 
 
 @unittest.skipUnless(os.name == "nt", "Windows MSIX inspection needs PowerShell and Windows trust APIs")
@@ -34,7 +34,7 @@ class WindowsPackageTests(unittest.TestCase):
                 version=None, unsigned=True, extra=None, missing_runtime=None, missing_notice=None, startup=STARTUP):
         manifest = f"""<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap uap5 rescap">
-  <Identity Name="app.workfleet.preview" Publisher="CN=Work Fleet Preview" Version="{version or self.version}" ProcessorArchitecture="x64" />
+  <Identity Name="dev.sammykenny2.pinitanywhere" Publisher="CN=Pin It Anywhere Preview" Version="{version or self.version}" ProcessorArchitecture="x64" />
   <Properties><DisplayName>Fixture</DisplayName><PublisherDisplayName>Fixture</PublisherDisplayName><Logo>logo.png</Logo></Properties>
   <Resources><Resource Language="en-US" /></Resources>
   <Dependencies><TargetDeviceFamily Name="{family}" MinVersion="{minimum}" MaxVersionTested="{tested}" /></Dependencies>
@@ -44,7 +44,7 @@ class WindowsPackageTests(unittest.TestCase):
   </Application></Applications>
 </Package>
 """
-        with tempfile.TemporaryDirectory(prefix="work-fleet-package-") as directory:
+        with tempfile.TemporaryDirectory(prefix="pin-it-anywhere-package-") as directory:
             package = Path(directory) / "fixture.msix"
             source = Path(directory) / "source"
             source.mkdir()
@@ -56,13 +56,13 @@ class WindowsPackageTests(unittest.TestCase):
             for name in runtime_files:
                 if name != missing_runtime:
                     (source / name).write_bytes(b"synthetic runtime fixture, never executed")
-            (source / "WorkFleet.runtimeconfig.json").write_text(json.dumps({"runtimeOptions": {
+            (source / "PinItAnywhere.runtimeconfig.json").write_text(json.dumps({"runtimeOptions": {
                 "tfm": "net10.0", "includedFrameworks": [
                     {"name": "Microsoft.NETCore.App", "version": self.runtime_version},
                     {"name": "Microsoft.WindowsDesktop.App", "version": self.runtime_version},
                 ],
             }}), encoding="utf-8")
-            (source / "WorkFleet.deps.json").write_text(json.dumps({
+            (source / "PinItAnywhere.deps.json").write_text(json.dumps({
                 "runtimeTarget": {"name": ".NETCoreApp,Version=v10.0/win-x64"},
             }), encoding="utf-8")
             for name in ["Licenses/dotnet/LICENSE.TXT", "Licenses/dotnet/THIRD-PARTY-NOTICES.TXT",
@@ -114,12 +114,12 @@ class WindowsPackageTests(unittest.TestCase):
 
     def test_sign_in_task_is_declared_once_and_disabled(self):
         # ADR-043: the app enables the task from its own preference; the manifest never turns it on by itself.
-        for startup in ["", STARTUP.replace('Enabled="false"', 'Enabled="true"'), STARTUP.replace("WorkFleetStartup", "Other"),
-                        STARTUP.replace('Executable="WorkFleet.exe"', 'Executable="Other.exe"')]:
+        for startup in ["", STARTUP.replace('Enabled="false"', 'Enabled="true"'), STARTUP.replace("PinItAnywhereStartup", "Other"),
+                        STARTUP.replace('Executable="PinItAnywhere.exe"', 'Executable="Other.exe"')]:
             with self.subTest(startup=startup):
                 result = self.inspect(startup=startup)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn("WorkFleetStartup sign-in task", result.stderr)
+                self.assertIn("PinItAnywhereStartup sign-in task", result.stderr)
 
     def test_package_version_must_match_windows_record(self):
         result = self.inspect(version="9.9.9.0")
@@ -147,7 +147,7 @@ class WindowsPackageTests(unittest.TestCase):
             {"tfm": "net10.0", "includedFrameworks": [{"name": "Microsoft.NETCore.App", "version": self.runtime_version}]},
         ]:
             with self.subTest(options=options):
-                result = self.inspect(extra={"WorkFleet.runtimeconfig.json": json.dumps({"runtimeOptions": options})})
+                result = self.inspect(extra={"PinItAnywhere.runtimeconfig.json": json.dumps({"runtimeOptions": options})})
                 self.assertNotEqual(result.returncode, 0)
                 self.assertRegex(result.stderr, "Expected self-contained|Expected bundled .NET 10")
 
@@ -159,7 +159,7 @@ class WindowsPackageTests(unittest.TestCase):
                     {"name": "Microsoft.NETCore.App", "version": versions[0]},
                     {"name": "Microsoft.WindowsDesktop.App", "version": versions[1]},
                 ]}
-                result = self.inspect(extra={"WorkFleet.runtimeconfig.json": json.dumps({"runtimeOptions": options})})
+                result = self.inspect(extra={"PinItAnywhere.runtimeconfig.json": json.dumps({"runtimeOptions": options})})
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("Expected bundled .NET 10", result.stderr)
 
@@ -168,12 +168,12 @@ class WindowsPackageTests(unittest.TestCase):
             {"name": "Microsoft.NETCore.App", "version": self.runtime_version},
             {"name": "Microsoft.WindowsDesktop.App", "version": self.runtime_version},
         ]}
-        result = self.inspect(extra={"WorkFleet.runtimeconfig.json": json.dumps({"runtimeOptions": options})})
+        result = self.inspect(extra={"PinItAnywhere.runtimeconfig.json": json.dumps({"runtimeOptions": options})})
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Expected self-contained .NET 10", result.stderr)
 
     def test_non_x64_dependency_target_is_rejected(self):
-        result = self.inspect(extra={"WorkFleet.deps.json": json.dumps({
+        result = self.inspect(extra={"PinItAnywhere.deps.json": json.dumps({
             "runtimeTarget": {"name": ".NETCoreApp,Version=v10.0/win-arm64"},
         })})
         self.assertNotEqual(result.returncode, 0)

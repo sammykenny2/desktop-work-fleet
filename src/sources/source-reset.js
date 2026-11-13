@@ -1,4 +1,4 @@
-import { copy, FleetError, requireValue } from '../core/contracts.js';
+import { copy, PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { canonicalJson } from './json.js';
 import { initialGroupRecord } from './initial-group.js';
 import { encodeSourceRevision } from './source-revisions.js';
@@ -40,7 +40,7 @@ export async function resetSource(store, { job = null, saveJob = async () => {},
     const before = await listing();
     const id = await attempt(() => store.allocateFileId({}));
     const plan = await prepareInitialization(store.sourceId, [id], { ...initialization, origin: 'reset' });
-    const markerValue = { format: 'work-fleet-reset', schema: 1, resetAt: new Date(now()).toISOString(), initialization: initializationProtocol };
+    const markerValue = { format: 'pin-it-anywhere-reset', schema: 1, resetAt: new Date(now()).toISOString(), initialization: initializationProtocol };
     const bytes = new TextEncoder().encode(canonicalJson(markerValue));
     const marker = validateFile({ id, kind: 'reset', sha256: await sha256(bytes), size: bytes.length });
     // Validate/encode the complete plan before any remote deletion.
@@ -56,7 +56,7 @@ export async function resetSource(store, { job = null, saveJob = async () => {},
   requireValue(job.plan.phase === 'prepare' && job.plan.origin === 'reset' && ['starter', 'restore'].includes(job.plan.mode)
     && encodeInitialization(job.plan).length <= fileLimit('workspace')
     && job.planId === await initializationId(job.plan) && canonicalJson(job.plan.sourceResetIds) === canonicalJson([job.marker.id])
-    && job.markerValue?.format === 'work-fleet-reset' && job.markerValue.schema === 1 && job.markerValue.initialization === initializationProtocol,
+    && job.markerValue?.format === 'pin-it-anywhere-reset' && job.markerValue.schema === 1 && job.markerValue.initialization === initializationProtocol,
     'invalid-reset-job', t('errors.sources.resetPlanMismatch'));
   for (const [key, file] of Object.entries(job.uploads)) {
     validateFile(file);
@@ -94,7 +94,7 @@ export async function resetSource(store, { job = null, saveJob = async () => {},
         await save({ ...job, deleted: job.deleted + 1 }); progress(job.deleted, job.deleted + ids.length - index - 1);
       }
     }
-    if (!cleared) throw new FleetError('source-reset-incomplete', t('errors.sources.resetIncomplete'));
+    if (!cleared) throw new PinItAnywhereError('source-reset-incomplete', t('errors.sources.resetIncomplete'));
     await save({ ...job, phase: 'initialize' });
   }
   if (job.phase === 'initialize') {

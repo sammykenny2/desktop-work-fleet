@@ -1,4 +1,4 @@
-import { activeGroups, copy, defaultGrid, eligible, FleetError, gridRegions, groupKey, membershipKey, requireValue } from './contracts.js';
+import { activeGroups, copy, defaultGrid, eligible, PinItAnywhereError, gridRegions, groupKey, membershipKey, requireValue } from './contracts.js';
 import { resolveGroupId } from './groups.js';
 import { validateShortcuts } from './shortcuts.js';
 import { deskFields, deskKey, DeskStore, hiddenGroups, seedDesk, settledColors, settleDesk } from '../layout/desk.js';
@@ -237,7 +237,7 @@ export class CombinedWorkspace {
     const matches = this.#profiles.filter(test);
     requireValue(matches.length < 2, 'shared-ids', t('app.sections.sharedIds'));
     const [profile] = matches;
-    if (!profile) throw new FleetError(code, message());
+    if (!profile) throw new PinItAnywhereError(code, message());
     return profile;
   }
   /** Ids more than one open collection holds. Routing by id cannot tell these apart, so nothing should write while any exist. */

@@ -3,9 +3,9 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>
 /// ADR-043 main window size and position in physical screen pixels. Win32 reports the real state (IsZoomed/IsIconic),

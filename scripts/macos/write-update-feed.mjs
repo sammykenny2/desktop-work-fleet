@@ -1,5 +1,5 @@
 /**
- * Write the macOS part of the vX.Y.Z release: Sparkle's appcast.xml and work-fleet-update-macos.json (ADR-044).
+ * Write the macOS part of the vX.Y.Z release: Sparkle's appcast.xml and pin-it-anywhere-update-macos.json (ADR-044).
  * Usage: node scripts/macos/write-update-feed.mjs --archive ZIP --signature "sparkle:edSignature=... length=..." --version X.Y.Z
  *   --build N --repository OWNER/REPO --output DIR [--summary TEXT] [--help]
  * The signature line is what Sparkle's sign_update prints for the archive. The enclosure URL is the archive's download
@@ -43,7 +43,7 @@ export async function writeUpdateFeed({ archive, signature, version, build, repo
   const manifest = { schemaVersion: 1, platform: 'macos', version, tag, summary,
     assets: [{ arch: 'universal', name, size, sha256: createHash('sha256').update(bytes).digest('hex') }] };
   await writeFile(path.join(output, 'appcast.xml'), appcast);
-  await writeFile(path.join(output, 'work-fleet-update-macos.json'), JSON.stringify(manifest, null, 2) + '\n');
+  await writeFile(path.join(output, 'pin-it-anywhere-update-macos.json'), JSON.stringify(manifest, null, 2) + '\n');
   return { appcast, manifest };
 }
 
@@ -59,6 +59,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
     }
     for (const key of ['archive', 'signature', 'version', 'build', 'repository', 'output']) if (!options[key]) throw new Error(`Missing --${key}. Use --help.`);
     await writeUpdateFeed(options);
-    console.log(`Wrote appcast.xml and work-fleet-update-macos.json in ${options.output}`);
+    console.log(`Wrote appcast.xml and pin-it-anywhere-update-macos.json in ${options.output}`);
   }
 }

@@ -11,7 +11,7 @@ final class Target: NSView {
   override func keyDown(with event: NSEvent) { keys += 1 }
   override func draw(_ rect: NSRect) {
     NSColor(calibratedRed: 0.82, green: 0.91, blue: 0.97, alpha: 1).setFill(); bounds.fill()
-    ("Work Fleet input target\nSynthetic test data only" as NSString).draw(at: NSPoint(x: 20, y: 30),
+    ("Pin It Anywhere input target\nSynthetic test data only" as NSString).draw(at: NSPoint(x: 20, y: 30),
       withAttributes: [.font: NSFont.systemFont(ofSize: 20), .foregroundColor: NSColor.black])
   }
 }
@@ -25,7 +25,7 @@ final class Probe: NSObject, NSApplicationDelegate {
     let screen = NSScreen.main!.visibleFrame
     window = NSWindow(contentRect: NSRect(x: screen.maxX - 470, y: screen.maxY - 540, width: 440, height: 500),
       styleMask: [.titled], backing: .buffered, defer: false)
-    window.title = "Work Fleet validation input target"
+    window.title = "Pin It Anywhere validation input target"
     window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)))
     window.contentView = target
     window.makeKeyAndOrderFront(nil); window.makeFirstResponder(target); NSApp.activate(ignoringOtherApps: true)

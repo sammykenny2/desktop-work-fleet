@@ -1,7 +1,7 @@
 using Microsoft.Data.Sqlite;
 using System.Text;
 using System.Text.Json;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
 static class RecordStoreProbe
 {
@@ -18,7 +18,7 @@ static class RecordStoreProbe
       new { collection, key, entity = "card:one", ordinal, value = new { text } };
     byte[] Batch(int revision, params object[] puts) => JsonSerializer.SerializeToUtf8Bytes(new
     {
-      format = "work-fleet-record-transaction", schemaVersion = 1, profileId = "local", revision,
+      format = "pin-it-anywhere-record-transaction", schemaVersion = 1, profileId = "local", revision,
       commitId = Guid.NewGuid().ToString("D"), puts, deletes = Array.Empty<object>()
     });
     JsonElement Json(object value) => JsonSerializer.SerializeToElement(value);
@@ -60,7 +60,7 @@ static class RecordStoreProbe
       });
       Test("record receipt failure rolls back both rows and attachment bytes", () =>
       {
-        using var connection = new SqliteConnection($"Data Source={Path.Combine(root, "fleet.sqlite3")};Pooling=False"); connection.Open();
+        using var connection = new SqliteConnection($"Data Source={Path.Combine(root, "pinitanywhere.sqlite3")};Pooling=False"); connection.Open();
         using var command = connection.CreateCommand();
         command.CommandText = "CREATE TRIGGER reject_receipt BEFORE UPDATE ON record_heads BEGIN SELECT RAISE(ABORT, 'injected disk failure'); END;"; command.ExecuteNonQuery();
         var bytes = Encoding.UTF8.GetBytes("record-rollback-attachment"); var digest = LocalDatabase.Digest(bytes);
@@ -106,7 +106,7 @@ static class RecordStoreProbe
     {
       var isolated = Path.Combine(parent, "record-read-failure");
       using var db = new LocalDatabase(isolated, "local"); using var bridge = new BridgeSession(db);
-      using var connection = new SqliteConnection($"Data Source={Path.Combine(isolated, "fleet.sqlite3")};Pooling=False"); connection.Open();
+      using var connection = new SqliteConnection($"Data Source={Path.Combine(isolated, "pinitanywhere.sqlite3")};Pooling=False"); connection.Open();
       using var command = connection.CreateCommand();
       command.CommandText = "DROP TABLE record_heads; DROP TABLE record_entries;"; command.ExecuteNonQuery();
       foreach (var method in new[] { "storage.records.status", "storage.records.get", "storage.records.page" })

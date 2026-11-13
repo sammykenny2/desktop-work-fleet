@@ -14,7 +14,7 @@ import protocol as p
 DAMAGED, FULL, IN_USE, DENIED, KEY, UNREADABLE = "data-damaged", "data-full", "data-in-use", "data-denied", "data-key", "data-unreadable"
 CAUSES = (DAMAGED, FULL, IN_USE, DENIED, KEY, UNREADABLE)
 # The key file belongs with the database it encrypts, so both move together.
-DATABASE_FILES = ("fleet.sqlite3", "fleet.sqlite3-wal", "fleet.sqlite3-shm", "fleet.sqlite3-journal", "storage-key")
+DATABASE_FILES = ("pinitanywhere.sqlite3", "pinitanywhere.sqlite3-wal", "pinitanywhere.sqlite3-shm", "pinitanywhere.sqlite3-journal", "storage-key")
 SET_ASIDE_PREFIX = "set-aside-"
 # The text.py key that explains each cause in the host's own dialog.
 TEXT_KEYS = {DAMAGED: "dataFailure.damaged", FULL: "dataFailure.full", IN_USE: "dataFailure.inUse", DENIED: "dataFailure.denied",

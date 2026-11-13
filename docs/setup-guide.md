@@ -49,15 +49,15 @@ are connected.
 
 ```powershell
 .\scripts\windows\Build-WindowsApp.ps1
-& .\src\native\windows\app\bin\Release\net10.0-windows10.0.19041.0\WorkFleet.exe
+& .\src\native\windows\app\bin\Release\net10.0-windows10.0.19041.0\PinItAnywhere.exe
 ```
 
 Assets, native libraries and Licenses stay with the output directory; do not move the exe on its own.
-In an IDE use `src/native/windows/WorkFleet.sln`; opening the root folder in VS Code gives the C# Dev Kit
+In an IDE use `src/native/windows/PinItAnywhere.sln`; opening the root folder in VS Code gives the C# Dev Kit
 recommendations and an F5 configuration. The folder layout and how to open it are in the
 [Windows README](../src/native/windows/README.md).
 An app built with `-Configuration Debug` has "Inspect" (DevTools) in its context menu. Only setting
-`WORK_FLEET_WEBVIEW_DEBUG_PORT` opens loopback CDP.
+`PIN_IT_ANYWHERE_WEBVIEW_DEBUG_PORT` opens loopback CDP.
 Release builds and the MSIX open neither; usage is in [Testing](testing.md), the decision in
 [ADR-032](decisions/032-windows-debug-webview-inspection.md).
 The Windows SDK targeting pack is pinned at 10.0.19041.56; the UI probe also uses the app's PerMonitorV2 manifest.
@@ -145,8 +145,8 @@ generates; it is not committed.
 ## macOS and iOS 1.0 native build
 
 Needs full Xcode and Node 22+ with npm; macOS 13+ or iOS 16+.
-After cloning, open `src/native/apple/WorkFleet.xcodeproj` directly and choose WorkFleetIOS with a Simulator, or
-WorkFleetMac.
+After cloning, open `src/native/apple/PinItAnywhere.xcodeproj` directly and choose PinItAnywhereIOS with a Simulator, or
+PinItAnywhereMac.
 The project is committed and uses relative paths; Xcode installs dependencies and generates assets automatically, so
 no generator or web build has to run first.
 Google and store public settings go in `.env`. For direct Xcode use, the app ID, App Group and Team go in the ignored
@@ -154,7 +154,7 @@ Google and store public settings go in `.env`. For direct Xcode use, the app ID,
 are configured in Xcode; private keys never go in settings files.
 
 ```bash
-open src/native/apple/WorkFleet.xcodeproj
+open src/native/apple/PinItAnywhere.xcodeproj
 # or the command-line entry point for the same project:
 bash scripts/macos/build-native-app.sh --platform macos
 bash scripts/macos/build-native-app.sh --platform ios --simulator
@@ -171,14 +171,14 @@ also connects the desktop scenes, global keys, the menu bar and the screen lifec
 has been compiled in Xcode and produced an Apple Development signed DMG, and Keychain, SQLite and main-window
 initialization passed with an isolated fixture; iOS, Developer ID and notarization, and full operation have not been
 accepted yet.
-On a local Mac, choose a Team in the WorkFleetMac target's Signing & Capabilities, enable automatic signing and
+On a local Mac, choose a Team in the PinItAnywhereMac target's Signing & Capabilities, enable automatic signing and
 complete Register Device.
 Operating details and the remaining deliverables are in the [Apple README](../src/native/apple/README.md); current
 status is in [PROGRESS](../PROGRESS.md).
 
 iOS share receiving also embeds the `<APP_ID>.share` Extension; enable App Groups for the app and the Extension in the
-same Apple team. Direct IDE use takes WORK_FLEET_APP_GROUP_ID from Local.xcconfig; the CLI can override it with
-`.env`, and the default is `group.<WORK_FLEET_APP_ID>`. The actual signing profiles must include this group;
+same Apple team. Direct IDE use takes PIN_IT_ANYWHERE_APP_GROUP_ID from Local.xcconfig; the CLI can override it with
+`.env`, and the default is `group.<PIN_IT_ANYWHERE_APP_ID>`. The actual signing profiles must include this group;
 certificates stay in Xcode and the Keychain.
 
 ## Native packages and signing entry points
@@ -251,14 +251,14 @@ these capabilities the main window can still record.
 ```bash
 npm ci --ignore-scripts
 bash scripts/linux/build-native-app.sh
-bash "build/linux/work-fleet-$(cat src/native/linux/VERSION)/run-work-fleet.sh"
+bash "build/linux/pin-it-anywhere-$(cat src/native/linux/VERSION)/run-pin-it-anywhere.sh"
 bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
 ```
 
 GNOME Wayland (for example the Ubuntu 22.04 default) has no layer-shell, so desktop notes go through XWayland. The
 first-start question and the setting are described in the [user guide](user-guide.md#linux); to start under XWayland
-directly, run `GDK_BACKEND=x11 work-fleet` ([ADR-040](decisions/040-gnome-wayland-xwayland-choice.md),
+directly, run `GDK_BACKEND=x11 pin-it-anywhere` ([ADR-040](decisions/040-gnome-wayland-xwayland-choice.md),
 [ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)).
 The build produces source and runtime tar.gz files; `--deb` needs the Debian tools, and `--release` also needs the
 formal public settings. The native-scene checks in an isolated headless Linux compositor and the private synthetic
@@ -311,34 +311,34 @@ bash scripts/macos/start-validation.sh
 ```
 
 The command builds `build/Pin It Anywhere.app`, starts the loopback service and pairs the Mac with a one-time admin invite.
-Data is in `~/.work-fleet/` by default; the app's settings and offline cache are in its own Sandbox container.
-Ctrl-C in the terminal stops the server this run started; WF → Quit in the menu bar closes the app.
-`WORK_FLEET_DATA` sets a data directory outside the repo, and `--port 9848` changes the port.
+Data is in `~/.pin-it-anywhere/` by default; the app's settings and offline cache are in its own Sandbox container.
+Ctrl-C in the terminal stops the server this run started; PIA → Quit in the menu bar closes the app.
+`PIN_IT_ANYWHERE_DATA` sets a data directory outside the repo, and `--port 9848` changes the port.
 A port that is already in use fails at once; other services are not stopped.
 
 ## 0.1.0 separate start and a second client
 
 ```bash
 bash scripts/macos/build-app.sh
-python3 src/server/work_fleet.py serve
+python3 src/server/pin_it_anywhere.py serve
 ```
 
 In another terminal, create an admin invite (the invite output is a short-lived secret; never commit or share a
 permanent token):
 
 ```bash
-python3 src/server/work_fleet.py invite --role admin
+python3 src/server/pin_it_anywhere.py invite --role admin
 open 'build/Pin It Anywhere.app'
 ```
 
-In the menu bar choose WF → Connection and display…, and enter `http://127.0.0.1:9847` and the printed `code`.
+In the menu bar choose PIA → Connection and display…, and enter `http://127.0.0.1:9847` and the printed `code`.
 Once the Mac is paired, its control window can create an editor QR code; the web admin page can choose read-only or
 editing access and revoke devices.
 
 Open `http://127.0.0.1:9847` and pair the browser with a separate editor invite:
 
 ```bash
-python3 src/server/work_fleet.py invite --role editor
+python3 src/server/pin_it_anywhere.py invite --role editor
 ```
 
 The browser and the app use the same server data. Safari/WebKit each keep their own local drafts and share no
@@ -346,10 +346,10 @@ storage.
 
 ## 0.1.0 operation
 
-- Quick capture: WF → Quick capture / Unlock, type the text and save; the group defaults to Inbox.
+- Quick capture: PIA → Quick capture / Unlock, type the text and save; the group defaults to Inbox.
 - Supports Todo, In Progress and Done; Done and deleted notes are viewed separately and can be restored.
 - `- [ ]` and `- [x]` in the text show as checkable to-dos.
-- WF → Lock shows read-only notes; they still receive data every 2 seconds and sit above the desktop icons by default.
+- PIA → Lock shows read-only notes; they still receive data every 2 seconds and sit above the desktop icons by default.
 - The control window switches between Normal window, Above desktop icons and Below desktop icons. Below desktop icons
   is an experimental mode.
 - The web page polls every 2.5 seconds; offline it shows the last content, and drafts are saved on every input.
@@ -365,8 +365,8 @@ A loopback QR code is only for the same Mac; scanning it with a phone does not g
 For the LAN, use a TLS certificate the phone trusts and set the exact hostname and origin, for example:
 
 ```bash
-python3 src/server/work_fleet.py serve --host 0.0.0.0 --port 9847 \
-  --origin https://fleet.example.test:9847 --cert /secure/path/cert.pem --key /secure/path/key.pem
+python3 src/server/pin_it_anywhere.py serve --host 0.0.0.0 --port 9847 \
+  --origin https://pinitanywhere.example.test:9847 --cert /secure/path/cert.pem --key /secure/path/key.pem
 ```
 
 First pair the Mac with that HTTPS URL, then create the QR code; the phone confirms the address and the name before it
@@ -381,15 +381,15 @@ not been tested.
 A backup can run while the server is running; the destination file must not exist:
 
 ```bash
-python3 src/server/work_fleet.py backup /secure/path/fleet-backup.sqlite3
+python3 src/server/pin_it_anywhere.py backup /secure/path/pinitanywhere-backup.sqlite3
 ```
 
 Stop the server first, then restore to a **new data path** (the current DB is not overwritten):
 
 ```bash
-python3 src/server/work_fleet.py --db /secure/path/restored.sqlite3 restore /secure/path/fleet-backup.sqlite3
-python3 src/server/work_fleet.py --db /secure/path/restored.sqlite3 serve
-python3 src/server/work_fleet.py --db /secure/path/restored.sqlite3 invite --role admin
+python3 src/server/pin_it_anywhere.py --db /secure/path/restored.sqlite3 restore /secure/path/pinitanywhere-backup.sqlite3
+python3 src/server/pin_it_anywhere.py --db /secure/path/restored.sqlite3 serve
+python3 src/server/pin_it_anywhere.py --db /secure/path/restored.sqlite3 invite --role admin
 ```
 
 Restoring changes the epoch, revokes every device and clears invites and operation retry records. After pairing again,

@@ -6,9 +6,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>Account-bound OAuth and semantic Drive operations. No credential or upload URI leaves this service.</summary>
 public sealed class NativeGoogle : IDisposable
@@ -295,7 +295,7 @@ public sealed class NativeGoogle : IDisposable
         {
           var body = DatasetFiles.DeleteBatch(args.GetProperty("fileIds"));
           var response = await Request("/batch/drive/v3", HttpMethod.Post, body,
-            new() { ["Content-Type"] = "multipart/mixed; boundary=work_fleet_delete" });
+            new() { ["Content-Type"] = "multipart/mixed; boundary=pin_it_anywhere_delete" });
           return bridge.DownloadBytes(response.Body);
         }
         case "google.delete":
@@ -361,14 +361,14 @@ public sealed class NativeGoogle : IDisposable
     HostError.Require(JsonRules.Text(metadata, "id") == file.Id && JsonRules.Text(metadata, "size") == file.Size.ToString(System.Globalization.CultureInfo.InvariantCulture)
       && metadata.GetProperty("spaces").EnumerateArray().Any(v => v.GetString() == "appDataFolder")
       && (!metadata.TryGetProperty("trashed", out var trashed) || !trashed.GetBoolean())
-      && JsonRules.Text(properties, "wfFormat") == "work-fleet-file" && JsonRules.Text(properties, "wfSchema") == "1"
-      && JsonRules.Text(properties, "wfKind") == file.Kind && JsonRules.Text(properties, "wfSha256") == file.Digest
+      && JsonRules.Text(properties, "piaFormat") == "pin-it-anywhere-file" && JsonRules.Text(properties, "piaSchema") == "1"
+      && JsonRules.Text(properties, "piaKind") == file.Kind && JsonRules.Text(properties, "piaSha256") == file.Digest
       && (!metadata.TryGetProperty("sha256Checksum", out var sha) || sha.GetString() == file.Digest), "upload-mismatch", "The Google file metadata doesn't match its content.");
   }
   private async Task<JsonElement> Create((string Id, string Kind, string Digest, int Size) file, byte[] bytes, JsonElement? dataset = null)
   {
-    var metadata = dataset.HasValue ? JsonSerializer.SerializeToUtf8Bytes(DatasetFiles.Metadata(dataset.Value)) : JsonSerializer.SerializeToUtf8Bytes(new { id = file.Id, name = $"work-fleet-v1-{file.Kind}-{file.Digest}.bin", mimeType = "application/octet-stream", parents = new[] { "appDataFolder" },
-      appProperties = new { wfFormat = "work-fleet-file", wfSchema = "1", wfKind = file.Kind, wfSha256 = file.Digest } });
+    var metadata = dataset.HasValue ? JsonSerializer.SerializeToUtf8Bytes(DatasetFiles.Metadata(dataset.Value)) : JsonSerializer.SerializeToUtf8Bytes(new { id = file.Id, name = $"pin-it-anywhere-v1-{file.Kind}-{file.Digest}.bin", mimeType = "application/octet-stream", parents = new[] { "appDataFolder" },
+      appProperties = new { piaFormat = "pin-it-anywhere-file", piaSchema = "1", piaKind = file.Kind, piaSha256 = file.Digest } });
     var mime = dataset.HasValue && file.Kind != "attachment" ? "application/json" : "application/octet-stream";
     (int Status, byte[] Body, string? Location, string? Range) response;
     try

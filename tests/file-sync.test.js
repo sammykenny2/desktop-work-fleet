@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Workspace } from '../src/core/workspace.js';
-import { copy, FleetError } from '../src/core/contracts.js';
+import { copy, PinItAnywhereError } from '../src/core/contracts.js';
 import { FileSync, resetSource } from '../src/sources/file-sync.js';
 import { sha256, validateFile, verifyFile } from '../src/sources/files.js';
 import { encodeRevision, revisionRecord } from '../src/sources/revisions.js';
@@ -212,7 +212,7 @@ test('incomplete pulls and pending group history never authorize a new initial g
   for (const mode of ['scan', 'changes', 'pending']) {
     const store = new MemoryFileStore();
     if (mode === 'scan') store.listFiles = async () => ({ files: [], incomplete: true });
-    if (mode === 'changes') store.listChanges = async () => { throw new FleetError('network', 'offline'); };
+    if (mode === 'changes') store.listChanges = async () => { throw new PinItAnywhereError('network', 'offline'); };
     if (mode === 'pending') {
       const record = groupRecord(); record.parents = ['missing-parent']; await store.seed(encodeRevision(record));
     }
@@ -231,7 +231,7 @@ test('initial group persistence failure sends nothing, and a lost upload respons
   assert.deepEqual(c.workspace.snapshot.groups, []);
   assert.equal(store.calls.some(call => call.method === 'createFile' && call.file.kind === 'revision'), false);
   c.fail(() => false); c.reopen();
-  store.hooks.afterCreate = ({ file }) => { if (file.kind !== 'revision') return; delete store.hooks.afterCreate; throw new FleetError('network', 'response lost'); };
+  store.hooks.afterCreate = ({ file }) => { if (file.kind !== 'revision') return; delete store.hooks.afterCreate; throw new PinItAnywhereError('network', 'response lost'); };
   await assert.rejects(c.sync.sync(), failCode('network'));
   const group = c.workspace.snapshot.groups[0]; const reserved = Object.values(c.disk().sync.uploads).find(item => item.file.kind === 'revision').file.id;
   c.reopen(); await c.sync.sync();
@@ -244,7 +244,7 @@ test('initial group persistence failure sends nothing, and a lost upload respons
 test('a reset stops an initial root before file allocation or reservation, including after reopening and cursor expiry', async () => {
   for (const mode of ['incremental', 'rescan', 'unscoped-incremental', 'unscoped-rescan']) {
     const store = new MemoryFileStore(); const c = await client(store, { initializeGroup: true });
-    store.hooks.allocateFileId = () => { throw new FleetError('network', 'allocation failed'); };
+    store.hooks.allocateFileId = () => { throw new PinItAnywhereError('network', 'allocation failed'); };
     await assert.rejects(c.sync.sync(), failCode('network'));
     assert.deepEqual(c.workspace.syncState.sourceResetIds, []);
     assert.deepEqual(Object.values(c.workspace.syncState.uploads || {}), []);
@@ -253,7 +253,7 @@ test('a reset stops an initial root before file allocation or reservation, inclu
     c.reopen(saved); delete store.hooks.allocateFileId;
     await resetSource(store, { wait: async () => {} });
     const creates = store.calls.filter(call => call.method === 'createFile').length;
-    if (mode.endsWith('rescan')) store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new FleetError('cursor-expired', 'expired'); };
+    if (mode.endsWith('rescan')) store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new PinItAnywhereError('cursor-expired', 'expired'); };
     await assert.rejects(c.sync.sync({ force: true }), failCode('source-reset'));
     assert.deepEqual(c.workspace.snapshot, before);
     assert.equal(store.calls.filter(call => call.method === 'createFile').length, creates);
@@ -270,7 +270,7 @@ test('a cursor rescan stops at a new reset marker even before any old source fil
     const entered = gate(); const resume = gate();
     store.hooks.deleteFile = async () => { delete store.hooks.deleteFile; entered.resolve(); await resume.promise; };
     const resetting = resetSource(store, { wait: async () => {} }); await entered.promise;
-    store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new FleetError('cursor-expired', 'expired'); };
+    store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new PinItAnywhereError('cursor-expired', 'expired'); };
     try {
       await assert.rejects(c.sync.sync(), failCode('source-reset'));
       assert.deepEqual(c.workspace.snapshot, before);
@@ -313,7 +313,7 @@ test('two independent devices exchange paged history and keep both offline branc
 
 test('lost success response survives process restart, reuses the durable file ID and verifies 409 bytes before acknowledging', async () => {
   const store = new MemoryFileStore(); const c = await client(store, { bootstrapGroup: true });
-  store.hooks.afterCreate = () => { delete store.hooks.afterCreate; throw new FleetError('network', 'response lost'); };
+  store.hooks.afterCreate = () => { delete store.hooks.afterCreate; throw new PinItAnywhereError('network', 'response lost'); };
   await assert.rejects(c.sync.sync(), failCode('network'));
   assert.equal(store.files.size, 1); assert.equal(c.workspace.pendingOperations.length, 1);
   const [operation, upload] = Object.entries(c.disk().sync.uploads)[0]; assert.equal(upload.complete, false);
@@ -383,7 +383,7 @@ test('an enumeration crash leaves the graph and cursor untouched until every des
   const store = new MemoryFileStore(); store.pageSize = 1;
   await store.seed(encodeRevision(groupRecord('first', 'first-root')));
   await store.seed(encodeRevision(groupRecord('second', 'second-root')));
-  store.hooks.listFiles = ({ pageToken }) => { if (pageToken === '1') throw new FleetError('network', 'page disconnected'); };
+  store.hooks.listFiles = ({ pageToken }) => { if (pageToken === '1') throw new PinItAnywhereError('network', 'page disconnected'); };
   const c = await client(store); await assert.rejects(c.sync.sync(), failCode('network'));
   assert.equal(c.disk().sync.cursor, null); assert.equal(c.workspace.state.revisions.length, 0);
   delete store.hooks.listFiles; c.reopen(); await c.sync.sync();
@@ -456,7 +456,7 @@ test('cloud reset is recognised after a cursor restart, and removals of files ne
   const store = new MemoryFileStore(); const a = await client(store, { bootstrapGroup: true }); await a.sync.sync();
   const b = await client(store); await b.sync.sync();
   await resetSource(store, { wait: async () => {} });
-  store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new FleetError('cursor-expired', 'expired'); };
+  store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new PinItAnywhereError('cursor-expired', 'expired'); };
   await assert.rejects(b.sync.sync(), failCode('source-reset'));
   const c = await client(store); await c.sync.sync();
   store.changes.push({ id: 'never-received', removed: true }); await c.sync.sync();
@@ -465,13 +465,13 @@ test('cloud reset is recognised after a cursor restart, and removals of files ne
 test('cloud reset retries rate limits and deletes files uploaded while it ran', async () => {
   const store = new MemoryFileStore(); const a = await client(store, { bootstrapGroup: true }); await a.sync.sync();
   let limited = false; let uploaded = false; const waits = [];
-  store.hooks.deleteFile = () => { if (!limited) { limited = true; throw new FleetError('rate-limit', 'slow down'); } };
+  store.hooks.deleteFile = () => { if (!limited) { limited = true; throw new PinItAnywhereError('rate-limit', 'slow down'); } };
   store.hooks.listFileIds = async (input, fixture) => {
     if (!uploaded && fixture.calls.some(call => call.method === 'deleteFile')) { uploaded = true; await fixture.seed(encodeRevision(groupRecord('late'))); }
   };
   const result = await resetSource(store, { wait: async ms => { waits.push(ms); } });
   assert.equal(store.files.size, 4); assert.equal(result.job.phase, 'complete'); assert.deepEqual(waits, [1000]);
-  store.hooks.deleteFile = () => { throw new FleetError('source-permission', 'denied'); };
+  store.hooks.deleteFile = () => { throw new PinItAnywhereError('source-permission', 'denied'); };
   await a.sync.sync().catch(() => {}); await a.workspace.createGroup('Another group'); await a.sync.sync().catch(() => {});
   await assert.rejects(resetSource(store, { wait: async () => {} }), failCode('source-permission'));
 });
@@ -482,7 +482,7 @@ test('explicit remote removal and a missing file after cursor restart are errors
     const c = await client(store); await c.sync.sync(); const before = c.workspace.snapshot;
     store.files.delete(file.id);
     if (mode === 'change') store.changes.push({ id: file.id, removed: true });
-    else store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new FleetError('cursor-expired', 'expired'); };
+    else store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new PinItAnywhereError('cursor-expired', 'expired'); };
     await assert.rejects(c.sync.sync(), failCode('source-file-missing'));
     assert.deepEqual(c.workspace.snapshot, before); assert.equal(c.workspace.snapshot.groups[0].deleted, false);
     assert.equal(c.disk().sync.cursor, mode === 'change' ? '1' : null);
@@ -494,7 +494,7 @@ test('cursor expiration rescans intact remote history and preserves local drafts
   const c = await client(store); await c.sync.sync();
   const draft = c.workspace.blankDraft('g'); draft.content.text = 'keep draft'; await c.workspace.saveDraft(draft);
   await c.workspace.createCard(text('pending'), 'g');
-  store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new FleetError('cursor-expired', 'expired'); };
+  store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new PinItAnywhereError('cursor-expired', 'expired'); };
   await c.sync.sync();
   assert.equal(c.workspace.snapshot.cards[0].content.text, 'pending'); assert.equal(c.workspace.state.drafts[draft.id].content.text, 'keep draft');
   assert.equal(c.workspace.pendingOperations.length, 0); assert.equal(store.files.size, 2);
@@ -502,13 +502,13 @@ test('cursor expiration rescans intact remote history and preserves local drafts
 
 test('single flight, rate-limit backoff and revoked authorization are visible without discarding pending writes', async () => {
   const store = new MemoryFileStore(); const entered = gate(); const resume = gate();
-  store.hooks.getStartCursor = async () => { entered.resolve(); await resume.promise; throw new FleetError('rate-limit', 'quota', { retryAfterMs: 9000 }); };
+  store.hooks.getStartCursor = async () => { entered.resolve(); await resume.promise; throw new PinItAnywhereError('rate-limit', 'quota', { retryAfterMs: 9000 }); };
   const c = await client(store, { bootstrapGroup: true });
   const first = c.sync.sync(); const same = c.sync.sync(); assert.equal(first, same);
   await entered.promise; resume.resolve(); await assert.rejects(first, failCode('rate-limit'));
   assert.equal(c.sync.status.phase, 'backoff'); assert.equal(c.sync.status.nextAttemptAt, 10000);
   const count = store.calls.length; await assert.rejects(c.sync.sync(), failCode('sync-backoff')); assert.equal(store.calls.length, count);
-  store.hooks.getStartCursor = () => { throw new FleetError('unauthorized', 'revoked'); };
+  store.hooks.getStartCursor = () => { throw new PinItAnywhereError('unauthorized', 'revoked'); };
   await assert.rejects(c.sync.sync({ force: true }), failCode('unauthorized'));
   assert.equal(c.sync.status.phase, 'needs-login'); assert.equal(c.workspace.pendingOperations.length, 1);
 });

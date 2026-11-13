@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 public static class JsonRules
 {

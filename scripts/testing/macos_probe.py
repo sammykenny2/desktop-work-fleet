@@ -10,9 +10,9 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src" / "server"))
-from work_fleet import Store, make_server
+from pin_it_anywhere import Store, make_server
 
-with tempfile.TemporaryDirectory(prefix="work-fleet-probe-") as directory:
+with tempfile.TemporaryDirectory(prefix="pin-it-anywhere-probe-") as directory:
     store = Store(Path(directory) / "test.sqlite3")
     token = store.bootstrap().read_text()
     server = make_server(store, port=0)
@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix="work-fleet-probe-") as directory:
             "action": "create", "text": "Validation fixture received from the real SQLite service", "board": "Validation"}, server.origin)
     threading.Thread(target=create_note, daemon=True).start()
     code = store.create_invite("admin")["code"]
-    binary = ROOT / "build" / "Work Fleet.app" / "Contents" / "MacOS" / "WorkFleet"
+    binary = ROOT / "build" / "Pin It Anywhere.app" / "Contents" / "MacOS" / "PinItAnywhere"
     extra = []
     if "--mode" in sys.argv:
         extra += ["--mode", sys.argv[sys.argv.index("--mode") + 1]]

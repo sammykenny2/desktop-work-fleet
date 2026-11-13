@@ -1,7 +1,7 @@
 name: Windows package
 
 # Called by preview-release.yml for one vX.Y.Z release. Builds the MSIX from the release commit, signs it with the preview
-# certificate and saves it with its .sha256, the public certificate and work-fleet-update-windows.json as the
+# certificate and saves it with its .sha256, the public certificate and pin-it-anywhere-update-windows.json as the
 # release-windows artifact; the caller publishes every platform at once. Procedure: docs/deployment.md, "Preview releases".
 
 on:
@@ -43,19 +43,19 @@ jobs:
       # A preview that cannot sign in to Google is not worth installing on another machine.
       - name: Check Google settings
         env:
-          WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
-          WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID }}
-          HAS_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET != '' }}
+          PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID }}
+          PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_ID }}
+          HAS_SECRET: ${{ secrets.PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_SECRET != '' }}
         run: |
           node scripts/check-config.mjs --google --platform windows
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          if ($env:HAS_SECRET -ne 'true') { throw 'Secret WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET is not set.' }
+          if ($env:HAS_SECRET -ne 'true') { throw 'Secret PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_SECRET is not set.' }
       # Build-WindowsPackage -LocalTestSign signs only with a certificate the machine already trusts, as an installing
       # machine must, so the runner trusts the preview certificate's public part for this job.
       - name: Install the preview signing certificate
         env:
-          PFX_BASE64: ${{ secrets.WORK_FLEET_WINDOWS_SIGNING_PFX_BASE64 }}
-          PFX_PASSWORD: ${{ secrets.WORK_FLEET_WINDOWS_SIGNING_PFX_PASSWORD }}
+          PFX_BASE64: ${{ secrets.PIN_IT_ANYWHERE_WINDOWS_SIGNING_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.PIN_IT_ANYWHERE_WINDOWS_SIGNING_PFX_PASSWORD }}
         run: |
           if (-not $env:PFX_BASE64 -or -not $env:PFX_PASSWORD) { throw 'The preview signing certificate secrets are not set.' }
           # The key is persisted for SignTool, which runs as another process; the PFX itself never touches the disk.
@@ -68,12 +68,12 @@ jobs:
           Write-Output "Preview certificate $($certificate.Subject), valid until $($certificate.NotAfter.ToString('yyyy-MM-dd'))"
       - name: Build the signed package
         env:
-          WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
-          WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID }}
-          WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET }}
-          WORK_FLEET_PRIVACY_URL: ${{ vars.WORK_FLEET_PRIVACY_URL }}
-          WORK_FLEET_SUPPORT_URL: ${{ vars.WORK_FLEET_SUPPORT_URL }}
-          WORK_FLEET_SUPPORT_EMAIL: ${{ vars.WORK_FLEET_SUPPORT_EMAIL }}
+          PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID }}
+          PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_ID }}
+          PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_SECRET: ${{ secrets.PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_SECRET }}
+          PIN_IT_ANYWHERE_PRIVACY_URL: ${{ vars.PIN_IT_ANYWHERE_PRIVACY_URL }}
+          PIN_IT_ANYWHERE_SUPPORT_URL: ${{ vars.PIN_IT_ANYWHERE_SUPPORT_URL }}
+          PIN_IT_ANYWHERE_SUPPORT_EMAIL: ${{ vars.PIN_IT_ANYWHERE_SUPPORT_EMAIL }}
           VERSION: ${{ inputs.version }}
           SUMMARY: ${{ inputs.summary }}
         run: |
@@ -86,7 +86,7 @@ jobs:
             build/PinItAnywhere-${{ inputs.version }}-x64.msix
             build/PinItAnywhere-${{ inputs.version }}-x64.msix.sha256
             build/PinItAnywhere-preview.cer
-            build/work-fleet-update-windows.json
+            build/pin-it-anywhere-update-windows.json
           if-no-files-found: error
           # A re-run of this job replaces the artifact its failed attempt may have left.
           overwrite: true

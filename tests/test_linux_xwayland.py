@@ -18,14 +18,14 @@ class LinuxXwaylandTests(unittest.TestCase):
     def folder(self):
         base = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, base)
-        return base / "WorkFleet"
+        return base / "PinItAnywhere"
 
     def test_data_directory_matches_the_host_default_and_data_argument(self):
-        self.assertEqual(xwayland.data_directory(["--data", "/srv/fleet"], {}), Path("/srv/fleet"))
+        self.assertEqual(xwayland.data_directory(["--data", "/srv/pinitanywhere"], {}), Path("/srv/pinitanywhere"))
         self.assertEqual(xwayland.data_directory(["--assets", "a", "--data=/srv/other"], {}), Path("/srv/other"))
-        self.assertEqual(xwayland.data_directory([], {"XDG_DATA_HOME": "/home/u/data"}), Path("/home/u/data/WorkFleet"))
-        self.assertEqual(xwayland.data_directory([], {"XDG_DATA_HOME": "relative"}), Path.home() / ".local/share/WorkFleet")
-        self.assertEqual(xwayland.data_directory([], {}), Path.home() / ".local/share/WorkFleet")
+        self.assertEqual(xwayland.data_directory([], {"XDG_DATA_HOME": "/home/u/data"}), Path("/home/u/data/PinItAnywhere"))
+        self.assertEqual(xwayland.data_directory([], {"XDG_DATA_HOME": "relative"}), Path.home() / ".local/share/PinItAnywhere")
+        self.assertEqual(xwayland.data_directory([], {}), Path.home() / ".local/share/PinItAnywhere")
 
     def test_only_a_gnome_wayland_session_with_xwayland_counts(self):
         self.assertTrue(xwayland.gnome_wayland(GNOME))
@@ -58,7 +58,7 @@ class LinuxXwaylandTests(unittest.TestCase):
         self.assertNotIn(xwayland.OWN, environ)
         changed = {**GNOME, "GDK_BACKEND": "wayland", xwayland.OWN: "x11"}
         xwayland.configure(changed, folder)
-        self.assertEqual(changed["GDK_BACKEND"], "wayland", "a backend the user set after Work Fleet's stays")
+        self.assertEqual(changed["GDK_BACKEND"], "wayland", "a backend the user set after Pin It Anywhere's stays")
 
     def test_preference_file_is_private_atomic_and_validated(self):
         folder = self.folder()

@@ -52,14 +52,14 @@
           "SQLitePCLRaw.core": "2.1.12"
         }
       },
-      "WorkFleet": {
+      "PinItAnywhere": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Web.WebView2": "[1.0.4258.31, )",
-          "WorkFleet.Windows.Core": "[0.2.7, )"
+          "PinItAnywhere.Windows.Core": "[0.2.7, )"
         }
       },
-      "workfleet.windows.core": {
+      "pinitanywhere.windows.core": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite": "[10.0.12, )"

@@ -11,7 +11,7 @@ const exact = (value, keys) => value && canonicalJson(Object.keys(value).sort())
 const invalid = value => requireValue(value, 'invalid-initialization', t('errors.sources.initializationInvalid'));
 
 export async function workspaceIdentity(sourceId) {
-  return sha256(new TextEncoder().encode(canonicalJson(['work-fleet-workspace', sourceId])));
+  return sha256(new TextEncoder().encode(canonicalJson(['pin-it-anywhere-workspace', sourceId])));
 }
 
 export async function prepareInitialization(sourceId, sourceResetIds, { mode = 'starter', origin = 'bootstrap', records = [], attachments = [] } = {}) {
@@ -19,14 +19,14 @@ export async function prepareInitialization(sourceId, sourceResetIds, { mode = '
   if (mode === 'starter') records = [await initialGroupRecord(sourceId, sourceResetIds)];
   invalid(records.every(record => (record.value.content?.attachments || []).every(file => attachments.includes(file.id))));
   const revisions = await Promise.all(records.map(async record => ({ id: record.revisionId, sha256: await sha256(encodeRevision(record)) })));
-  return validateInitialization({ format: 'work-fleet-workspace', schemaVersion: 1, phase: 'prepare',
+  return validateInitialization({ format: 'pin-it-anywhere-workspace', schemaVersion: 1, phase: 'prepare',
     workspaceId: await workspaceIdentity(sourceId), sourceResetIds, mode, origin,
     revisions: revisions.sort((a, b) => compareId(a.id, b.id)), attachments: [...new Set(attachments)].sort() }, sourceId);
 }
 
 export async function validateInitialization(input, sourceId) {
   const value = copy(input);
-  invalid(value?.format === 'work-fleet-workspace' && value.schemaVersion === 1
+  invalid(value?.format === 'pin-it-anywhere-workspace' && value.schemaVersion === 1
     && value.workspaceId === await workspaceIdentity(sourceId));
   invalid(Array.isArray(value.sourceResetIds) && value.sourceResetIds.every(validFileId)
     && new Set(value.sourceResetIds).size === value.sourceResetIds.length

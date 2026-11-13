@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
 static class DatasetProbe
 {

@@ -10,12 +10,12 @@ cd "$ROOT"
 mkdir -p "$ROOT/build"
 OUTPUT="$(mktemp -d "$ROOT/build/macos-layer-checks-XXXXXXXX")"
 xcrun swiftc -parse-as-library -swift-version 5 \
-    src/native/apple/Shared/FleetProtocol.swift \
-    src/native/apple/Shared/FleetText.swift \
-    src/native/apple/macos/FleetSceneProtocol.swift \
-    src/native/apple/macos/FleetSceneSurface.swift \
-    src/native/apple/macos/FleetShortcuts.swift \
-    src/native/apple/macos/FleetDesktop.swift \
+    src/native/apple/Shared/PinItAnywhereProtocol.swift \
+    src/native/apple/Shared/PinItAnywhereText.swift \
+    src/native/apple/macos/PinItAnywhereSceneProtocol.swift \
+    src/native/apple/macos/PinItAnywhereSceneSurface.swift \
+    src/native/apple/macos/PinItAnywhereShortcuts.swift \
+    src/native/apple/macos/PinItAnywhereDesktop.swift \
     tests/native/apple/SceneLayersProbe.swift \
     -o "$OUTPUT/scene-layers-probe"
 "$OUTPUT/scene-layers-probe" | tee "$OUTPUT/result.txt"

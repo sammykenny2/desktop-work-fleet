@@ -22,22 +22,22 @@ fun pathTool(name: String): String =
     if (System.getProperty("os.name").startsWith("Windows")) name
     else providers.environmentVariable("PATH").orNull.orEmpty().split(File.pathSeparator).filter { File(it).isAbsolute }
         .map { File(it, name) }.firstOrNull { it.isFile && it.canExecute() }?.absolutePath ?: name
-val nodeExecutable = providers.gradleProperty("workFleetNode").orElse(providers.environmentVariable("WORK_FLEET_NODE")).orElse(providers.provider { pathTool("node") }).get()
-val npmExecutable = providers.gradleProperty("workFleetNpm").orElse(providers.environmentVariable("WORK_FLEET_NPM")).orElse(providers.provider { pathTool("npm") }).get()
+val nodeExecutable = providers.gradleProperty("pinItAnywhereNode").orElse(providers.environmentVariable("PIN_IT_ANYWHERE_NODE")).orElse(providers.provider { pathTool("node") }).get()
+val npmExecutable = providers.gradleProperty("pinItAnywhereNpm").orElse(providers.environmentVariable("PIN_IT_ANYWHERE_NPM")).orElse(providers.provider { pathTool("npm") }).get()
 val configJson = providers.exec {
     workingDir(repositoryRoot)
     commandLine(nodeExecutable, "scripts/android-config.mjs")
 }.standardOutput.asText.get()
 val config = JsonSlurper().parseText(configJson) as Map<*, *>
 val configuredId = config["appId"] as? String ?: ""
-val signingVariables = listOf("WORK_FLEET_ANDROID_KEYSTORE", "WORK_FLEET_ANDROID_KEY_ALIAS", "WORK_FLEET_ANDROID_STORE_PASSWORD", "WORK_FLEET_ANDROID_KEY_PASSWORD")
+val signingVariables = listOf("PIN_IT_ANYWHERE_ANDROID_KEYSTORE", "PIN_IT_ANYWHERE_ANDROID_KEY_ALIAS", "PIN_IT_ANYWHERE_ANDROID_STORE_PASSWORD", "PIN_IT_ANYWHERE_ANDROID_KEY_PASSWORD")
 val signingValues = signingVariables.map { System.getenv(it).orEmpty() }
 val hasSigning = signingValues.all { it.isNotBlank() }
-val requireSigned = System.getenv("WORK_FLEET_REQUIRE_SIGNED_ANDROID") == "1"
+val requireSigned = System.getenv("PIN_IT_ANYWHERE_REQUIRE_SIGNED_ANDROID") == "1"
 require(!requireSigned || hasSigning) { "Signed release requires all four Android signing environment variables. See docs/release/README.md." }
 
 android {
-    namespace = "app.workfleet.nativehost"
+    namespace = "dev.sammykenny2.pinitanywhere.nativehost"
     compileSdk = 36
     defaultConfig {
         applicationId = configuredId.ifEmpty { "dev.sammykenny2.pinitanywhere" }
@@ -45,14 +45,14 @@ android {
         targetSdk = 36
         versionCode = 700
         versionName = "0.7.0"
-        testInstrumentationRunner = "app.workfleet.nativehost.StorageProbe"
+        testInstrumentationRunner = "dev.sammykenny2.pinitanywhere.nativehost.StorageProbe"
     }
     // host.info reports versionName, which Settings shows and backups record.
     buildFeatures { buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/notices").get().asFile)
     // CI restores the existing debug key so device updates and Google OAuth keep the same signer.
-    providers.environmentVariable("WORK_FLEET_ANDROID_DEBUG_KEYSTORE").orNull?.let { keyPath ->
+    providers.environmentVariable("PIN_IT_ANYWHERE_ANDROID_DEBUG_KEYSTORE").orNull?.let { keyPath ->
         signingConfigs.getByName("debug") {
             storeFile = File(keyPath).also { require(it.isAbsolute && it.isFile) { "Debug keystore must be an existing absolute file." } }
             storePassword = "android"
@@ -154,7 +154,7 @@ androidComponents.onVariants { variant ->
 }
 tasks.matching { it.name.contains("Release") }.configureEach {
     doFirst {
-        require(configuredId.isNotEmpty()) { "Release requires WORK_FLEET_APP_ID in .env. Sync Gradle after configuring it." }
+        require(configuredId.isNotEmpty()) { "Release requires PIN_IT_ANYWHERE_APP_ID in .env. Sync Gradle after configuring it." }
         require(hasSigning || signingValues.all { it.isBlank() }) { "Set all four Android signing environment variables, or leave all unset for an unsigned AAB." }
     }
 }

@@ -1,7 +1,7 @@
 import { Drafts, statuses, cacheKey, credentialKey } from './model.js';
 const $ = id => document.getElementById(id);
 const drafts = new Drafts(localStorage);
-let token = window.workFleetNative?.token || localStorage.getItem(credentialKey) || '';
+let token = window.pinItAnywhereNative?.token || localStorage.getItem(credentialKey) || '';
 let snapshot = { epoch: '', notes: [], role: 'viewer' };
 let draft = null;
 let view = 'active';
@@ -226,7 +226,7 @@ $('make-invite').onclick = async () => {
 };
 $('export-drafts').onclick = () => {
   const blob = new Blob([JSON.stringify({ drafts: drafts.list(), current: draft }, null, 2)], { type: 'application/json' });
-  const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'work-fleet-drafts.json'; link.click();
+  const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'pin-it-anywhere-drafts.json'; link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 };
 const code = new URLSearchParams(location.hash.slice(1)).get('pair');
@@ -236,10 +236,10 @@ window.addEventListener('storage', updateDraftList);
 window.addEventListener('online', sync);
 window.addEventListener('beforeunload', event => { if (storageFailed) { event.preventDefault(); event.returnValue = ''; } });
 renderNotes(); showDraft(); updateDraftList(); void sync(); setInterval(sync, 2500);
-if ('serviceWorker' in navigator && !window.workFleetNative) navigator.serviceWorker.register('/sw.js').catch(() => {});
+if ('serviceWorker' in navigator && !window.pinItAnywhereNative) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
-window.workFleetFlushDraft = () => {
+window.pinItAnywhereFlushDraft = () => {
   try { preserveCurrent(); return !storageFailed && !sending; } catch { return false; }
 };
 
-window.workFleetDraftState = () => ({ count: drafts.list().length, storageFailed, sending });
+window.pinItAnywhereDraftState = () => ({ count: drafts.list().length, storageFailed, sending });

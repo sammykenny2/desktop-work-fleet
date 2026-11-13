@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// Per-document bounded protocol. The UI host authenticates source and navigation before dispatch. With
@@ -261,7 +261,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
         var grant = backupFiles!.Grant(path!);
         if (method == "backup.choose") return grant;
         var destination = JsonSerializer.SerializeToElement(grant).GetProperty("destinationId").GetString()!;
-        var id = Guid.NewGuid().ToString(); var name = $"work-fleet-backup-{Guid.NewGuid()}.zip";
+        var id = Guid.NewGuid().ToString(); var name = $"pin-it-anywhere-backup-{Guid.NewGuid()}.zip";
         manualDestinations.Add(id, (destination, name)); return new { destinationId = id, name };
       }
       case "backup.authorize": RequireFiles().Authorize(JsonRules.Text(args, "destinationId")); return null;

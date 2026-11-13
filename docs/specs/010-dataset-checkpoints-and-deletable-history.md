@@ -28,7 +28,7 @@ Clear this note's history is the first follow-up capacity feature. No runtime be
 | ID | Requirement |
 |---|---|
 | U01 | Remove permanent inability to delete note-version content; substantial persistence redesign is acceptable |
-| U02 | Do not migrate old test data; let the new app explicitly reset old Work Fleet Google data |
+| U02 | Do not migrate old test data; let the new app explicitly reset old Pin It Anywhere Google data |
 | U03 | New environments joining accounts with large history must become usable efficiently |
 | U04 | Growing history must not slow ordinary actions; restoring a very old version may take longer |
 | U05 | Future expiry applies to the whole note after entering Trash, not retention of each version |
@@ -73,14 +73,14 @@ responsive foreground UI plus background completion is the accepted qualificatio
 string when not applicable), local commit ordinal and JSON value. The Workspace-specific value schemas and
 activation still belong to Phase 1A; a storage primitive accepting a row is not proof of a valid note or checkpoint.
 
-A `work-fleet-record-transaction` V1 envelope carries a random commit UUID, profile, next revision and at most
+A `pin-it-anywhere-record-transaction` V1 envelope carries a random commit UUID, profile, next revision and at most
 512 distinct puts/deletes/attachment deletions. Optional `attachmentDeletes` contains unique SHA-256 IDs;
 byte deletion shares the row transaction, rollback and exact-replay receipt. It is at most 8 MiB; a row is at most 8 MiB minus 1 KiB for paging overhead. Revision
 zero requires an empty profile; later writes compare the expected local revision. History IDs cannot be replaced
 with different entity/content, and identical history replay preserves the original position. This local CAS is
 provided by IndexedDB/SQLite; it does not imply that Google Drive provides CAS.
 
-Changed rows, verified attachment bytes and the small `work-fleet-local-records` receipt commit together. Up to
+Changed rows, verified attachment bytes and the small `pin-it-anywhere-local-records` receipt commit together. Up to
 512 attachments, individually bounded by 25 MiB and totaling at most 128 MiB, may accompany a transaction; native staging also applies its
 existing aggregate capacity limit. The receipt contains the exact transaction digest and UUID. If an acknowledgement
 is lost, equality of the revision alone cannot establish success. Replaying the exact acknowledged transaction
@@ -99,22 +99,22 @@ or a preserved unsaved draft. Current-view controls activate atomically with the
 and abandoned generations have durable cleanup jobs, rather than unbounded synchronous deletion during save.
 
 Native rows remain protected with the host's existing encryption and owner/session boundary. The browser uses a
-separate `work-fleet-records-v1` database, with entries, receipts and attachments in one transaction. Old workspace
+separate `pin-it-anywhere-records-v1` database, with entries, receipts and attachments in one transaction. Old workspace
 presence is detected through metadata only and initial creation is refused until an explicit discard flow has
 handled it. These primitives do not convert old data or activate themselves in the current application.
 
 ## Concrete candidate protocol
 
 This section is the object of Phase 1 proof work. It specifies a candidate, not a claim that provider races have
-already passed. Dataset JSON envelopes use `schemaVersion: 1`; the legacy reset fence retains `schema: 1`. The new discriminator is `work-fleet-dataset`; legacy
-`work-fleet-file` is not interchangeable with it. Names below abbreviate UUIDs for readability; real identifiers
+already passed. Dataset JSON envelopes use `schemaVersion: 1`; the legacy reset fence retains `schema: 1`. The new discriminator is `pin-it-anywhere-dataset`; legacy
+`pin-it-anywhere-file` is not interchangeable with it. Names below abbreviate UUIDs for readability; real identifiers
 are full random UUIDs and Drive file IDs. Names are labels, never unique lookup keys.
 
 ### File layout and metadata
 
 ```text
 appDataFolder/
-  work-fleet-v1-reset-<digest>.json       old-format fence; deliberately outside the new root
+  pin-it-anywhere-v1-reset-<digest>.json       old-format fence; deliberately outside the new root
   dataset-d7/                           new dataset root, with its own reserved Drive ID
     dataset-d7.json                     prepare descriptor: root IDs, source fence, format, shard rule
     ready-d7.json                       initialization receipt; references the verified initial state
@@ -150,18 +150,18 @@ folders for the same entity; all verified owned folders remain discoverable by e
 32. Identical revision UUIDs deduplicate by verified content, history includes every owned folder, and purge captures
 all of them. Exceeding this ceiling preserves local work and pauses publication; no folder is discarded by age.
 
-Every new-format object has `wfFormat=work-fleet-dataset`, `wfSchema=1`, `wfDataset=<UUID>` and `wfKind`.
+Every new-format object has `piaFormat=pin-it-anywhere-dataset`, `piaSchema=1`, `piaDataset=<UUID>` and `piaKind`.
 Additional private properties are bounded strings, not lists of revisions or heads:
 
-| `wfKind` | Additional properties | Immutable body / role |
+| `piaKind` | Additional properties | Immutable body / role |
 |---|---|---|
-| `dataset-root`, `folder` | `wfRole` for structural folders; `wfEntity` for a note/group folder | Folder metadata only |
-| `dataset`, `ready` | `wfSha256` | Initialization plan / verified readiness; names exact root/fence IDs |
-| `revision` | `wfEntity`, `wfRevision`, `wfSha256`, `wfShard` | Entity/revision UUID, parent UUIDs, full value; attachment descriptors |
-| `attachment` | `wfEntity`, `wfSha256` | Note-owned bytes |
-| `change` | `wfEntity`, `wfRevision`, `wfShard`, `wfSha256` | Dataset, operation UUID, revision file ID/digest/size, entity folder ID |
-| `checkpoint` | `wfShard`, `wfSha256` | Dataset/shard, checkpoint UUID, explicit input file IDs/digests, full current heads/values/parents and current revision locators |
-| `purge` | `wfEntity`, `wfShard`, `wfSha256` | Dataset, purge UUID, note UUID/folder ID, previewed Trash episode and heads |
+| `dataset-root`, `folder` | `piaRole` for structural folders; `piaEntity` for a note/group folder | Folder metadata only |
+| `dataset`, `ready` | `piaSha256` | Initialization plan / verified readiness; names exact root/fence IDs |
+| `revision` | `piaEntity`, `piaRevision`, `piaSha256`, `piaShard` | Entity/revision UUID, parent UUIDs, full value; attachment descriptors |
+| `attachment` | `piaEntity`, `piaSha256` | Note-owned bytes |
+| `change` | `piaEntity`, `piaRevision`, `piaShard`, `piaSha256` | Dataset, operation UUID, revision file ID/digest/size, entity folder ID |
+| `checkpoint` | `piaShard`, `piaSha256` | Dataset/shard, checkpoint UUID, explicit input file IDs/digests, full current heads/values/parents and current revision locators |
+| `purge` | `piaEntity`, `piaShard`, `piaSha256` | Dataset, purge UUID, note UUID/folder ID, previewed Trash episode and heads |
 
 The largest row uses eight properties; no property holds plaintext note data. Enforce Drive's property-size limits
 in codecs. Metadata routes a read; strict envelope, identity, size and checksum validation establish usable content.
@@ -188,32 +188,32 @@ and escape all IDs. `D7`, `N42` and folder IDs stand for verified values, not us
 
 ```text
 # Dataset discovery (metadata only; then verify the matching descriptor/ready pair):
-trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' }
-  and appProperties has { key='wfKind' and value='dataset' }
+trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' }
+  and appProperties has { key='piaKind' and value='dataset' }
 
 # Prove the declared dataset root is a direct app-data child, including when metadata returns a real parent ID:
 trashed = false and 'appDataFolder' in parents
-  and appProperties has { key='wfFormat' and value='work-fleet-dataset' }
-  and appProperties has { key='wfDataset' and value='D7' }
-  and appProperties has { key='wfKind' and value='dataset-root' }
+  and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' }
+  and appProperties has { key='piaDataset' and value='D7' }
+  and appProperties has { key='piaKind' and value='dataset-root' }
 
 # Current discovery for D7; never lists the revision bodies used only as history:
-trashed = false and appProperties has { key='wfDataset' and value='D7' }
-  and (appProperties has { key='wfKind' and value='checkpoint' }
-       or appProperties has { key='wfKind' and value='change' })
+trashed = false and appProperties has { key='piaDataset' and value='D7' }
+  and (appProperties has { key='piaKind' and value='checkpoint' }
+       or appProperties has { key='piaKind' and value='change' })
 
 # History page for the selected note, ordered by createdTime desc:
 trashed = false and 'NOTE_FOLDER_ID' in parents
-  and appProperties has { key='wfDataset' and value='D7' }
-  and appProperties has { key='wfKind' and value='revision' }
+  and appProperties has { key='piaDataset' and value='D7' }
+  and appProperties has { key='piaKind' and value='revision' }
 
 # Targeted anti-resurrection check (bounded OR groups may check several current identities):
-trashed = false and appProperties has { key='wfDataset' and value='D7' }
-  and appProperties has { key='wfKind' and value='purge' }
-  and appProperties has { key='wfEntity' and value='N42' }
+trashed = false and appProperties has { key='piaDataset' and value='D7' }
+  and appProperties has { key='piaKind' and value='purge' }
+  and appProperties has { key='piaEntity' and value='N42' }
 
 # Legacy reset fences, including fences written by an old app:
-trashed = false and appProperties has { key='wfKind' and value='reset' }
+trashed = false and appProperties has { key='piaKind' and value='reset' }
 ```
 
 Request `id,name,mimeType,parents,size,createdTime,appProperties,sha256Checksum` plus pagination fields where
@@ -361,18 +361,18 @@ outside the deleted folder. No UI claims disconnected devices or already exporte
 
 ### D. Reset old 0.4.x data
 
-The reset journal first captures old app-data file IDs, including `work-fleet-v1-revision-OLD.json`, through
+The reset journal first captures old app-data file IDs, including `pin-it-anywhere-v1-revision-OLD.json`, through
 metadata-only pages. It reserves a legacy-compatible marker and new dataset `d8`. It publishes
-`work-fleet-v1-reset-NEW.json` with the exact old envelope below, clears the captured old content, then creates
+`pin-it-anywhere-v1-reset-NEW.json` with the exact old envelope below, clears the captured old content, then creates
 only `dataset-d8/`, `dataset-d8.json`, and `ready-d8.json`. No starter group or empty checkpoint is uploaded.
 Cleanup deletes only the captured old IDs,
 never a newly listed "everything except my marker" set.
 
 ```json
-{"format":"work-fleet-reset","schema":1,"resetAt":"2026-11-01T00:00:00.000Z","initialization":"workspace-init-v1"}
+{"format":"pin-it-anywhere-reset","schema":1,"resetAt":"2026-11-01T00:00:00.000Z","initialization":"workspace-init-v1"}
 ```
 
-The marker uses the existing `work-fleet-file` metadata (`wfSchema=1`, `wfKind=reset`, `wfSha256`) and remains
+The marker uses the existing `pin-it-anywhere-file` metadata (`piaSchema=1`, `piaKind=reset`, `piaSha256`) and remains
 outside old cleanup. Existing clients observing a changed reset set stop their normal sync. They do not receive
 a fake old-format ready receipt. An old user-initiated reset can nevertheless enumerate and delete `d8` too;
 this is why updating/stopping all old devices is required and cloud-loss recovery is explicit.
@@ -540,7 +540,7 @@ unsaved work and layout; its manifest declares excluded history. A cached subset
 Existing encrypted/automatic backup and atomic restore guarantees remain; automatic backup does not silently
 switch to the smaller mode. Backups are independent artifacts, not checkpoint chains.
 
-The V1 manifest adds `coverage: { workspaceFormat: "work-fleet-workspace-current", mode }`, where `mode` is
+The V1 manifest adds `coverage: { workspaceFormat: "pin-it-anywhere-workspace-current", mode }`, where `mode` is
 `complete-retained-history` or `current-state-only`. The dataset application rejects archives without this
 discriminator instead of converting them. The retained-record validator accepts unknown historical parent IDs
 as ancestry boundaries, while still rejecting cycles, cross-entity parents and conflicting UUID contents.

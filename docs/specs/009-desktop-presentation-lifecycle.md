@@ -13,7 +13,7 @@
 
 ## Summary
 
-Work Fleet's resident work services continue when desktop presentation cannot run. A lifecycle coordinator starts,
+Pin It Anywhere's resident work services continue when desktop presentation cannot run. A lifecycle coordinator starts,
 pauses and restores presentation according to the current session, display/backend and graphics capabilities.
 The same contract applies at sign-in and during use on Windows, macOS and Linux. It replaces whole-app crash
 reopen with controlled presentation recovery. Current implementation and verification boundaries remain in
@@ -39,7 +39,7 @@ reopen with controlled presentation recovery. Current implementation and verific
 - After a headless sign-in, work services start; notes appear when a usable local or virtual desktop becomes available.
 - When changing resolution or monitors, the app updates the affected presentation without losing saved work.
 - If a graphical host fails, sync keeps running and presentation recovery does not require restarting the core.
-- After Quit, no pending display event or retry brings Work Fleet back.
+- After Quit, no pending display event or retry brings Pin It Anywhere back.
 
 ## Requirements
 

@@ -7,7 +7,7 @@
 | Status | Approved requirements and working defaults; implementation in progress under PLAN-014 |
 | Owner | Project maintainer |
 | Reviewer | Independent implementation review and maintainer device acceptance pending |
-| Decisions | [ADR-069](../decisions/069-pin-it-anywhere-product-identity.md), [ADR-070](../decisions/070-release-channels-and-architecture.md) |
+| Decisions | [ADR-069](../decisions/069-pin-it-anywhere-product-identity.md), [ADR-070](../decisions/070-release-channels-and-architecture.md), [ADR-071](../decisions/071-complete-product-name-cutover.md) |
 | Related Plan | [PLAN-014](../plans/014-product-identity-and-distribution.md) |
 
 ## Summary
@@ -34,7 +34,7 @@ and format choices; this specification owns the required behavior and acceptance
 
 | ID | Requirement |
 |---|---|
-| FR01 | Product names and application identifiers match ADR-069 in native metadata, launcher entries, locale catalogs, About/Settings, sharing, OAuth branding and store materials. Other locales default to the English product name. |
+| FR01 | Product names and application identifiers match ADR-069 and ADR-071 in native metadata, launcher entries, locale catalogs, About/Settings, sharing, OAuth branding and store materials. Current source/types/namespaces, filenames, assets, build keys, V1 identifiers and updater lookup names use the same identity; only documentary history retains retired names. Other locales default to the English product name. |
 | FR02 | Repository links, CI checkout/update configuration, download URLs and future asset naming agree after a repo rename. Existing installed clients get a verified update or explicit manual transition; redirects alone are not acceptance. |
 | FR03 | Changing Google projects or installed app identities requires a complete backup and a documented restore route before old access is retired. The old credentials, cloud data and local data are not deleted or revoked automatically. |
 | FR04 | OAuth clients, callback schemes and Android certificate fingerprints match the actual app identity and signing channel. A new client's sign-in works on each supported platform, including after restart. |

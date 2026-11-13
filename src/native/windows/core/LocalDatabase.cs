@@ -2,7 +2,7 @@ using Microsoft.Data.Sqlite;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>One native coordinator owns a database. Staging never appears in public reads.</summary>
 public sealed partial class LocalDatabase : IDisposable
@@ -26,7 +26,7 @@ public sealed partial class LocalDatabase : IDisposable
     catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33)
     { throw new HostError("native-already-open", "This data location is already open in another Pin It Anywhere window. Use that window."); }
     catch (Exception error) when (DataFailure.Classify(error) is { } cause) { throw DataFailure.Describe(cause); }
-    connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(directory, "fleet.sqlite3"),
+    connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(directory, "pinitanywhere.sqlite3"),
       Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString());
     try
     {

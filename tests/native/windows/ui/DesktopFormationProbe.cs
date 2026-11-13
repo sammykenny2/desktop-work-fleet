@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
 using Microsoft.Web.WebView2.Core;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 internal static class DesktopFormationProbe
 {
@@ -55,7 +55,7 @@ internal static class DesktopFormationProbe
     var original = NativeScreenCapture.Read(bounds);
     NativeScreenCapture.Save(bounds, Path.Combine(directory, "before.png"));
     using var focus = new ForegroundObservation();
-    var window = new FleetWindow(Program.English(Path.Combine(directory, "data")), desktopDisplays: [display with { WorkArea = bounds }])
+    var window = new PinItAnywhereWindow(Program.English(Path.Combine(directory, "data")), desktopDisplays: [display with { WorkArea = bounds }])
     { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000,
       ShowActivated = false, ShowInTaskbar = false, Width = 1180, Height = 800 };
     window.Show();

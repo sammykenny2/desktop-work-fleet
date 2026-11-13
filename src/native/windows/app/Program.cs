@@ -1,8 +1,8 @@
 using System.Windows;
 using System.IO;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 public static class Program
 {
@@ -25,17 +25,17 @@ public static class Program
       var probe = restart is null && CrashGuard.ProbeRequested(directory);
       var signIn = launchedAtLogin || restart is not null || probe;
       // ADR-045 amended 2026-10-14: the user turned the sign-in reopen off for now, so a failed sign-in launch stays visible
-      // as a missing Work Fleet. A marker left by an earlier version is still taken above.
+      // as a missing Pin It Anywhere. A marker left by an earlier version is still taken above.
       guard = new CrashGuard(directory, signIn, restart is not null, canReopen: false);
       guard.Install(application, HostShell.Distribution());
       if (restart is not null) guard.Note($"reopened after {restart.Reason}; previous instance {previous}");
-      // A running Work Fleet on the same data shows its main window instead of this one failing on the owner lock.
+      // A running Pin It Anywhere on the same data shows its main window instead of this one failing on the owner lock.
       instance = SingleInstance.Claim(directory);
       if (instance is null) { guard.Note("handed to the running instance"); return; }
-      if (directory != AppDataDirectory.Unpackaged && !File.Exists(Path.Combine(directory, "fleet.sqlite3"))
-        && File.Exists(Path.Combine(AppDataDirectory.Unpackaged, "fleet.sqlite3")))
+      if (directory != AppDataDirectory.Unpackaged && !File.Exists(Path.Combine(directory, "pinitanywhere.sqlite3"))
+        && File.Exists(Path.Combine(AppDataDirectory.Unpackaged, "pinitanywhere.sqlite3")))
         MessageBox.Show(HostText.Get("dialog.separateData"), HostText.Get("common.appName"), MessageBoxButton.OK, MessageBoxImage.Information);
-      var window = OpenWindow(directory, () => new FleetWindow(directory, shell: new HostShell(directory, signIn, HostShell.Distribution())), cause =>
+      var window = OpenWindow(directory, () => new PinItAnywhereWindow(directory, shell: new HostShell(directory, signIn, HostShell.Distribution())), cause =>
       {
         var explanation = new DataFailureWindow(directory, cause); explanation.ShowDialog(); return explanation.SetAsideDone;
       }, guard.Note);
@@ -58,7 +58,7 @@ public static class Program
   /// exists: a window whose constructor throws stays registered with WPF, so the application would never shut down.
   /// </summary>
   /// <param name="explain">Shows the explanation for a cause and returns whether the user set the data aside.</param>
-  public static FleetWindow? OpenWindow(string directory, Func<FleetWindow> create, Func<string, bool> explain, Action<string>? note = null)
+  public static PinItAnywhereWindow? OpenWindow(string directory, Func<PinItAnywhereWindow> create, Func<string, bool> explain, Action<string>? note = null)
   {
     while (true)
     {

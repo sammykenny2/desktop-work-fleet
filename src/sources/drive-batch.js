@@ -1,8 +1,8 @@
-import { FleetError, requireValue } from '../core/contracts.js';
+import { PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { validFileId } from './files.js';
 import { t } from '../i18n/index.js';
 
-export const DELETE_BATCH_BOUNDARY = 'work_fleet_delete';
+export const DELETE_BATCH_BOUNDARY = 'pin_it_anywhere_delete';
 export const DELETE_BATCH_BYTES = 2 * 1024 * 1024;
 export function deleteBatchIds(ids) {
   requireValue(Array.isArray(ids) && ids.length > 0 && ids.length <= 100 && new Set(ids).size === ids.length
@@ -17,7 +17,7 @@ export function deleteBatchRequest(ids) {
 
 const DELETE_FAILURES = { unauthorized: 'errors.sources.driveUnauthorized', 'rate-limit': 'errors.sources.driveRateLimit',
   'service-unavailable': 'errors.sources.driveUnavailable', 'source-permission': 'errors.sources.drivePermission' };
-export const deleteFailure = code => new FleetError(code, t(DELETE_FAILURES[code] ?? 'errors.sources.driveNetwork'));
+export const deleteFailure = code => new PinItAnywhereError(code, t(DELETE_FAILURES[code] ?? 'errors.sources.driveNetwork'));
 
 /** Only acknowledged IDs leave the durable journal. A malformed/lost reply can safely retry those same IDs. */
 export function deleteBatchResult(ids, bytes) {

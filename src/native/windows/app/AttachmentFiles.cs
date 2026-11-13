@@ -4,14 +4,14 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>Only decrypted attachment bytes reach this adapter; no renderer-provided path or command is accepted.</summary>
 internal sealed class AttachmentFiles : IDisposable
 {
-  private readonly string root = Path.Combine(Path.GetTempPath(), "WorkFleet-attachments-" + Guid.NewGuid().ToString("N"));
+  private readonly string root = Path.Combine(Path.GetTempPath(), "PinItAnywhere-attachments-" + Guid.NewGuid().ToString("N"));
   private readonly List<string> files = [];
   private readonly Dictionary<string, object> previews = [];
   private readonly object gate = new();

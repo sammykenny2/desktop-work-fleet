@@ -16,7 +16,7 @@ const execute = promisify(execFile);
 async function checkout(records) {
   // Node runs a copied script from its real path, while macOS tmpdir() is the /var symlink to /private/var; a symlinked
   // checkout would put build/windows outside the stage path the script is given.
-  const directory = await mkdtemp(path.join(await realpath(tmpdir()), 'work-fleet-versions-'));
+  const directory = await mkdtemp(path.join(await realpath(tmpdir()), 'pin-it-anywhere-versions-'));
   for (const [file, content] of Object.entries(records)) {
     await mkdir(path.dirname(path.join(directory, file)), { recursive: true });
     await writeFile(path.join(directory, file), content);
@@ -31,7 +31,7 @@ test('final Apple and Android default identities agree with the example build se
     assert.equal(config.appId, 'dev.sammykenny2.pinitanywhere');
     assert.equal(config.appleAppGroupId, `group.${config.appId}`);
     const apple = await readFile(path.join(root, versionRecords.apple), 'utf8');
-    assert.equal(apple.match(/^WORK_FLEET_APP_ID\s*=\s*(\S+)/m)?.[1], config.appId);
+    assert.equal(apple.match(/^PIN_IT_ANYWHERE_APP_ID\s*=\s*(\S+)/m)?.[1], config.appId);
     const android = await readFile(path.join(root, versionRecords.android), 'utf8');
     assert.equal(android.match(/applicationId = configuredId\.ifEmpty \{ "([^"]+)" \}/)?.[1], config.appId);
   } finally {
@@ -43,7 +43,7 @@ test('each platform reads its own version record', async () => {
   const directory = await checkout({
     [versionRecords.linux]: '1.2.3\n',
     [versionRecords.windows]: '<Project><PropertyGroup><Version>4.5.6</Version></PropertyGroup></Project>\n',
-    [versionRecords.apple]: 'WORK_FLEET_APP_ID = app.workfleet.preview\nMARKETING_VERSION = 7.8.9\nCURRENT_PROJECT_VERSION = 42\n',
+    [versionRecords.apple]: 'PIN_IT_ANYWHERE_APP_ID = dev.sammykenny2.pinitanywhere\nMARKETING_VERSION = 7.8.9\nCURRENT_PROJECT_VERSION = 42\n',
     [versionRecords.android]: 'android {\n    defaultConfig {\n        versionCode = 100\n        versionName = "3.2.1"\n    }\n}\n',
   });
   try {
@@ -101,7 +101,7 @@ test('repository records hold numeric versions and the packaging scripts never r
     const literal = new RegExp(`(?<![\\d.])${recorded[platform].replaceAll('.', '\\.')}(?![\\d.])`);
     for (const file of files) assert.equal(literal.test(await readFile(path.join(root, file), 'utf8')), false, file);
   }
-  for (const project of ['src/native/windows/app/WorkFleet.Windows.csproj', 'src/native/windows/core/WorkFleet.Windows.Core.csproj']) {
+  for (const project of ['src/native/windows/app/PinItAnywhere.Windows.csproj', 'src/native/windows/core/PinItAnywhere.Windows.Core.csproj']) {
     assert.equal((await readFile(path.join(root, project), 'utf8')).includes('<Version>'), false, project);
   }
   const gradle = await readFile(path.join(root, 'src/native/android/app/build.gradle.kts'), 'utf8');
@@ -140,16 +140,17 @@ test('MSIX keeps Windows identity independent of the mobile ID and includes earl
     await copyFile(path.join(root, locale), path.join(directory, locale));
     const stage = path.join(directory, 'build', 'windows', 'stage');
     for (const [mobileId, windowsId, expected] of [
-      ['', '', 'app.workfleet.preview'],
-      ['dev.sammykenny2.pinitanywhere', '', 'app.workfleet.preview'],
+      ['', '', 'dev.sammykenny2.pinitanywhere'],
+      ['dev.sammykenny2.pinitanywhere', '', 'dev.sammykenny2.pinitanywhere'],
+      ['dev.example.phone', '', 'dev.sammykenny2.pinitanywhere'],
       ['dev.sammykenny2.pinitanywhere', 'Fixture.Windows', 'Fixture.Windows'],
     ]) {
       await execute(process.execPath, [path.join(directory, 'scripts', 'generate-windows-manifest.mjs'), '--stage', stage],
-        { env: { PATH: process.env.PATH, WORK_FLEET_APP_ID: mobileId, WORK_FLEET_WINDOWS_PACKAGE_ID: windowsId } });
+        { env: { PATH: process.env.PATH, PIN_IT_ANYWHERE_APP_ID: mobileId, PIN_IT_ANYWHERE_WINDOWS_PACKAGE_ID: windowsId } });
       const manifest = await readFile(path.join(stage, 'AppxManifest.xml'), 'utf8');
       assert.match(manifest, /<Identity [^>]*Version="2\.4\.6\.0"/);
       assert.match(manifest, /<DisplayName>Pin It Anywhere<\/DisplayName>/);
-      assert.ok(manifest.includes(`<Identity Name="${expected}" Version="2.4.6.0" Publisher="CN=Work Fleet Preview"`));
+      assert.ok(manifest.includes(`<Identity Name="${expected}" Version="2.4.6.0" Publisher="CN=Pin It Anywhere Preview"`));
       assert.match(manifest, /<TargetDeviceFamily Name="Windows\.Desktop" MinVersion="10\.0\.22000\.0" MaxVersionTested="10\.0\.26200\.0"\s*\/>/);
       // MakeAppx packs without resources.pri, so every image the manifest names must exist under that exact name.
       const images = [...manifest.matchAll(/(?:<Logo>|Logo=")PackageAssets\\([^<"]+)/g)].map(match => match[1]);
@@ -162,16 +163,16 @@ test('MSIX keeps Windows identity independent of the mobile ID and includes earl
 });
 
 test('Apple Info.plist uses the xcconfig record and rejects local overrides', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-version-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'pin-it-anywhere-apple-version-'));
   try {
     const { version, build } = await readAppleVersion();
-    const environment = { WORK_FLEET_APP_ID: 'app.workfleet.ios', CONFIGURATION: 'Debug', MARKETING_VERSION: version, CURRENT_PROJECT_VERSION: build };
+    const environment = { PIN_IT_ANYWHERE_APP_ID: 'dev.sammykenny2.pinitanywhere.ios', CONFIGURATION: 'Debug', MARKETING_VERSION: version, CURRENT_PROJECT_VERSION: build };
     await prepareAppleBuild({ platform: 'share', output: directory, environment });
     const plist = await readFile(path.join(directory, 'Info.plist'), 'utf8');
     assert.ok(plist.includes(`<key>CFBundleShortVersionString</key><string>${version}</string>`));
     assert.ok(plist.includes(`<key>CFBundleVersion</key><string>${build}</string>`));
     await assert.rejects(prepareAppleBuild({ platform: 'share', output: directory, environment: { ...environment, MARKETING_VERSION: '9.9.9' } }),
-      /MARKETING_VERSION is recorded in src\/native\/apple\/config\/WorkFleet\.xcconfig/);
+      /MARKETING_VERSION is recorded in src\/native\/apple\/config\/PinItAnywhere\.xcconfig/);
     await assert.rejects(prepareAppleBuild({ platform: 'share', output: directory, environment: { ...environment, CURRENT_PROJECT_VERSION: '1' } }),
       /CURRENT_PROJECT_VERSION is recorded/);
   } finally {

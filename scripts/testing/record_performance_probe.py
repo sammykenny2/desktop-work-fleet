@@ -19,12 +19,12 @@ def main():
     if platform.system() != 'Darwin':
         parser.error('This probe needs macOS and the installed Swift SDK')
     root = Path(__file__).resolve().parents[2]
-    with tempfile.TemporaryDirectory(prefix='work-fleet-record-performance-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='pin-it-anywhere-record-performance-') as temporary:
         folder = Path(temporary)
         executable = folder / 'RecordPerformanceProbe'
         subprocess.run(['swiftc', '-O', '-swift-version', '5', '-module-cache-path', str(folder / 'module-cache'),
-                        str(root / 'src/native/apple/Shared/FleetProtocol.swift'),
-                        str(root / 'src/native/apple/Shared/FleetDatabase.swift'),
+                        str(root / 'src/native/apple/Shared/PinItAnywhereProtocol.swift'),
+                        str(root / 'src/native/apple/Shared/PinItAnywhereDatabase.swift'),
                         str(root / 'tests/native/apple/RecordPerformanceProbe.swift'), '-o', str(executable)], check=True)
         result = subprocess.run([str(executable), str(folder / 'data')], text=True, capture_output=True, check=True)
         report = {'platform': platform.platform(), 'cpu': subprocess.check_output(['sysctl', '-n', 'machdep.cpu.brand_string'], text=True).strip(),

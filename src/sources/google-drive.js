@@ -1,6 +1,6 @@
 import { visibleDatasetObjects } from './dataset-protocol.js';
 import { DELETE_BATCH_BOUNDARY, DELETE_BATCH_BYTES, deleteBatchRequest, deleteBatchResult } from './drive-batch.js';
-import { FleetError, requireValue } from '../core/contracts.js';
+import { PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { canonicalJson, parseJson } from './json.js';
 import { validFileId, validateFile, verifyFile } from './files.js';
 import { schemas } from '../core/schema.js';
@@ -27,10 +27,10 @@ export function googleDescriptor(value) {
   const properties = value?.appProperties;
   requireValue(value && (value.trashed === undefined || value.trashed === false)
     && Array.isArray(value.spaces) && value.spaces.includes('appDataFolder')
-    && properties?.wfFormat === 'work-fleet-file' && properties.wfSchema === String(schemas.driveFile)
+    && properties?.piaFormat === 'pin-it-anywhere-file' && properties.piaSchema === String(schemas.driveFile)
     && typeof value.size === 'string' && /^(0|[1-9][0-9]*)$/.test(value.size),
   'unsupported-source-file', t('errors.sources.driveFileUnsupported'));
-  const file = validateFile({ id: value.id, kind: properties.wfKind, sha256: properties.wfSha256, size: Number(value.size) });
+  const file = validateFile({ id: value.id, kind: properties.piaKind, sha256: properties.piaSha256, size: Number(value.size) });
   requireValue(value.sha256Checksum === undefined || value.sha256Checksum === file.sha256,
     'file-integrity', t('errors.sources.driveChecksumMismatch'));
   return file;
@@ -73,10 +73,10 @@ export class GoogleDriveFileStore {
     let response;
     try { response = await this.#request({ path, method, headers, body, signal, maxResponseBytes }); }
     catch (error) {
-      if (signal?.aborted || error.code === 'stale-session') throw new FleetError('stale-session', t('errors.sources.driveSessionEnded'));
-      if (error.code === 'unauthorized') throw new FleetError('unauthorized', t('errors.sources.driveUnauthorized'));
-      if (error.code === 'response-size') throw new FleetError('response-size', t('errors.sources.driveResponseTooLarge'));
-      throw new FleetError('network', t('errors.sources.driveNetwork'));
+      if (signal?.aborted || error.code === 'stale-session') throw new PinItAnywhereError('stale-session', t('errors.sources.driveSessionEnded'));
+      if (error.code === 'unauthorized') throw new PinItAnywhereError('unauthorized', t('errors.sources.driveUnauthorized'));
+      if (error.code === 'response-size') throw new PinItAnywhereError('response-size', t('errors.sources.driveResponseTooLarge'));
+      throw new PinItAnywhereError('network', t('errors.sources.driveNetwork'));
     }
     requireValue(!signal?.aborted, 'stale-session', t('errors.sources.driveSessionEnded'));
     requireValue(response && Number.isInteger(response.status) && response.body instanceof Uint8Array
@@ -108,7 +108,7 @@ export class GoogleDriveFileStore {
       'source-item-limit': t('errors.sources.driveItemLimit'),
       'source-permission': t('errors.sources.drivePermission'), 'source-error': t('errors.sources.driveError'),
     };
-    throw new FleetError(code, messages[code], { status, retryAfterMs });
+    throw new PinItAnywhereError(code, messages[code], { status, retryAfterMs });
   }
 
   async #json(options) {
@@ -133,8 +133,8 @@ export class GoogleDriveFileStore {
       if (['legacy', 'fences', 'reset-datasets'].includes(query.scope)) {
         requireValue(validFileId(file.id), 'invalid-source-page', t('errors.sources.driveFileIdInvalid'));
         requireValue(query.scope !== 'legacy' || typeof file.mimeType === 'string', 'invalid-source-page', t('errors.sources.driveListingStateInvalid'));
-        return { id: file.id, kind: file.appProperties?.wfKind ?? null,
-          ...(query.scope === 'legacy' ? { folder: file.mimeType === 'application/vnd.google-apps.folder', dataset: file.appProperties?.wfFormat === DATASET_FORMAT } : {}) };
+        return { id: file.id, kind: file.appProperties?.piaKind ?? null,
+          ...(query.scope === 'legacy' ? { folder: file.mimeType === 'application/vnd.google-apps.folder', dataset: file.appProperties?.piaFormat === DATASET_FORMAT } : {}) };
       }
       return googleDatasetDescriptor(file, { rootParentVerified: query.scope === 'roots' });
     }), incomplete: page.incompleteSearch === true, nextPageToken: page.nextPageToken === undefined ? null : token(page.nextPageToken) };
@@ -145,7 +145,7 @@ export class GoogleDriveFileStore {
     requireValue(file.id === id, 'file-integrity', t('errors.sources.fileIntegrity')); return file;
   }
   async #datasetDescriptor(metadata, signal) {
-    if (metadata.appProperties?.wfKind !== 'dataset-root' || metadata.parents?.[0] === 'appDataFolder') return googleDatasetDescriptor(metadata);
+    if (metadata.appProperties?.piaKind !== 'dataset-root' || metadata.parents?.[0] === 'appDataFolder') return googleDatasetDescriptor(metadata);
     const expected = googleDatasetDescriptor(metadata, { rootParentVerified: true });
     const files = await visibleDatasetObjects(this, { scope: 'roots', datasetId: expected.datasetId }, [expected.id], { signal, limit: 16 });
     requireValue(files.some(file => canonicalJson(file) === canonicalJson(expected)), 'invalid-dataset', t('errors.sources.datasetInvalid'));
@@ -158,12 +158,12 @@ export class GoogleDriveFileStore {
     const changes = await Promise.all(items(page.changes).map(async change => {
       requireValue(validFileId(change?.fileId) && (change.removed === undefined || typeof change.removed === 'boolean'), 'invalid-source-page', t('errors.sources.driveChangeIdInvalid'));
       if (change.removed || change.file?.trashed) return { id: change.fileId, removed: true };
-      if (change.file?.appProperties?.wfFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false,
-        legacyReset: change.file?.appProperties?.wfKind === 'reset',
-        legacyWrite: change.file?.appProperties?.wfKind !== 'reset' && change.file?.mimeType !== 'application/vnd.google-apps.folder' };
+      if (change.file?.appProperties?.piaFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false,
+        legacyReset: change.file?.appProperties?.piaKind === 'reset',
+        legacyWrite: change.file?.appProperties?.piaKind !== 'reset' && change.file?.mimeType !== 'application/vnd.google-apps.folder' };
       const properties = change.file.appProperties;
-      const file = ['revision', 'attachment'].includes(properties.wfKind) && !change.file.parents?.length
-        ? googleDatasetOwned(change.file, { datasetId: properties.wfDataset, entities: [properties.wfEntity] })
+      const file = ['revision', 'attachment'].includes(properties.piaKind) && !change.file.parents?.length
+        ? googleDatasetOwned(change.file, { datasetId: properties.piaDataset, entities: [properties.piaEntity] })
         : await this.#datasetDescriptor(change.file, signal);
       requireValue(file.id === change.fileId, 'invalid-source-page', t('errors.sources.driveChangeFileMismatch'));
       return { id: file.id, removed: false, file };
@@ -206,7 +206,7 @@ export class GoogleDriveFileStore {
     requireValue(page.incompleteSearch === undefined || typeof page.incompleteSearch === 'boolean', 'invalid-source-page', t('errors.sources.driveListingStateInvalid'));
     return { ids: items(page.files).map(file => { requireValue(validFileId(file?.id), 'invalid-source-page', t('errors.sources.driveFileIdInvalid')); return file.id; }),
       incomplete: page.incompleteSearch === true,
-      resetIds: items(page.files).filter(file => file.appProperties?.wfKind === 'reset').map(file => file.id),
+      resetIds: items(page.files).filter(file => file.appProperties?.piaKind === 'reset').map(file => file.id),
       nextPageToken: page.nextPageToken === undefined ? null : token(page.nextPageToken) };
   }
 
@@ -276,9 +276,9 @@ export class GoogleDriveFileStore {
 
   async createFile({ file, bytes, signal }) {
     file = validateFile(file); bytes = await verifyFile(file, bytes);
-    const metadata = { id: file.id, name: `work-fleet-v1-${file.kind}-${file.sha256}.${file.kind === 'revision' ? 'json' : 'bin'}`,
+    const metadata = { id: file.id, name: `pin-it-anywhere-v1-${file.kind}-${file.sha256}.${file.kind === 'revision' ? 'json' : 'bin'}`,
       mimeType: 'application/octet-stream', parents: ['appDataFolder'], appProperties: {
-        wfFormat: 'work-fleet-file', wfSchema: String(schemas.driveFile), wfKind: file.kind, wfSha256: file.sha256,
+        piaFormat: 'pin-it-anywhere-file', piaSchema: String(schemas.driveFile), piaKind: file.kind, piaSha256: file.sha256,
       } };
     return this.#create(file, bytes, metadata, signal, FIELDS, descriptor, value => this.readFile(value));
   }
@@ -315,7 +315,7 @@ export class GoogleDriveFileStore {
         if (response.status !== 308) return await complete(response);
         offset = this.#offset(response, end, offset);
       }
-      throw new FleetError('service-unavailable', t('errors.sources.driveUploadUnconfirmed'));
+      throw new PinItAnywhereError('service-unavailable', t('errors.sources.driveUploadUnconfirmed'));
     } catch (error) {
       if ((error.details?.status >= 400 && error.details.status < 500)
         || ['file-exists', 'unauthorized', 'stale-session'].includes(error.code)) this.#uploads.delete(file.id);

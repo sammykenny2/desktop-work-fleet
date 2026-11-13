@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { activeGroups, FleetError } from '../src/core/contracts.js';
+import { activeGroups, PinItAnywhereError } from '../src/core/contracts.js';
 import { CombinedWorkspace } from '../src/core/combined-workspace.js';
 import { CrossMove } from '../src/core/cross-move.js';
 import { Workspace } from '../src/core/workspace.js';
@@ -169,7 +169,7 @@ test('a lost acknowledgement of the trash write keeps recovery durable even when
     if (!lost && state.cards.some(card => card.id === note.id && card.deleted && card.movedTo)) {
       lost = true; const copy = live(f.local)[0];
       await f.local.workspace.applyPermanentDeletion([{ entityId: copy.id, operationId: 'purged-during-lost-ack' }]);
-      throw new FleetError('native-outcome-unknown', 'The write acknowledgement was lost.');
+      throw new PinItAnywhereError('native-outcome-unknown', 'The write acknowledgement was lost.');
     }
   };
   await assert.rejects(f.move.moveNote(note.id, f.groups.local.id), { code: 'native-outcome-unknown' });

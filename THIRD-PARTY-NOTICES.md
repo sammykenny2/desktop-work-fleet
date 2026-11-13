@@ -12,7 +12,7 @@ Updated: 2026-10-17.
 - Original copyright line supplied by that checkout: Copyright (c) 2025.
 - The original line and complete MIT permission/disclaimer text are retained in [LICENSE](LICENSE). The new project adds a separate notice for its original contributions.
 
-Project-specific research and documentation were written for desktop-work-fleet. External references in the research are citations, not bundled product code.
+Project-specific research and documentation were written for desktop-pin-it-anywhere. External references in the research are citations, not bundled product code.
 
 No product code, images, fonts, dependency lockfiles, platform modules, or user data were imported from another sticky-note application.
 

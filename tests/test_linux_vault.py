@@ -125,7 +125,7 @@ def load_database(secret, real_crypto=False):
         spec.loader.exec_module(database)
         def connect(vault):
             vault.service = secret
-            vault.schema = secret.Schema.new("app.workfleet.native.v1", secret.SchemaFlags.DONT_MATCH_NAME, {})
+            vault.schema = secret.Schema.new("dev.sammykenny2.pinitanywhere.native.v1", secret.SchemaFlags.DONT_MATCH_NAME, {})
             return secret
         database.Vault.connect = connect
         database.Vault.is_locked = lambda _vault, proxy, *_: proxy.get_locked()
@@ -153,7 +153,7 @@ def load_database(secret, real_crypto=False):
 
 @unittest.skipIf(sys.platform == "win32", "the Linux host needs fcntl")
 class LinuxVaultTests(unittest.TestCase):
-    APP = "app.workfleet.test"
+    APP = "dev.sammykenny2.pinitanywhere.test"
 
     def setUp(self):
         try:
@@ -165,7 +165,7 @@ class LinuxVaultTests(unittest.TestCase):
         self.vault = self.module.Vault(self.APP)
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
-        self.directory = Path(folder.name) / "WorkFleet"
+        self.directory = Path(folder.name) / "PinItAnywhere"
 
     def open(self, profile="local"):
         database = self.module.Database(self.directory, profile, self.vault)
@@ -233,9 +233,9 @@ class LinuxVaultTests(unittest.TestCase):
     def test_locked_legacy_keeps_database_and_staging_without_prompt(self):
         self.legacy_data()
         self.secret.items[0]["locked"] = True
-        before = (self.directory / "fleet.sqlite3").read_bytes()
+        before = (self.directory / "pinitanywhere.sqlite3").read_bytes()
         self.assertIn("locked", self.failure("vault-locked"))
-        self.assertEqual((self.directory / "fleet.sqlite3").read_bytes(), before)
+        self.assertEqual((self.directory / "pinitanywhere.sqlite3").read_bytes(), before)
         self.assertEqual(self.secret.searches, [])
 
     def test_locked_provider_is_checked_before_any_search(self):
@@ -251,9 +251,9 @@ class LinuxVaultTests(unittest.TestCase):
     def test_missing_legacy_key_keeps_database(self):
         self.legacy_data()
         self.secret.items.clear()
-        before = (self.directory / "fleet.sqlite3").read_bytes()
+        before = (self.directory / "pinitanywhere.sqlite3").read_bytes()
         self.assertIn("original key is missing", self.failure("vault-unavailable"))
-        self.assertEqual((self.directory / "fleet.sqlite3").read_bytes(), before)
+        self.assertEqual((self.directory / "pinitanywhere.sqlite3").read_bytes(), before)
 
     def test_unavailable_legacy_keeps_database(self):
         self.legacy_data()
@@ -263,9 +263,9 @@ class LinuxVaultTests(unittest.TestCase):
     def test_wrong_legacy_key_is_not_published_and_retry_preserves_notes(self):
         raw = self.legacy_data()
         self.secret.items[0]["value"] = base64.b64encode(os.urandom(32)).decode("ascii")
-        before = (self.directory / "fleet.sqlite3").read_bytes()
+        before = (self.directory / "pinitanywhere.sqlite3").read_bytes()
         self.failure("storage-integrity")
-        self.assertEqual((self.directory / "fleet.sqlite3").read_bytes(), before)
+        self.assertEqual((self.directory / "pinitanywhere.sqlite3").read_bytes(), before)
         self.secret.items[0]["value"] = base64.b64encode(raw).decode("ascii")
         self.assertEqual(self.open().record("workspace"), b"private notes")
 
@@ -279,7 +279,7 @@ class LinuxVaultTests(unittest.TestCase):
 
     def test_corrupt_other_profile_prevents_migration(self):
         self.legacy_data()
-        with closing(sqlite3.connect(self.directory / "fleet.sqlite3")) as connection:
+        with closing(sqlite3.connect(self.directory / "pinitanywhere.sqlite3")) as connection:
             connection.execute("UPDATE attachments SET data=? WHERE profile='google:fixture'", (b"corrupt",))
             connection.commit()
         self.failure("storage-integrity")
@@ -295,7 +295,7 @@ class LinuxVaultTests(unittest.TestCase):
 
     def test_key_publication_failure_leaves_database_unchanged_and_retryable(self):
         self.legacy_data()
-        before = (self.directory / "fleet.sqlite3").read_bytes()
+        before = (self.directory / "pinitanywhere.sqlite3").read_bytes()
         # A failed open names its cause (SPEC-006 DO): a full disk while publishing the key is data-full.
         with patch.object(self.module.os, "link", side_effect=OSError(errno.ENOSPC, "disk full")):
             with self.assertRaises(self.protocol.Failure) as raised:
@@ -303,7 +303,7 @@ class LinuxVaultTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, "data-full")
         self.assertFalse((self.directory / "storage-key").exists())
         self.assertEqual(list(self.directory.glob("storage-key-*")), [])
-        self.assertEqual((self.directory / "fleet.sqlite3").read_bytes(), before)
+        self.assertEqual((self.directory / "pinitanywhere.sqlite3").read_bytes(), before)
         self.assertEqual(self.open().record("workspace"), b"private notes")
 
     def test_symlink_permissive_or_invalid_local_key_is_rejected_without_replacement(self):
@@ -389,7 +389,7 @@ class LinuxVaultTests(unittest.TestCase):
         self.secret.locked = False
         self.assertEqual(vault.read("google-account", "fixture"), "pending token")
         self.assertEqual(db.connection.execute("SELECT COUNT(*) FROM credentials").fetchone()[0], 0)
-        for name in ("fleet.sqlite3", "fleet.sqlite3-wal"):
+        for name in ("pinitanywhere.sqlite3", "pinitanywhere.sqlite3-wal"):
             file = self.directory / name
             if file.exists():
                 self.assertNotIn(encrypted, file.read_bytes())

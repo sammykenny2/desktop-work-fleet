@@ -1,16 +1,16 @@
 <#
 .SYNOPSIS
-    Check that Work Fleet survives the display change a closed-lid sign-in makes, with an isolated probe package.
+    Check that Pin It Anywhere survives the display change a closed-lid sign-in makes, with an isolated probe package.
 .DESCRIPTION
     On 2026-10-14 the 0.2.1 sign-in launch started while Windows still used a laptop's closed internal panel as the
     primary display next to an external one; when Windows turned the panel off, the WPF render thread failed (ADR-045).
     This test repeats that change without a reboot. It switches Windows to "Extend" with DisplaySwitch.exe, starts a
-    copy of build/PinItAnywhere-VERSION-x64.msix under the probe identity app.workfleet.displayprobe.e2e (signed with the
+    copy of build/PinItAnywhere-VERSION-x64.msix under the probe identity dev.sammykenny2.pinitanywhere.displayprobe.e2e (signed with the
     same locally trusted certificate), waits for its desktop scenes to be inside Explorer, then alternates "Second screen
     only" and "Extend" for -Cycles rounds while checking that Explorer answers. Passes when the probe logs no fatal
     error and Explorer never stops answering for 5 seconds or reports a hang. It needs two connected displays (a
     laptop's lid open, since Windows does not extend to a closed lid's panel on request) and changes the display layout of the signed-in session, so other windows move while it runs; the layout named by
-    -Final is restored at the end. It refuses to start while another Work Fleet is running, because the same display
+    -Final is restored at the end. It refuses to start while another Pin It Anywhere is running, because the same display
     change would reach that one too. The probe package, its data and any probe crash dump are removed; host.log is kept
     under build/windows/display-probe.
 .PARAMETER PackagePath
@@ -37,7 +37,7 @@ param([string]$PackagePath, [string]$SdkBin, [ValidateRange(1, 20)][int]$Cycles 
     [ValidateSet('external', 'internal', 'extend', 'clone')][string]$Final = 'external')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$ProbeName = 'app.workfleet.displayprobe.e2e'
+$ProbeName = 'dev.sammykenny2.pinitanywhere.displayprobe.e2e'
 $DisplaySwitch = Join-Path $env:SystemRoot 'System32\DisplaySwitch.exe'
 function Find-SdkTool([string]$Name) {
     if ($SdkBin) { $Tool = Join-Path $SdkBin $Name; if (Test-Path -LiteralPath $Tool -PathType Leaf) { return $Tool }; throw "Missing SDK tool: $Tool" }
@@ -48,12 +48,12 @@ function Find-SdkTool([string]$Name) {
     }
     throw "Windows SDK $Name is required. Set -SdkBin to its directory."
 }
-function Get-ProbeProcess { @(Get-Process -Name WorkFleet -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*\$ProbeName*" }) }
+function Get-ProbeProcess { @(Get-Process -Name PinItAnywhere -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*\$ProbeName*" }) }
 function Remove-Probe {
     Get-ProbeProcess | Stop-Process -Force -ErrorAction SilentlyContinue
     Get-AppxPackage -Name $ProbeName | Remove-AppxPackage
 }
-Add-Type -Namespace WorkFleetProbe -Name Displays -MemberDefinition @'
+Add-Type -Namespace PinItAnywhereProbe -Name Displays -MemberDefinition @'
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindowW(string className, string title);
 [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
 [DllImport("user32.dll")] public static extern bool IsHungAppWindow(IntPtr window);
@@ -96,14 +96,14 @@ public static int Attached(uint process) {
 function Switch-Display([string]$Mode, [int]$Expected) {
     & $DisplaySwitch "/$Mode"
     $Deadline = (Get-Date).AddSeconds(20)
-    while ($Expected -and (Get-Date) -lt $Deadline -and @([WorkFleetProbe.Displays]::Current()).Count -ne $Expected) { Start-Sleep -Milliseconds 250 }
-    $Now = @([WorkFleetProbe.Displays]::Current())
+    while ($Expected -and (Get-Date) -lt $Deadline -and @([PinItAnywhereProbe.Displays]::Current()).Count -ne $Expected) { Start-Sleep -Milliseconds 250 }
+    $Now = @([PinItAnywhereProbe.Displays]::Current())
     if ($Expected -and $Now.Count -ne $Expected) { throw "DisplaySwitch /$Mode left $($Now.Count) display(s), expected $Expected; this test needs two connected displays, and Windows keeps a closed laptop lid's panel off." }
     Write-Output ("{0:HH:mm:ss.fff} /{1}: {2}" -f (Get-Date), $Mode, ($Now -join '; '))
 }
 
-$Others = @(Get-Process -Name WorkFleet -ErrorAction SilentlyContinue | Where-Object { $_.Path -notlike "*\$ProbeName*" })
-if ($Others.Count -gt 0) { throw 'Quit the running Work Fleet from its tray menu first: this test changes the display layout, which would reach it too.' }
+$Others = @(Get-Process -Name PinItAnywhere -ErrorAction SilentlyContinue | Where-Object { $_.Path -notlike "*\$ProbeName*" })
+if ($Others.Count -gt 0) { throw 'Quit the running Pin It Anywhere from its tray menu first: this test changes the display layout, which would reach it too.' }
 $MakeAppx = Find-SdkTool 'MakeAppx.exe'; $SignTool = Find-SdkTool 'SignTool.exe'
 $Version = & node (Join-Path $ProjectRoot 'scripts/platform-version.mjs') --platform windows
 if ($LASTEXITCODE -ne 0) { throw 'Could not read the Windows version.' }
@@ -124,7 +124,7 @@ $Certificate = @(Get-ChildItem -LiteralPath Cert:\CurrentUser\My -CodeSigningCer
     $_.HasPrivateKey -and $_.Subject -ceq $Publisher -and $_.NotAfter -gt (Get-Date) -and (Test-Path -LiteralPath (Join-Path 'Cert:\LocalMachine\TrustedPeople' $_.Thumbprint))
 })
 if ($Certificate.Count -ne 1) { throw "Needs exactly one trusted signing certificate for '$Publisher', as Build-WindowsPackage -LocalTestSign does." }
-$Manifest.Package.Identity.Name = $ProbeName; $Manifest.Package.Properties.DisplayName = 'Work Fleet display probe'
+$Manifest.Package.Identity.Name = $ProbeName; $Manifest.Package.Properties.DisplayName = 'Pin It Anywhere display probe'
 $Manifest.Save($ManifestPath)
 $ProbePackage = Join-Path $Work "display-probe-$Version.msix"
 & $MakeAppx pack /d $Unpacked /p $ProbePackage /o /h SHA256 > (Join-Path $Work 'pack.log')
@@ -136,17 +136,17 @@ Remove-Probe
 $Started = Get-Date
 $Log = $null; $Text = ''
 try {
-    Write-Output ("{0:HH:mm:ss.fff} before: {1}" -f (Get-Date), (@([WorkFleetProbe.Displays]::Current()) -join '; '))
+    Write-Output ("{0:HH:mm:ss.fff} before: {1}" -f (Get-Date), (@([PinItAnywhereProbe.Displays]::Current()) -join '; '))
     # Start the way the 2026-10-14 sign-in did: two displays, then lose one while the scenes are inside Explorer.
     Switch-Display 'extend' 2
     Add-AppxPackage -Path $ProbePackage
     $Installed = Get-AppxPackage -Name $ProbeName
-    $Data = Join-Path $env:LOCALAPPDATA "Packages\$($Installed.PackageFamilyName)\LocalCache\Local\WorkFleet"
+    $Data = Join-Path $env:LOCALAPPDATA "Packages\$($Installed.PackageFamilyName)\LocalCache\Local\PinItAnywhere"
     New-Item -ItemType Directory -Path $Data -Force | Out-Null
     [IO.File]::WriteAllText((Join-Path $Data 'host-preferences.json'), '{"version":1,"startAtLogin":false,"closeToTray":true,"openMainAtLogin":false,"language":"en"}')
     $Log = Join-Path $Data 'host.log'
     function Read-Log { if (Test-Path -LiteralPath $Log) { [IO.File]::ReadAllText($Log) } else { '' } }
-    Start-Process "shell:AppsFolder\$($Installed.PackageFamilyName)!WorkFleet"
+    Start-Process "shell:AppsFolder\$($Installed.PackageFamilyName)!PinItAnywhere"
 
     $Deadline = (Get-Date).AddSeconds(90); $ProbeId = 0; $Scenes = 0; $Stable = 0; $Switch = $null
     while ((Get-Date) -lt $Deadline -and $Stable -lt 12 -and -not ($Switch -and (Get-Date) -ge $Switch)) {
@@ -155,7 +155,7 @@ try {
             $ProbeId = [int]$Matches[1]; if ($SwitchAfter -gt 0) { $Switch = (Get-Date).AddSeconds($SwitchAfter) }
         }
         if (-not $ProbeId) { continue }
-        $Now = [WorkFleetProbe.Displays]::Attached([uint32]$ProbeId)
+        $Now = [PinItAnywhereProbe.Displays]::Attached([uint32]$ProbeId)
         if ($Now -ge 4 -and $Now -eq $Scenes -and -not $Switch) { $Stable++ } else { $Stable = 0 }
         $Scenes = $Now
     }
@@ -172,7 +172,7 @@ try {
         $Until = (Get-Date).AddSeconds($Seconds); $Since = $null
         while ((Get-Date) -lt $Until) {
             $script:Checks++
-            if ([WorkFleetProbe.Displays]::Answers('Progman') -and [WorkFleetProbe.Displays]::Answers('Shell_TrayWnd')) { $Since = $null }
+            if ([PinItAnywhereProbe.Displays]::Answers('Progman') -and [PinItAnywhereProbe.Displays]::Answers('Shell_TrayWnd')) { $Since = $null }
             else {
                 $script:Unanswered++; if (-not $Since) { $Since = Get-Date }
                 if ((Get-Date) - $Since -gt $script:Longest) { $script:Longest = (Get-Date) - $Since }
@@ -186,9 +186,9 @@ try {
     if ($Lid) {
         Write-Output ("{0:HH:mm:ss.fff} close the laptop lid now" -f (Get-Date))
         $Until = (Get-Date).AddMinutes(3)
-        while ((Get-Date) -lt $Until -and @([WorkFleetProbe.Displays]::Current()).Count -ne 1) { Start-Sleep -Milliseconds 100 }
-        if (@([WorkFleetProbe.Displays]::Current()).Count -ne 1) { throw 'The lid was not closed within 3 minutes.' }
-        Write-Output ("{0:HH:mm:ss.fff} lid: {1}" -f (Get-Date), (@([WorkFleetProbe.Displays]::Current()) -join '; '))
+        while ((Get-Date) -lt $Until -and @([PinItAnywhereProbe.Displays]::Current()).Count -ne 1) { Start-Sleep -Milliseconds 100 }
+        if (@([PinItAnywhereProbe.Displays]::Current()).Count -ne 1) { throw 'The lid was not closed within 3 minutes.' }
+        Write-Output ("{0:HH:mm:ss.fff} lid: {1}" -f (Get-Date), (@([PinItAnywhereProbe.Displays]::Current()) -join '; '))
         $Failed = Watch-Explorer 30; $Remaining = 0
     }
     for ($Cycle = 1; $Cycle -le $Remaining -and -not $Failed; $Cycle++) {
@@ -218,7 +218,7 @@ try {
     # LocalDumps (docs/testing.md) writes a probe dump beside real ones; keep only real ones.
     foreach ($Id in [regex]::Matches($Text, 'start version=\S+ distribution=msix pid=(\d+)') | ForEach-Object { $_.Groups[1].Value }) {
         foreach ($Folder in @((Join-Path $env:LOCALAPPDATA 'CrashDumps'), (Join-Path $env:LOCALAPPDATA "Packages\$ProbeName*"))) {
-            Get-ChildItem -Path $Folder -Filter "WorkFleet.exe.$Id.dmp" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+            Get-ChildItem -Path $Folder -Filter "PinItAnywhere.exe.$Id.dmp" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
                 Write-Output "Probe crash dump: $($_.FullName) ($([math]::Round($_.Length / 1MB)) MB), removed"; Remove-Item -LiteralPath $_.FullName -Force
             }
         }

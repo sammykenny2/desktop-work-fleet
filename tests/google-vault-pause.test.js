@@ -68,7 +68,7 @@ test('pending reset journals pause sync and a superseded transition exposes expl
 
 test('saved reset timeout uses continuation guidance and clearing does not claim readiness', async () => {
   const jobs = { 'dataset-reset': { phase: 'clearing', ready: false, deleted: 100, captured: 106 },
-    'dataset-ui-error': { code: 'native-outcome-unknown', message: 'Keep your text and reopen Work Fleet to check.' } };
+    'dataset-ui-error': { code: 'native-outcome-unknown', message: 'Keep your text and reopen Pin It Anywhere to check.' } };
   const f = await fixture('google:fixture', { configured: true, connected: true, accountId: 'fixture' }, {}, jobs);
   assert.equal(f.notices.items.get('maintenance:google:fixture').text, t('sync.reset.paused', { error: t('sync.reset.unconfirmed') }));
   assert.ok(f.notices.items.get('maintenance:google:fixture').action);

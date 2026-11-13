@@ -3,9 +3,9 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>
 /// ADR-045 fatal-error handling. Desktop and wallpaper scenes are children of Explorer's desktop window, and while this
@@ -74,7 +74,7 @@ public sealed class CrashGuard
         try { File.Delete(Path.Combine(directory, RestartMarker.FileName)); } catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException) { }
       }
     }
-    fail("Work Fleet stopped after a fatal error; see host.log in its data directory.", error);
+    fail("Pin It Anywhere stopped after a fatal error; see host.log in its data directory.", error);
   }
 
   /// <summary>Any other thread: the process ends after this returns, so Windows may only report it with nothing left in Explorer.</summary>
@@ -146,7 +146,7 @@ public sealed class CrashGuard
   /// A reopened sign-in launch waits for the process it replaces before claiming the data directory, so it neither forwards
   /// to a frozen instance nor meets its owner lock. One that outlives the wait is ended. A reused process ID is left alone.
   /// </summary>
-  public static string AwaitPrevious(RestartMarker marker, TimeSpan timeout, string name = "WorkFleet")
+  public static string AwaitPrevious(RestartMarker marker, TimeSpan timeout, string name = "PinItAnywhere")
   {
     try
     {
@@ -164,7 +164,7 @@ public sealed class CrashGuard
   public static bool ProbeRequested(string directory)
   {
     if (!AppDataDirectory.Packaged) return false;
-    try { return global::Windows.ApplicationModel.Package.Current.Id.Name.StartsWith("app.workfleet.crashprobe.", StringComparison.Ordinal) && File.Exists(Path.Combine(directory, "crash-probe.txt")); }
+    try { return global::Windows.ApplicationModel.Package.Current.Id.Name.StartsWith("dev.sammykenny2.pinitanywhere.crashprobe.", StringComparison.Ordinal) && File.Exists(Path.Combine(directory, "crash-probe.txt")); }
     catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or COMException) { return false; }
   }
   /// <summary>Once a scene is inside Explorer, the probe loses its renderer the way the 0.2.0 sign-in launch did.</summary>
@@ -184,7 +184,7 @@ public sealed class CrashGuard
   private static void ReopenPackage()
   {
     var family = global::Windows.ApplicationModel.Package.Current.Id.FamilyName;
-    Process.Start(new ProcessStartInfo("explorer.exe", $"shell:AppsFolder\\{family}!WorkFleet") { UseShellExecute = true });
+    Process.Start(new ProcessStartInfo("explorer.exe", $"shell:AppsFolder\\{family}!PinItAnywhere") { UseShellExecute = true });
   }
 
   private delegate bool EnumCallback(IntPtr window, IntPtr parameter);

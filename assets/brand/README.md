@@ -43,7 +43,7 @@ as usual and then replaces the committed files that the native projects and pack
 - `src/native/apple/resources/ios-Icons.xcassets/AppIcon.appiconset` and `macos-Icons.xcassets/AppIcon.appiconset`,
   plus the menu-bar template `macos-Icons.xcassets/StatusItem.imageset`.
 - `src/native/android/app/src/main/res/mipmap-*`: the adaptive icon layers and `mipmap-anydpi/ic_launcher*.xml`.
-- `src/native/windows/app/WorkFleet.ico`, embedded in the executable and reused by its windows and the tray, and the
+- `src/native/windows/app/PinItAnywhere.ico`, embedded in the executable and reused by its windows and the tray, and the
   three MSIX images in `src/native/windows/package-assets/`.
 - `src/native/linux/icons/hicolor/`, named `app-icon`; the package generator renames it to the configured app ID.
 

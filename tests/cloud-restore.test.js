@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Workspace } from '../src/core/workspace.js';
-import { copy, FleetError } from '../src/core/contracts.js';
+import { copy, PinItAnywhereError } from '../src/core/contracts.js';
 import { createBackup, openBackup } from '../src/backup/payload.js';
 import { saveSafetyBackup } from '../src/backup/restore.js';
 import { prepareCloudRestore, stageCloudRestore, resumeCloudRestore } from '../src/backup/cloud-restore.js';
@@ -163,7 +163,7 @@ test('partial reset survives a restart, blocks ordinary sync and resumes from th
   const normal = new FileSync({ workspace: new Workspace(s.remote.disk(), s.remote.storage.save), storage: s.remote.storage, fileStore: s.store });
   const calls = s.store.calls.length;
   await assert.rejects(normal.sync(), fails('cloud-restore-pending')); assert.equal(s.store.calls.length, calls);
-  s.store.hooks.deleteFile = () => { throw new FleetError('source-permission', 'cannot delete'); };
+  s.store.hooks.deleteFile = () => { throw new PinItAnywhereError('source-permission', 'cannot delete'); };
   await assert.rejects(resumeCloudRestore({ state: s.remote.disk(), storage: s.remote.storage, fileStore: s.store }), fails('source-permission'));
   assert.equal(s.remote.disk().cloudRestore.phase, 'reset');
   assert.equal(s.remote.disk().cards[0].content.text, s.card.content.text);
@@ -175,7 +175,7 @@ test('partial reset survives a restart, blocks ordinary sync and resumes from th
 test('upload failure survives a restart and retries without resetting the restored cloud a second time', async () => {
   const s = await scenario();
   await stageCloudRestore({ workspace: s.remote.workspace, storage: s.remote.storage, fileStore: s.store, plan: s.plan, safetyBackup: s.safetyBackup });
-  s.store.hooks.createFile = input => { if (['revision', 'attachment'].includes(input.file.kind)) throw new FleetError('source-permission', 'cannot upload'); };
+  s.store.hooks.createFile = input => { if (['revision', 'attachment'].includes(input.file.kind)) throw new PinItAnywhereError('source-permission', 'cannot upload'); };
   await assert.rejects(resumeCloudRestore({ state: s.remote.disk(), storage: s.remote.storage, fileStore: s.store }), fails('source-permission'));
   assert.equal(s.remote.disk().cloudRestore.phase, 'upload');
   const follower = await client('google:account-a');
@@ -222,7 +222,7 @@ test('a restore writer cannot follow a later reset or relabel its backup outbox,
     const s = await scenario();
     await stageCloudRestore({ workspace: s.remote.workspace, storage: s.remote.storage, fileStore: s.store, plan: s.plan, safetyBackup: s.safetyBackup });
     s.store.hooks[boundary] = input => {
-      if (boundary === 'getStartCursor' || ['revision', 'attachment'].includes(input.file.kind)) throw new FleetError('interrupted', 'stop upload');
+      if (boundary === 'getStartCursor' || ['revision', 'attachment'].includes(input.file.kind)) throw new PinItAnywhereError('interrupted', 'stop upload');
     };
     await assert.rejects(resumeCloudRestore({ state: s.remote.disk(), storage: s.remote.storage, fileStore: s.store }), fails('interrupted'));
     delete s.store.hooks[boundary]; await resetSource(s.store);
@@ -253,7 +253,7 @@ test('a lost upload response resumes the reserved file without another reset or 
   await stageCloudRestore({ workspace: s.remote.workspace, storage: s.remote.storage, fileStore: s.store, plan: s.plan, safetyBackup: s.safetyBackup });
   let lost = false;
   s.store.hooks.afterCreate = input => {
-    if (!lost && ['revision', 'attachment'].includes(input.file.kind)) { lost = true; throw new FleetError('network', 'lost upload response'); }
+    if (!lost && ['revision', 'attachment'].includes(input.file.kind)) { lost = true; throw new PinItAnywhereError('network', 'lost upload response'); }
   };
   await assert.rejects(resumeCloudRestore({ state: s.remote.disk(), storage: s.remote.storage, fileStore: s.store }), fails('network'));
   const uploaded = s.store.calls.filter(call => call.method === 'createFile' && ['revision', 'attachment'].includes(call.file.kind)).at(-1).file;

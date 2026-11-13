@@ -186,7 +186,7 @@ flowchart LR
   D --> B[Online backup\nrestore to a new path + new epoch]
 ```
 
-- `src/server/work_fleet.py`: transactions, revision / epoch, idempotency, tombstones, devices / invites, backup restore
+- `src/server/pin_it_anywhere.py`: transactions, revision / epoch, idempotency, tombstones, devices / invites, backup restore
   and same-origin HTTP.
 - `src/web/`: native ES modules; drafts are kept as you type, and a network failure never overwrites the user's text.
   Each draft retrieval creates its own record.

@@ -33,29 +33,29 @@ PUBLIC_CONFIG="$(node scripts/prepare-apple-build.mjs --print-config)"
 APP_ID="$(printf '%s' "$PUBLIC_CONFIG" | node -e 'let s="";process.stdin.on("data",v=>s+=v).on("end",()=>process.stdout.write(JSON.parse(s).appId));')"
 APP_GROUP="$(printf '%s' "$PUBLIC_CONFIG" | node -e 'let s="";process.stdin.on("data",v=>s+=v).on("end",()=>process.stdout.write(JSON.parse(s).appleAppGroupId));')"
 APPLE_TEAM="$(printf '%s' "$PUBLIC_CONFIG" | node -e 'let s="";process.stdin.on("data",v=>s+=v).on("end",()=>process.stdout.write(JSON.parse(s).appleTeamId));')"
-SCHEME='WorkFleetMac'; DESTINATION='generic/platform=macOS'
-if [[ "$PLATFORM" == 'ios' ]]; then SCHEME='WorkFleetIOS'; DESTINATION='generic/platform=iOS'; fi
+SCHEME='PinItAnywhereMac'; DESTINATION='generic/platform=macOS'
+if [[ "$PLATFORM" == 'ios' ]]; then SCHEME='PinItAnywhereIOS'; DESTINATION='generic/platform=iOS'; fi
 EXTRA=()
-[[ -z "$APP_ID" ]] || EXTRA+=("WORK_FLEET_APP_ID=$APP_ID")
-[[ -z "$APP_ID" ]] || EXTRA+=("WORK_FLEET_APP_GROUP_ID=$APP_GROUP")
+[[ -z "$APP_ID" ]] || EXTRA+=("PIN_IT_ANYWHERE_APP_ID=$APP_ID")
+[[ -z "$APP_ID" ]] || EXTRA+=("PIN_IT_ANYWHERE_APP_GROUP_ID=$APP_GROUP")
 [[ -z "$APPLE_TEAM" ]] || EXTRA+=("DEVELOPMENT_TEAM=$APPLE_TEAM")
-EXTRA+=("WORK_FLEET_PACKAGES_DIR=$PROJECT_ROOT/build/apple/SourcePackages")
+EXTRA+=("PIN_IT_ANYWHERE_PACKAGES_DIR=$PROJECT_ROOT/build/apple/SourcePackages")
 if [[ "$PLATFORM" == 'macos' ]]; then EXTRA+=('ARCHS=arm64 x86_64' ONLY_ACTIVE_ARCH=NO); fi
-# Only WorkFleetMac's Release target maps these settings to signing. Global CODE_SIGN_*/
+# Only PinItAnywhereMac's Release target maps these settings to signing. Global CODE_SIGN_*/
 # PROVISIONING_PROFILE_SPECIFIER overrides would incorrectly apply the profile to SPM resource bundles.
 if [[ -n "$PROFILE" ]]; then
-    EXTRA+=(WORK_FLEET_MACOS_SIGNING_STYLE=Manual "WORK_FLEET_MACOS_SIGNING_IDENTITY=$APPLICATION" "WORK_FLEET_MACOS_PROFILE=$PROFILE")
+    EXTRA+=(PIN_IT_ANYWHERE_MACOS_SIGNING_STYLE=Manual "PIN_IT_ANYWHERE_MACOS_SIGNING_IDENTITY=$APPLICATION" "PIN_IT_ANYWHERE_MACOS_PROFILE=$PROFILE")
 fi
 if [[ "$SIMULATOR" == 1 ]]; then DESTINATION='generic/platform=iOS Simulator'; fi
 if [[ "$SIMULATOR" == 1 || "$UNSIGNED" == 1 ]]; then EXTRA+=(CODE_SIGNING_ALLOWED=NO); fi
 ACTION='build'
 if [[ "$CONFIGURATION" == 'Release' ]]; then ACTION='archive'; EXTRA+=(-archivePath "$PROJECT_ROOT/build/apple/$SCHEME.xcarchive"); fi
 mkdir -p "$PROJECT_ROOT/build/apple"
-xcodebuild -project "$PROJECT_ROOT/src/native/apple/WorkFleet.xcodeproj" -scheme "$SCHEME" -configuration "$CONFIGURATION" \
+xcodebuild -project "$PROJECT_ROOT/src/native/apple/PinItAnywhere.xcodeproj" -scheme "$SCHEME" -configuration "$CONFIGURATION" \
   -destination "$DESTINATION" -derivedDataPath "$PROJECT_ROOT/build/apple/DerivedData" \
   -clonedSourcePackagesDirPath "$PROJECT_ROOT/build/apple/SourcePackages" "${EXTRA[@]}" "$ACTION"
 if [[ "$PLATFORM" == macos ]]; then
-    APP="$PROJECT_ROOT/build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app"
-    [[ "$CONFIGURATION" != Release ]] || APP="$PROJECT_ROOT/build/apple/$SCHEME.xcarchive/Products/Applications/WorkFleetMac.app"
+    APP="$PROJECT_ROOT/build/apple/DerivedData/Build/Products/Debug/PinItAnywhereMac.app"
+    [[ "$CONFIGURATION" != Release ]] || APP="$PROJECT_ROOT/build/apple/$SCHEME.xcarchive/Products/Applications/PinItAnywhereMac.app"
     python3 scripts/testing/check_macos_runtime.py "$APP"
 fi

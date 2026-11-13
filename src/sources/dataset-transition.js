@@ -72,7 +72,7 @@ export async function startDatasetReset({ state, storage, fileStore, preview = n
 export async function stagePendingDatasetReset(state, storage) {
   const job = await storage.getJob('dataset-reset');
   if (job && !job.seeded && job.phase !== 'complete' && state.sync.resetOperation !== job.operationId) {
-    requireValue(state.format === 'work-fleet-workspace-current' && state.profileId.startsWith('google:')
+    requireValue(state.format === 'pin-it-anywhere-workspace-current' && state.profileId.startsWith('google:')
       && job.kind === 'dataset-reset' && job.sourceId === `google-drive:${state.profileId.slice(7)}:appdata-v1`
       && /^[0-9a-f-]{36}$/.test(job.operationId) && job.preview?.sourceId === job.sourceId
       && ['capture', 'capture-restart', 'fence', 'clearing', 'initialize', 'activate', 'cleanup', 'residual-audit', 'audit-restart', 'journal-cleanup'].includes(job.phase),

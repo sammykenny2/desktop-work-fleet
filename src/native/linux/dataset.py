@@ -3,7 +3,7 @@ import re
 
 import protocol as p
 
-FORMAT = "work-fleet-dataset"
+FORMAT = "pin-it-anywhere-dataset"
 FIELDS = "id,name,mimeType,parents,spaces,trashed,size,createdTime,appProperties,sha256Checksum"
 SHARDS = tuple("0123456789abcdef") + ("groups",)
 KINDS = ("dataset-root", "folder", "dataset", "ready", "revision", "attachment", "change", "checkpoint", "purge")
@@ -31,8 +31,8 @@ def dataset_id(value):
 
 
 def properties(file):
-    result = {"wfFormat": FORMAT, "wfSchema": "1", "wfDataset": file["datasetId"], "wfKind": file["kind"]}
-    for key, prop in (("sha256", "wfSha256"), ("role", "wfRole"), ("entityId", "wfEntity"), ("revisionId", "wfRevision"), ("shard", "wfShard")):
+    result = {"piaFormat": FORMAT, "piaSchema": "1", "piaDataset": file["datasetId"], "piaKind": file["kind"]}
+    for key, prop in (("sha256", "piaSha256"), ("role", "piaRole"), ("entityId", "piaEntity"), ("revisionId", "piaRevision"), ("shard", "piaShard")):
         if key in file:
             result[prop] = file[key]
     check(all(len((key + value).encode("utf-8")) <= 124 for key, value in result.items()))
@@ -107,35 +107,35 @@ def query(value):
         return "appProperties has { key='" + key + "' and value='" + item + "' }"
 
     if scope == "fences":
-        clauses.append(prop("wfKind", "reset"))
+        clauses.append(prop("piaKind", "reset"))
     elif scope != "legacy":
-        clauses.append(prop("wfFormat", FORMAT))
+        clauses.append(prop("piaFormat", FORMAT))
         if scope not in ("datasets", "reset-datasets"):
             keys.add("datasetId")
             check(dataset_id(value.get("datasetId")))
-            clauses.append(prop("wfDataset", value["datasetId"]))
+            clauses.append(prop("piaDataset", value["datasetId"]))
         if scope in ("datasets", "reset-datasets", "ready", "roots"):
-            clauses.append(prop("wfKind", {"datasets": "dataset", "reset-datasets": "dataset", "ready": "ready", "roots": "dataset-root"}[scope]))
+            clauses.append(prop("piaKind", {"datasets": "dataset", "reset-datasets": "dataset", "ready": "ready", "roots": "dataset-root"}[scope]))
             if scope == "roots":
                 clauses.append("'appDataFolder' in parents")
         elif scope in ("current", "current-all"):
             if scope == "current":
                 keys.add("shard")
                 check(value.get("shard") in SHARDS)
-                clauses.append(prop("wfShard", value["shard"]))
-            clauses.append("(" + prop("wfKind", "checkpoint") + " or " + prop("wfKind", "change") + ")")
+                clauses.append(prop("piaShard", value["shard"]))
+            clauses.append("(" + prop("piaKind", "checkpoint") + " or " + prop("piaKind", "change") + ")")
         elif scope in ("history", "children"):
             keys.add("parentId")
             check(file_id(value.get("parentId")))
             clauses.append("'" + value["parentId"] + "' in parents")
             if scope == "history":
-                clauses.append(prop("wfKind", "revision"))
+                clauses.append(prop("piaKind", "revision"))
         elif scope in ("purges", "entity-folders", "entity-data"):
             keys.add("entities")
             entities = value.get("entities")
             check(isinstance(entities, list) and 0 < len(entities) <= 20 and all(entity_id(item) for item in entities) and len(set(entities)) == len(entities))
-            kinds = "(" + " or ".join(prop("wfKind", kind) for kind in ("revision", "attachment", "folder")) + ")" if scope == "entity-data" else prop("wfKind", "purge" if scope == "purges" else "folder")
-            clauses.extend((kinds, "(" + " or ".join(prop("wfEntity", item) for item in entities) + ")"))
+            kinds = "(" + " or ".join(prop("piaKind", kind) for kind in ("revision", "attachment", "folder")) + ")" if scope == "entity-data" else prop("piaKind", "purge" if scope == "purges" else "folder")
+            clauses.extend((kinds, "(" + " or ".join(prop("piaEntity", item) for item in entities) + ")"))
         else:
             check(False)
     check(set(value) == keys)
@@ -145,5 +145,5 @@ def query(value):
 def delete_batch(ids):
     check(isinstance(ids, list) and 1 <= len(ids) <= 100
           and all(file_id(key) and key not in ("root", "appDataFolder") for key in ids) and len(set(ids)) == len(ids))
-    return ("".join(f"--work_fleet_delete\r\nContent-Type: application/http\r\nContent-ID: wf-{index}\r\n\r\nDELETE /drive/v3/files/{key} HTTP/1.1\r\n\r\n"
-                    for index, key in enumerate(ids)) + "--work_fleet_delete--\r\n").encode("ascii")
+    return ("".join(f"--pin_it_anywhere_delete\r\nContent-Type: application/http\r\nContent-ID: wf-{index}\r\n\r\nDELETE /drive/v3/files/{key} HTTP/1.1\r\n\r\n"
+                    for index, key in enumerate(ids)) + "--pin_it_anywhere_delete--\r\n").encode("ascii")

@@ -9,7 +9,7 @@ test('the exact 20,000-entry boundary includes manifest, while one extra revisio
     area: { x: 0, y: 0, width: 1200, height: 800 }, persist: async () => {} });
   const state = workspace.state; const group = state.groups[0]; state.outbox = [];
   const append = index => {
-    const record = { format: 'work-fleet-revision', schemaVersion: 1, kind: 'card', entityId: 'capacity-card',
+    const record = { format: 'pin-it-anywhere-revision', schemaVersion: 1, kind: 'card', entityId: 'capacity-card',
       revisionId: `capacity-${index}`, parents: index ? [`capacity-${index - 1}`] : [],
       value: { id: 'capacity-card', revision: `capacity-${index}`, groupId: group.id,
         content: { format: 'markdown', text: `version ${index}` }, deleted: false, archived: false, completed: false } };

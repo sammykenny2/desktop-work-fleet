@@ -2,7 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 internal static class AdjustOverlayProbe
 {

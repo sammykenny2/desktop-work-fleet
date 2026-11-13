@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 public sealed record PlacementArea(int X, int Y, int Width, int Height);
 /// <summary>Main window restore bounds in the host's own units; X/Y are null where the compositor places windows.</summary>

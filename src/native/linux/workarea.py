@@ -111,7 +111,7 @@ class Published:
     most first seconds at start and wait seconds on a display change.
 
     The thread owns one connection and reads every interval seconds; holding it keeps an Xwayland that the compositor
-    starts on demand running while Work Fleet does. A read that fails keeps the sample before it, so a lost reply never
+    starts on demand running while Pin It Anywhere does. A read that fails keeps the sample before it, so a lost reply never
     shrinks the work area to the margin."""
     def __init__(self, display=None, library=bind, interval=2.0, first=3.0, wait=1.0, grace=GRACE):
         self.display = os.environ.get("DISPLAY", "") if display is None else display
@@ -152,7 +152,7 @@ class Published:
         if self.closed or not self.display:
             return
         if self.thread is None:
-            self.thread = threading.Thread(target=self.run, name="work-fleet-workarea", daemon=True)
+            self.thread = threading.Thread(target=self.run, name="pin-it-anywhere-workarea", daemon=True)
             self.thread.start()
         self.wanted += 1
         wanted = self.wanted

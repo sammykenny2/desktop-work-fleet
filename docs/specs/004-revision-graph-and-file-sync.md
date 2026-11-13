@@ -36,7 +36,7 @@ These limits do not cut the editor, platform or complete-backup scope approved i
 
 ```json
 {
-  "format": "work-fleet-revision",
+  "format": "pin-it-anywhere-revision",
   "schemaVersion": 1,
   "kind": "card",
   "entityId": "card-id",

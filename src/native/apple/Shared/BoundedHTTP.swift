@@ -75,7 +75,7 @@ final class BoundedHTTP: @unchecked Sendable {
             try await withCheckedThrowingContinuation { continuation in
                 lock.lock()
                 guard !started else {
-                    lock.unlock(); continuation.resume(throwing: FleetFailure("invalid-request", "The HTTP task has already started.")); return
+                    lock.unlock(); continuation.resume(throwing: PinItAnywhereFailure("invalid-request", "The HTTP task has already started.")); return
                 }
                 started = true
                 guard !cancelled else { lock.unlock(); continuation.resume(throwing: CancellationError()); return }
@@ -96,7 +96,7 @@ final class BoundedHTTP: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         guard !cancelled, continuation != nil else { return false }
         guard let http = response as? HTTPURLResponse, response.expectedContentLength < 0 || response.expectedContentLength <= maximum else {
-            failure = FleetFailure("response-size", "Google's response is over the size limit."); return false
+            failure = PinItAnywhereFailure("response-size", "Google's response is over the size limit."); return false
         }
         self.response = http; return true
     }
@@ -104,7 +104,7 @@ final class BoundedHTTP: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         guard !cancelled, continuation != nil else { return false }
         guard data.count <= maximum - bytes.count else {
-            failure = FleetFailure("response-size", "Google's response is over the size limit."); return false
+            failure = PinItAnywhereFailure("response-size", "Google's response is over the size limit."); return false
         }
         bytes.append(data); return true
     }
@@ -119,7 +119,7 @@ final class BoundedHTTP: @unchecked Sendable {
         let result: Result<(Data, HTTPURLResponse), Error>
         if let failure = failure ?? (cancelled ? CancellationError() : error) { result = .failure(failure) }
         else if let response { result = .success((bytes, response)) }
-        else { result = .failure(FleetFailure("network", "Google didn't return a complete response.")) }
+        else { result = .failure(PinItAnywhereFailure("network", "Google didn't return a complete response.")) }
         bytes = Data(); lock.unlock()
         waiting?.resume(with: result)
     }

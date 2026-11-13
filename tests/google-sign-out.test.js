@@ -13,8 +13,8 @@ test('no native host revokes the Google grant when signing out', async () => {
   const hosts = {
     windows: 'src/native/windows/app/NativeGoogle.cs',
     linux: 'src/native/linux/google.py',
-    apple: 'src/native/apple/Shared/FleetGoogle.swift',
-    android: 'src/native/android/app/src/main/java/app/workfleet/nativehost/GoogleFiles.java',
+    apple: 'src/native/apple/Shared/PinItAnywhereGoogle.swift',
+    android: 'src/native/android/app/src/main/java/dev/sammykenny2/pinitanywhere/nativehost/GoogleFiles.java',
   };
   for (const [host, file] of Object.entries(hosts)) {
     const source = await readFile(path.join(root, file), 'utf8');

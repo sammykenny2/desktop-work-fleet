@@ -41,13 +41,23 @@ remain separate work; preview artifact checks do not mark them passed.
   identity cutover only, preservation/restore of the old Google Drive notes was waived on 2026-11-13; use a fresh new
   project without importing them. No cloud deletion or credential revocation is needed for that transition. The
   general backup/restore product requirements remain in force for other users.
+  - [x] For the complete-name cutover, the maintainer approved fresh test data on all platforms. Keep existing local
+    and cloud data untouched; no automatic reset or migration is part of this work. General recovery acceptance for
+    other users remains open.
 
 **Deliverable**: a concrete identity mapping and verified recovery route for FR01–FR05 and FR13.
 
 ### Phase 2: Apply names and service/signing configuration
 
 - [ ] Update locale/native display names, manifests, app/extension IDs, App Group, launcher/share metadata and store
-  drafts together. Keep internal names unless a public identity or build contract actually depends on them.
+  drafts together. The maintainer's complete-renaming instruction supersedes the internal-name deferral under
+  [ADR-071](../decisions/071-complete-product-name-cutover.md).
+  - [x] Complete source/type/namespace, project/path, asset, environment-key, updater and V1-name renaming; enforce a
+    current-tree identity guard and regenerate the Xcode project. Compile the macOS Universal and iOS simulator
+    targets and the Android signed Release APK, retaining the registered Apple/Android identities.
+  - [x] Configure the renamed CI Variables and four Secrets with the maintainer's authorization; prepare the matching
+    Windows preview Publisher/signer. Keep the original Windows Secrets as private-key backup. Reconcile ignored
+    local settings at integration; native signed-install/update acceptance remains open.
   - [x] Update renderer/native names, window titles, Apple/Android localized system-name resources, Linux desktop/startup
     names, Windows English package display names, DMG application names and store/privacy drafts. Keep technical IDs,
     storage paths, signing subjects and existing public artifact filenames until their cutover is ready.
@@ -66,7 +76,8 @@ remain separate work; preview artifact checks do not mark them passed.
   names together. Verify how an already installed old build reaches the new source before relying on redirects.
   - [x] Rename the repository and local remote to `sammykenny2/pin-it-anywhere`; use that repository as the generated
     update-source default. Workflows already derive their release repository from `GITHUB_REPOSITORY`.
-  - [ ] Finish future asset naming with the distribution-contract changes. Old installed updaters require a manual
+  - [x] Apply current product download names to all platform packagers, workflow allowlists and release instructions.
+  - [ ] Finish the new updater lookup and installed-identity cutover. Old installed updaters require a manual
     transition because the redirected Atom feed names the new repository; native install/update acceptance is pending.
 - [ ] Test old/new Google app-data visibility, fresh sign-in, token refresh, account isolation, sharing and backup/restore
   in the new app identity. Document any required manual transition instead of claiming an in-place upgrade.

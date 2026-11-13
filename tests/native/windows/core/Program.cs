@@ -2,7 +2,7 @@ using Microsoft.Data.Sqlite;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
 if (args.Length == 2 && args[0] == "--bridge")
 {
@@ -13,7 +13,7 @@ if (args.Length == 2 && args[0] == "--bridge")
   string? line; while ((line = Console.ReadLine()) is not null) Console.WriteLine(bridge.Dispatch(line));
   return;
 }
-if (args.Length != 1) throw new ArgumentException("Usage: WorkFleet.Windows.Core.Tests OUTPUT_DIRECTORY | --bridge OUTPUT_DIRECTORY");
+if (args.Length != 1) throw new ArgumentException("Usage: PinItAnywhere.Windows.Core.Tests OUTPUT_DIRECTORY | --bridge OUTPUT_DIRECTORY");
 var root = Path.GetFullPath(args[0]); Directory.CreateDirectory(root);
 var count = 0;
 void Test(string name, Action action) { action(); count++; Console.WriteLine($"PASS {name}"); }
@@ -28,7 +28,7 @@ byte[] Record(int revision, string profile = "local", string text = "native-secr
   JsonSerializer.SerializeToUtf8Bytes(new { profileId = profile, revision, text });
 void Query(string sql)
 {
-  using var conn = new SqliteConnection($"Data Source={Path.Combine(root, "fleet.sqlite3")};Pooling=False"); conn.Open();
+  using var conn = new SqliteConnection($"Data Source={Path.Combine(root, "pinitanywhere.sqlite3")};Pooling=False"); conn.Open();
   using var command = conn.CreateCommand(); command.CommandText = sql; command.ExecuteNonQuery();
 }
 string secretId;
@@ -171,7 +171,7 @@ Test("different profile cannot read records, attachments or vault", () =>
 });
 Test("database files do not contain test plaintext", () =>
 {
-  foreach (var file in Directory.GetFiles(root, "fleet.sqlite3*"))
+  foreach (var file in Directory.GetFiles(root, "pinitanywhere.sqlite3*"))
   {
     var text = Encoding.UTF8.GetString(File.ReadAllBytes(file));
     Require(!text.Contains("native-secret-marker") && !text.Contains("unique-backup-password-marker") && !text.Contains("test attachment bytes"));
@@ -187,7 +187,7 @@ Test("full local restore atomically purges old attachments, preserves other prof
     string Stage(string kind, byte[] bytes) => local.Stage(kind, bytes, LocalDatabase.Digest(bytes));
     local.CommitRecord("workspace", Stage("workspace", Record(0)), null, [Stage("attachment", attachment)]);
     var next = Stage("workspace", Record(1)); var file = Stage("attachment", fresh);
-    using (var conn = new SqliteConnection($"Data Source={Path.Combine(folder, "fleet.sqlite3")};Pooling=False"))
+    using (var conn = new SqliteConnection($"Data Source={Path.Combine(folder, "pinitanywhere.sqlite3")};Pooling=False"))
     {
       conn.Open(); using var cmd = conn.CreateCommand();
       cmd.CommandText = "CREATE TRIGGER reject_replace BEFORE UPDATE ON records BEGIN SELECT RAISE(ABORT, 'injected disk failure'); END;"; cmd.ExecuteNonQuery();
@@ -210,8 +210,8 @@ Test("full local restore atomically purges old attachments, preserves other prof
 Test("navigation allows only the packaged main document", () =>
 {
   Require(NavigationPolicy.IsDocument(NavigationPolicy.Document) && NavigationPolicy.IsDocument(NavigationPolicy.Document + "#view"));
-  foreach (var uri in new[] { "http://work-fleet.invalid/app/index.html", "https://work-fleet.invalid:123/app/index.html", "https://work-fleet.invalid.evil/app/index.html",
-    "https://user@work-fleet.invalid/app/index.html", "https://work-fleet.invalid/app/index.html?profile=other", "file:///app/index.html", "javascript:alert(1)" })
+  foreach (var uri in new[] { "http://pin-it-anywhere.invalid/app/index.html", "https://pin-it-anywhere.invalid:123/app/index.html", "https://pin-it-anywhere.invalid.evil/app/index.html",
+    "https://user@pin-it-anywhere.invalid/app/index.html", "https://pin-it-anywhere.invalid/app/index.html?profile=other", "file:///app/index.html", "javascript:alert(1)" })
     Require(!NavigationPolicy.IsDocument(uri));
 });
 Test("attachment bridge resolves only this profile and distinguishes missing bytes", () =>

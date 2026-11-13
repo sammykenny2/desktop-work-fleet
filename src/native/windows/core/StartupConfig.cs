@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// ADR-043 startup timings from config/startup.json, which the build writes into Config/public.json beside the app.

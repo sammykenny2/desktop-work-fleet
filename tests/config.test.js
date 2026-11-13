@@ -8,68 +8,68 @@ import { missingGoogleConfig, missingReleaseConfig, parseStartupConfig, readBuil
 import { buildWebAssets } from '../scripts/build-web.mjs';
 
 test('public config reads .env, prefers environment and excludes non-allowlisted credentials', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-config-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'pin-it-anywhere-config-'));
   try {
-    await writeFile(path.join(directory, '.env'), 'WORK_FLEET_GOOGLE_PROJECT_ID=file-project\nWORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID=123-file.apps.googleusercontent.com\nPRIVATE_TOKEN=synthetic-private-value\n');
+    await writeFile(path.join(directory, '.env'), 'PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID=file-project\nPIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_ID=123-file.apps.googleusercontent.com\nPRIVATE_TOKEN=synthetic-private-value\n');
     const config = await readBuildConfig(pathToFileURL(directory + path.sep), {
-      WORK_FLEET_GOOGLE_PROJECT_ID: 'environment-project',
-      WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID: '123-env.apps.googleusercontent.com',
-      WORK_FLEET_APP_ID: 'test.workfleet.app', PRIVATE_KEY: 'synthetic-key',
-      WORK_FLEET_WINDOWS_PACKAGE_ID: 'Test.WorkFleet', WORK_FLEET_WINDOWS_PUBLISHER: 'CN=Test Publisher',
-      WORK_FLEET_PRIVACY_URL: 'https://example.com/privacy', WORK_FLEET_SUPPORT_URL: 'https://example.com/support',
-      WORK_FLEET_SUPPORT_EMAIL: 'support@example.com',
+      PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID: 'environment-project',
+      PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_ID: '123-env.apps.googleusercontent.com',
+      PIN_IT_ANYWHERE_APP_ID: 'test.pinitanywhere.app', PRIVATE_KEY: 'synthetic-key',
+      PIN_IT_ANYWHERE_WINDOWS_PACKAGE_ID: 'Test.PinItAnywhere', PIN_IT_ANYWHERE_WINDOWS_PUBLISHER: 'CN=Test Publisher',
+      PIN_IT_ANYWHERE_PRIVACY_URL: 'https://example.com/privacy', PIN_IT_ANYWHERE_SUPPORT_URL: 'https://example.com/support',
+      PIN_IT_ANYWHERE_SUPPORT_EMAIL: 'support@example.com',
     });
     assert.equal(config.google.projectId, 'environment-project');
     assert.equal(config.google.clients.windows, '123-env.apps.googleusercontent.com');
     assert.equal(JSON.stringify(config).includes('synthetic'), false);
     assert.deepEqual(missingReleaseConfig(config, 'windows'), []);
-    assert.deepEqual(missingReleaseConfig(config, 'ios'), ['WORK_FLEET_GOOGLE_IOS_CLIENT_ID', 'WORK_FLEET_APPLE_TEAM_ID']);
+    assert.deepEqual(missingReleaseConfig(config, 'ios'), ['PIN_IT_ANYWHERE_GOOGLE_IOS_CLIENT_ID', 'PIN_IT_ANYWHERE_APPLE_TEAM_ID']);
   } finally { await rm(path.join(directory, '.env'), { force: true }); await rmdir(directory); }
 });
 
 test('empty config supports local builds but reports missing release values and rejects malformed IDs, URLs and email', async () => {
   const root = new URL('../build/nonexistent-config/', import.meta.url);
   const empty = await readBuildConfig(root, {});
-  assert.deepEqual(missingReleaseConfig(empty, 'android'), ['WORK_FLEET_GOOGLE_PROJECT_ID', 'WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID',
-    'WORK_FLEET_GOOGLE_WEB_CLIENT_ID', 'WORK_FLEET_APP_ID', 'WORK_FLEET_PRIVACY_URL', 'WORK_FLEET_SUPPORT_URL', 'WORK_FLEET_SUPPORT_EMAIL']);
-  assert.deepEqual(missingReleaseConfig(empty, 'windows').filter(name => name.startsWith('WORK_FLEET_WINDOWS_')),
-    ['WORK_FLEET_WINDOWS_PACKAGE_ID', 'WORK_FLEET_WINDOWS_PUBLISHER']);
-  for (const environment of [{ WORK_FLEET_GOOGLE_IOS_CLIENT_ID: 'not-an-id' },
-    { WORK_FLEET_APP_ID: 'contains spaces' }, { WORK_FLEET_APP_ID: 'com.example.foo_bar' },
-    { WORK_FLEET_APP_ID: 'com.example.foo-bar' }, { WORK_FLEET_APPLE_TEAM_ID: 'invalid' },
-    { WORK_FLEET_GOOGLE_WEB_CLIENT_ID: 'not-an-id' }, { WORK_FLEET_WINDOWS_PACKAGE_ID: 'has spaces' },
-    { WORK_FLEET_PRIVACY_URL: 'http://example.com/privacy' }, { WORK_FLEET_SUPPORT_URL: 'https://user:secret@example.com' },
-    { WORK_FLEET_SUPPORT_EMAIL: 'not-an-email' }, { WORK_FLEET_UPDATE_REPOSITORY: 'https://github.com/o/r' },
-    { WORK_FLEET_UPDATE_REPOSITORY: 'owner/repo/extra' }, { WORK_FLEET_UPDATE_CHANNEL: 'stable' }, { WORK_FLEET_SPARKLE_PUBLIC_KEY: 'not-a-key' }]) {
+  assert.deepEqual(missingReleaseConfig(empty, 'android'), ['PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID', 'PIN_IT_ANYWHERE_GOOGLE_ANDROID_CLIENT_ID',
+    'PIN_IT_ANYWHERE_GOOGLE_WEB_CLIENT_ID', 'PIN_IT_ANYWHERE_APP_ID', 'PIN_IT_ANYWHERE_PRIVACY_URL', 'PIN_IT_ANYWHERE_SUPPORT_URL', 'PIN_IT_ANYWHERE_SUPPORT_EMAIL']);
+  assert.deepEqual(missingReleaseConfig(empty, 'windows').filter(name => name.startsWith('PIN_IT_ANYWHERE_WINDOWS_')),
+    ['PIN_IT_ANYWHERE_WINDOWS_PACKAGE_ID', 'PIN_IT_ANYWHERE_WINDOWS_PUBLISHER']);
+  for (const environment of [{ PIN_IT_ANYWHERE_GOOGLE_IOS_CLIENT_ID: 'not-an-id' },
+    { PIN_IT_ANYWHERE_APP_ID: 'contains spaces' }, { PIN_IT_ANYWHERE_APP_ID: 'com.example.foo_bar' },
+    { PIN_IT_ANYWHERE_APP_ID: 'com.example.foo-bar' }, { PIN_IT_ANYWHERE_APPLE_TEAM_ID: 'invalid' },
+    { PIN_IT_ANYWHERE_GOOGLE_WEB_CLIENT_ID: 'not-an-id' }, { PIN_IT_ANYWHERE_WINDOWS_PACKAGE_ID: 'has spaces' },
+    { PIN_IT_ANYWHERE_PRIVACY_URL: 'http://example.com/privacy' }, { PIN_IT_ANYWHERE_SUPPORT_URL: 'https://user:secret@example.com' },
+    { PIN_IT_ANYWHERE_SUPPORT_EMAIL: 'not-an-email' }, { PIN_IT_ANYWHERE_UPDATE_REPOSITORY: 'https://github.com/o/r' },
+    { PIN_IT_ANYWHERE_UPDATE_REPOSITORY: 'owner/repo/extra' }, { PIN_IT_ANYWHERE_UPDATE_CHANNEL: 'stable' }, { PIN_IT_ANYWHERE_SPARKLE_PUBLIC_KEY: 'not-a-key' }]) {
     await assert.rejects(readBuildConfig(root, environment));
   }
   // ADR-044: every platform's public config names the release repository; an override must still be owner/repo.
   assert.deepEqual(empty.update, { repository: 'sammykenny2/pin-it-anywhere', channel: 'preview', macosPublicKey: '' });
-  assert.deepEqual((await readBuildConfig(root, { WORK_FLEET_UPDATE_REPOSITORY: 'fork-owner/work.fleet' })).update, { repository: 'fork-owner/work.fleet', channel: 'preview', macosPublicKey: '' });
+  assert.deepEqual((await readBuildConfig(root, { PIN_IT_ANYWHERE_UPDATE_REPOSITORY: 'fork-owner/work.pinitanywhere' })).update, { repository: 'fork-owner/work.pinitanywhere', channel: 'preview', macosPublicKey: '' });
   const key = 'A'.repeat(43) + '=';
-  assert.equal((await readBuildConfig(root, { WORK_FLEET_SPARKLE_PUBLIC_KEY: key })).update.macosPublicKey, key);
+  assert.equal((await readBuildConfig(root, { PIN_IT_ANYWHERE_SPARKLE_PUBLIC_KEY: key })).update.macosPublicKey, key);
   assert.throws(() => missingReleaseConfig(empty, 'unknown'));
 });
 
 test('a Desktop client secret reaches only the named Windows or Linux config and stays optional', async () => {
   const root = new URL('../build/nonexistent-config/', import.meta.url);
-  const environment = { WORK_FLEET_GOOGLE_PROJECT_ID: 'project', WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID: '1-w.apps.googleusercontent.com',
-    WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: 'GOCSPX-synthetic-windows', WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET: 'GOCSPX-synthetic-linux' };
+  const environment = { PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID: 'project', PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_ID: '1-w.apps.googleusercontent.com',
+    PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_SECRET: 'GOCSPX-synthetic-windows', PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_SECRET: 'GOCSPX-synthetic-linux' };
   assert.deepEqual((await readBuildConfig(root, environment, { platform: 'windows' })).google.secrets, { windows: 'GOCSPX-synthetic-windows' });
   assert.deepEqual((await readBuildConfig(root, environment, { platform: 'linux' })).google.secrets, { linux: 'GOCSPX-synthetic-linux' });
   for (const platform of [undefined, 'android', 'ios', 'macos']) {
     assert.equal(JSON.stringify(await readBuildConfig(root, environment, { platform })).includes('synthetic'), false, platform);
   }
-  assert.deepEqual(missingGoogleConfig(await readBuildConfig(root, { ...environment, WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: '' }), 'windows'), []);
+  assert.deepEqual(missingGoogleConfig(await readBuildConfig(root, { ...environment, PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_SECRET: '' }), 'windows'), []);
   for (const secret of ['has space', 'x'.repeat(257), 'line\nbreak']) {
-    await assert.rejects(readBuildConfig(root, { WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET: secret }));
+    await assert.rejects(readBuildConfig(root, { PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_SECRET: secret }));
   }
 });
 
 test('only a Windows build writes its Desktop client secret, beside the app rather than in the renderer assets', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-secret-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'pin-it-anywhere-secret-'));
   try {
-    const environment = { WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: 'GOCSPX-Qz7marker' };
+    const environment = { PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_SECRET: 'GOCSPX-Qz7marker' };
     for (const platform of ['windows', undefined]) {
       const destination = path.join(directory, platform ?? 'other', 'app'), configDestination = path.join(directory, platform ?? 'other', 'config', 'public.json');
       await buildWebAssets({ destination, configDestination, environment, platform });
@@ -85,7 +85,7 @@ test('startup timings come from config/startup.json for every build, not from .e
   const source = parseStartupConfig(await readFile(new URL('../config/startup.json', import.meta.url), 'utf8'));
   const root = new URL('../build/nonexistent-config/', import.meta.url);
   assert.deepEqual((await readBuildConfig(root, {})).startup, source);
-  assert.deepEqual((await readBuildConfig(root, { WORK_FLEET_TRAY_WAIT_SECONDS: '1' })).startup, source);
+  assert.deepEqual((await readBuildConfig(root, { PIN_IT_ANYWHERE_TRAY_WAIT_SECONDS: '1' })).startup, source);
   assert.deepEqual(parseStartupConfig('{"trayWaitSeconds":0,"other":1}'), { trayWaitSeconds: 0 });
   for (const text of ['{}', '{"trayWaitSeconds":-1}', '{"trayWaitSeconds":1.5}', '{"trayWaitSeconds":"30"}', '{"trayWaitSeconds":301}', 'null', '{']) {
     assert.throws(() => parseStartupConfig(text), undefined, text);

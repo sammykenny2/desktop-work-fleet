@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { activeGroups, containsRect, copy, defaultGrid, FleetError, gridRegions, summaryText, validateGrid } from '../src/core/contracts.js';
+import { activeGroups, containsRect, copy, defaultGrid, PinItAnywhereError, gridRegions, summaryText, validateGrid } from '../src/core/contracts.js';
 import { Workspace } from '../src/core/workspace.js';
 import { planFormation } from '../src/layout/formation.js';
 import { createLayout, LayoutStore, mainGroup, mainView, reachable } from '../src/layout/store.js';

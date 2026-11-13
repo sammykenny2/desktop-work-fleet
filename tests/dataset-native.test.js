@@ -36,7 +36,7 @@ test('the shared dataset wire fixture defines identical closed descriptors and t
 test('native dataset RPCs pass typed selectors and verify metadata instead of exposing HTTP or credentials', async () => {
   const sent = [], revision = fixture.files.find(item => item.input.kind === 'revision'), folder = fixture.files.find(item => item.input.kind === 'folder');
   const replies = [{ files: [revision.metadata], incompleteSearch: false }, folder.metadata, folder.metadata,
-    { changes: [{ fileId: revision.input.id, file: revision.metadata }, { fileId: 'old-fence', file: { appProperties: { wfKind: 'reset' } } }], newStartPageToken: 'end' }];
+    { changes: [{ fileId: revision.input.id, file: revision.metadata }, { fileId: 'old-fence', file: { appProperties: { piaKind: 'reset' } } }], newStartPageToken: 'end' }];
   const store = new NativeGoogleDatasetStore({ request: async (method, args) => { sent.push({ method, args }); return replies.shift(); } }, { profileId: 'google:account' }, 'account');
   const query = fixture.queries.find(item => item.input.scope === 'history').input;
   assert.deepEqual((await store.listObjects({ query })).files, [revision.input]);

@@ -40,10 +40,10 @@ class AppleBoundedHTTPTests(unittest.TestCase):
                     pass
 
         root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory(prefix="work-fleet-http-") as directory:
+        with tempfile.TemporaryDirectory(prefix="pin-it-anywhere-http-") as directory:
             executable = Path(directory) / "probe"
             build = subprocess.run(["swiftc", "-swift-version", "5", "-module-cache-path", directory + "/modules",
-                                    str(root / "src/native/apple/Shared/FleetProtocol.swift"),
+                                    str(root / "src/native/apple/Shared/PinItAnywhereProtocol.swift"),
                                     str(root / "src/native/apple/Shared/BoundedHTTP.swift"),
                                     str(root / "tests/native/apple/BoundedHTTPProbe.swift"), "-o", str(executable)],
                                    capture_output=True, text=True, timeout=240)

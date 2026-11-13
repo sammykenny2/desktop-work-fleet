@@ -3,8 +3,8 @@ using System.Text.Json;
 using System.Runtime.InteropServices;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
-using WorkFleet.Windows;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows;
+using PinItAnywhere.Windows.Core;
 
 internal static class Program
 {
@@ -38,7 +38,7 @@ internal static class Program
     var dataFailure = args.Length == 2 && args[0] == "--data-failure";
     var trayMenu = args.Length == 2 && args[0] == "--tray-menu";
     if (!composition && !wallpaper && !diagnostics && !formation && !hostChild && !hostCheck && !hostShell && !crashGuard && !signInHold && !gridArea && !adjustOverlay && !referenceDpi && !hiddenSync && !dataFailure && !trayMenu && args.Length != 1)
-      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation|--host-shell|--crash-guard|--sign-in-hold|--grid-area|--adjust-overlay|--reference-dpi|--hidden-sync|--data-failure|--tray-menu] OUTPUT_DIRECTORY [--wait-desktop] | --platform | --scene-growth");
+      throw new ArgumentException("Usage: PinItAnywhere.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation|--host-shell|--crash-guard|--sign-in-hold|--grid-area|--adjust-overlay|--reference-dpi|--hidden-sync|--data-failure|--tray-menu] OUTPUT_DIRECTORY [--wait-desktop] | --platform | --scene-growth");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {
@@ -80,22 +80,22 @@ internal static class Program
     Directory.CreateDirectory(directory);
     HostPreferences.Read(directory).WithLanguage("en").Write(directory); return directory;
   }
-  internal static FleetWindow Open(string directory)
+  internal static PinItAnywhereWindow Open(string directory)
   {
     English(directory);
     var backups = Path.Combine(directory, "backups"); Directory.CreateDirectory(backups);
     // Replace only the interactive picker in this offscreen probe. Bridge, encryption, SQLite and file I/O are real.
-    var window = new FleetWindow(directory, () => backups,
+    var window = new PinItAnywhereWindow(directory, () => backups,
       [new("probe", true, new(-20000, -20000, 1800, 1200), new(-20000, -20000, 1800, 1200), 144)]) { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000,
       ShowActivated = false, ShowInTaskbar = false, Width = 1180, Height = 800 };
     window.Show(); return window;
   }
-  private static async Task<JsonElement> Eval(FleetWindow window, string source)
+  private static async Task<JsonElement> Eval(PinItAnywhereWindow window, string source)
   {
     var json = await window.WebView.CoreWebView2.ExecuteScriptAsync(source);
     using var value = JsonDocument.Parse(json); return value.RootElement.Clone();
   }
-  internal static async Task Wait(FleetWindow window, string expression, string description)
+  internal static async Task Wait(PinItAnywhereWindow window, string expression, string description)
   {
     var until = DateTime.UtcNow.AddSeconds(30); string? last = null;
     while (DateTime.UtcNow < until)
@@ -111,7 +111,7 @@ internal static class Program
       "({url:location.href,ready:document.readyState,status:document.querySelector('.toast[data-latest=true] .toast-message')?.textContent,body:document.body?.innerText.slice(0,1500)})")).ToString();
     throw new Exception($"Timed out: {description}; {last}; {state}");
   }
-  internal static async Task Close(FleetWindow window)
+  internal static async Task Close(PinItAnywhereWindow window)
   {
     var ended = new TaskCompletionSource(); window.Closed += (_, _) => ended.TrySetResult(); window.Close();
     await ended.Task.WaitAsync(TimeSpan.FromSeconds(30));
@@ -141,7 +141,7 @@ internal static class Program
     await DesktopIntegrationProbe.Run(window, directory);
     await ShortcutIntegrationProbe.Run(window);
     // The main host refuses navigations away from the exact packaged document and prevents frames.
-    window.WebView.CoreWebView2.Navigate("https://work-fleet.invalid/other.html"); await Task.Delay(150);
+    window.WebView.CoreWebView2.Navigate("https://pin-it-anywhere.invalid/other.html"); await Task.Delay(150);
     if (window.WebView.CoreWebView2.Source != NavigationPolicy.Document) throw new Exception("Unexpected navigation");
     await Eval(window, "const frame=document.createElement('iframe');frame.src='/app/index.html';document.body.append(frame)");
     await Task.Delay(200);
@@ -185,7 +185,7 @@ internal static class Program
     var card = state.RootElement.GetProperty("cards")[0]; var attachment = card.GetProperty("content").GetProperty("attachments")[0];
     if (db.ReadAttachment(attachment.GetProperty("id").GetString()!) is null) throw new Exception("Attachment missing after native reopen");
   }
-  private static async Task BackupProbe(FleetWindow window, string directory)
+  private static async Task BackupProbe(PinItAnywhereWindow window, string directory)
   {
     await Eval(window, "document.querySelector('#settings-button').click()");
     await Wait(window, "document.querySelector('#settings-dialog').open", "settings for backup");
@@ -195,10 +195,10 @@ internal static class Program
     await Wait(window, "document.querySelector('#auto-backup-destination').textContent.includes('backups')", "native directory grant");
     await Eval(window, "document.querySelector('#auto-backup-password').value='native-window-backup-password-abcdefghijkl';document.querySelector('#auto-backup-enable').click()");
     await Wait(window, "document.querySelector('.toast[data-notice-id^=automatic-backup] .toast-message').textContent === 'Backed up and verified.'", "native automatic encrypted file");
-    if (Directory.GetFiles(Path.Combine(directory, "backups"), "work-fleet-auto-*.zip").Length != 1) throw new Exception("Missing automatic file");
+    if (Directory.GetFiles(Path.Combine(directory, "backups"), "pin-it-anywhere-auto-*.zip").Length != 1) throw new Exception("Missing automatic file");
     await Eval(window, "document.querySelector('#backup-password').value='manual-window-backup-password-abcdefghijkl';document.querySelector('#export-backup').click()");
     await Wait(window, "document.querySelector('.toast[data-notice-id^=backup] .toast-message').textContent.startsWith('Backup saved and verified.')", "native manual verified file");
-    var file = Directory.GetFiles(Path.Combine(directory, "backups"), "work-fleet-backup-*.zip").Single();
+    var file = Directory.GetFiles(Path.Combine(directory, "backups"), "pin-it-anywhere-backup-*.zip").Single();
     var base64 = Convert.ToBase64String(File.ReadAllBytes(file));
     await Eval(window, """
       const restoreBytes = Uint8Array.from(atob(BASE64), value => value.charCodeAt(0));

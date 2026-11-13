@@ -9,8 +9,8 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SIGNING = ("WORK_FLEET_ANDROID_KEYSTORE", "WORK_FLEET_ANDROID_KEY_ALIAS",
-           "WORK_FLEET_ANDROID_STORE_PASSWORD", "WORK_FLEET_ANDROID_KEY_PASSWORD")
+SIGNING = ("PIN_IT_ANYWHERE_ANDROID_KEYSTORE", "PIN_IT_ANYWHERE_ANDROID_KEY_ALIAS",
+           "PIN_IT_ANYWHERE_ANDROID_STORE_PASSWORD", "PIN_IT_ANYWHERE_ANDROID_KEY_PASSWORD")
 
 
 @unittest.skipUnless(os.name != "nt" and shutil.which("bash") and shutil.which("sha256sum"), "Bash and sha256sum are required")
@@ -43,7 +43,7 @@ for task in "$@"; do
     *) continue ;;
   esac
   printf '%s' "$task" > invoked-task.txt
-  if [[ "$task" != assembleDebug && "${WORK_FLEET_REQUIRE_SIGNED_ANDROID:-}" != 1 ]]; then exit 3; fi
+  if [[ "$task" != assembleDebug && "${PIN_IT_ANYWHERE_REQUIRE_SIGNED_ANDROID:-}" != 1 ]]; then exit 3; fi
   mkdir -p "src/native/android/app/build/outputs/${output%/*}"
   printf 'synthetic %s' "$task" > "src/native/android/app/build/outputs/$output"
 done
@@ -51,7 +51,7 @@ done
 
     def build(self, arguments, signing=False):
         env = {**os.environ, "PATH": str(self.root / "tools") + os.pathsep + os.environ["PATH"], "ANDROID_HOME": str(self.root / "sdk")}
-        for name in (*SIGNING, "WORK_FLEET_REQUIRE_SIGNED_ANDROID"):
+        for name in (*SIGNING, "PIN_IT_ANYWHERE_REQUIRE_SIGNED_ANDROID"):
             env.pop(name, None)
         if signing:
             env.update({name: "synthetic signing fixture" for name in SIGNING})

@@ -4,8 +4,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
-using WorkFleet.Windows;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows;
+using PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// ADR-045 on real windows: a scene attached as a cross-process child of an Explorer-style host, then a render-thread
@@ -81,7 +81,7 @@ internal static class CrashGuardProbe
     using (var running = Ping(30))
     {
       var after = DateTimeOffset.UtcNow.AddSeconds(1);
-      Require(CrashGuard.AwaitPrevious(new(running.Id, after, "probe"), TimeSpan.FromMilliseconds(300), "WorkFleet") == "other" && !running.HasExited, "another program with that ID is left alone");
+      Require(CrashGuard.AwaitPrevious(new(running.Id, after, "probe"), TimeSpan.FromMilliseconds(300), "PinItAnywhere") == "other" && !running.HasExited, "another program with that ID is left alone");
       Require(CrashGuard.AwaitPrevious(new(running.Id, running.StartTime.ToUniversalTime().AddSeconds(-5), "probe"), TimeSpan.FromMilliseconds(300), "PING") == "other" && !running.HasExited,
         "a process started after the marker is a reused ID");
       Require(CrashGuard.AwaitPrevious(new(running.Id, after, "probe"), TimeSpan.FromMilliseconds(300), "PING") == "ended" && running.HasExited, "an instance that outlives the wait is ended");

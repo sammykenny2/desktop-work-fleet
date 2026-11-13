@@ -61,7 +61,7 @@ server.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedeskt
                  GLib.Variant("(su)", ("org.freedesktop.secrets", 4)), GLib.VariantType.new("(u)"),
                  Gio.DBusCallFlags.NONE, 5000, None)
 state = {"locked": True, "mode": "cancel", "unlock": 0, "prompt": 0, "dismiss": 0}
-vault = database.Vault("app.workfleet.unlockprobe")
+vault = database.Vault("dev.sammykenny2.pinitanywhere.unlockprobe")
 db = database.Database(OUTPUT / "workspace", "local", vault)
 errors = []
 loop = GLib.MainLoop()

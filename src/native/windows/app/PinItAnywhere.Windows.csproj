@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <WindowsSdkPackageVersion>10.0.19041.56</WindowsSdkPackageVersion>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Written by the install step of scripts/render-brand-assets.mjs (assets/brand/README.md). WPF windows and the tray reuse the embedded icon. -->
+    <ApplicationIcon>PinItAnywhere.ico</ApplicationIcon>
+    <AssemblyName>PinItAnywhere</AssemblyName>
+  </PropertyGroup>
+  <!-- Update the retained Desktop runtime notices when updating these self-contained patches. -->
+  <ItemGroup Condition="'$(SelfContained)' == 'true'">
+    <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="$(WindowsRuntimeVersion)" />
+    <FrameworkReference Update="Microsoft.WindowsDesktop.App.WPF" RuntimeFrameworkVersion="$(WindowsRuntimeVersion)" />
+    <!-- SDK 10.0.403 sizes the shared Desktop runtime pack from the profile-less Microsoft.WindowsDesktop.App and ignores
+         the WPF reference's version (10.0.402 honoured it), which bundled a 10.0.14 pack under a 10.0.13 runtimeconfig. -->
+    <KnownFrameworkReference Update="Microsoft.WindowsDesktop.App" LatestRuntimeFrameworkVersion="$(WindowsRuntimeVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PinItAnywhere.Windows.Ui.Tests" />
+    <ProjectReference Include="../core/PinItAnywhere.Windows.Core.csproj" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <Content Include="../../../../build/app/**/*" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../../build/config/public.json" Link="Config/public.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../licenses/*" Link="Licenses/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

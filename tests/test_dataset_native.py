@@ -99,7 +99,7 @@ class LinuxDatasetTests(unittest.TestCase):
                 self.assertEqual(protocol.decode(data)["parents"], ["note-folder"])
                 self.assertEqual(protocol.decode(data)["mimeType"], "application/json")
                 self.assertEqual(headers["X-Upload-Content-Type"], "application/json")
-                self.assertEqual(protocol.decode(data)["appProperties"]["wfDataset"], descriptor["datasetId"])
+                self.assertEqual(protocol.decode(data)["appProperties"]["piaDataset"], descriptor["datasetId"])
                 return 200, b"", {"Location": "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=fixture"}
             if method == "PUT":
                 self.assertEqual(data, content)
@@ -122,10 +122,10 @@ class LinuxDatasetTests(unittest.TestCase):
 @unittest.skipUnless(sys.platform == "darwin", "Needs macOS Swift SDK")
 class AppleDatasetTests(unittest.TestCase):
     def test_shared_wire_fixtures(self):
-        with tempfile.TemporaryDirectory(prefix="work-fleet-dataset-") as folder:
+        with tempfile.TemporaryDirectory(prefix="pin-it-anywhere-dataset-") as folder:
             binary = Path(folder) / "DatasetProbe"
             result = subprocess.run(["swiftc", "-swift-version", "5", "-module-cache-path", str(Path(folder) / "cache"),
-                str(ROOT / "src/native/apple/Shared/FleetProtocol.swift"), str(ROOT / "src/native/apple/Shared/FleetDataset.swift"),
+                str(ROOT / "src/native/apple/Shared/PinItAnywhereProtocol.swift"), str(ROOT / "src/native/apple/Shared/PinItAnywhereDataset.swift"),
                 str(ROOT / "tests/native/apple/DatasetProbe.swift"), "-o", str(binary)], capture_output=True, text=True, timeout=240)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             result = subprocess.run([str(binary), str(FIXTURE)], capture_output=True, text=True, timeout=30)

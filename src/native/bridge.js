@@ -1,4 +1,4 @@
-import { FleetError, requireValue } from '../core/contracts.js';
+import { PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { hasMessage, t } from '../i18n/index.js';
 
 const MAX_MESSAGE_BYTES = 1024 * 1024;
@@ -10,7 +10,7 @@ const MAX_MESSAGE_BYTES = 1024 * 1024;
 export function nativeError(error) {
   const code = typeof error?.code === 'string' && error.code ? error.code : 'native-error';
   const key = `nativeErrors.${code}`;
-  return new FleetError(code, hasMessage(key) ? t(key) : error?.message || t('nativeErrors.native-error'));
+  return new PinItAnywhereError(code, hasMessage(key) ? t(key) : error?.message || t('nativeErrors.native-error'));
 }
 
 /** Native channels carry bounded data and explicit password enrollment, never executable source, paths, SQL or saved credentials. */
@@ -36,7 +36,7 @@ export class NativeBridge {
     transport.addEventListener('message', this.#receive);
   }
   request(method, params = {}) {
-    if (this.#closed) return Promise.reject(new FleetError('native-closed', t('nativeErrors.native-closed')));
+    if (this.#closed) return Promise.reject(new PinItAnywhereError('native-closed', t('nativeErrors.native-closed')));
     requireValue(this.#pending.size < 24, 'native-busy', t('nativeErrors.native-busy'));
     return new Promise((resolve, reject) => {
       const id = crypto.randomUUID();
@@ -44,7 +44,7 @@ export class NativeBridge {
       requireValue(new TextEncoder().encode(JSON.stringify(message)).length <= MAX_MESSAGE_BYTES, 'message-size', t('nativeErrors.message-size'));
       const timer = setTimeout(() => {
         this.#pending.delete(id);
-        reject(new FleetError('native-outcome-unknown', t('nativeErrors.native-outcome-unknown')));
+        reject(new PinItAnywhereError('native-outcome-unknown', t('nativeErrors.native-outcome-unknown')));
       }, this.#timeout);
       this.#pending.set(id, { resolve, reject, timer });
       try { this.#transport.postMessage(message); }
@@ -60,7 +60,7 @@ export class NativeBridge {
     if (this.#closed) return; this.#closed = true;
     this.#transport.removeEventListener('message', this.#receive);
     for (const pending of this.#pending.values()) {
-      clearTimeout(pending.timer); pending.reject(new FleetError('native-outcome-unknown', t('nativeErrors.native-outcome-unknown.closed')));
+      clearTimeout(pending.timer); pending.reject(new PinItAnywhereError('native-outcome-unknown', t('nativeErrors.native-outcome-unknown.closed')));
     }
     this.#pending.clear(); this.#listeners.clear(); this.#events.clear();
   }
@@ -68,17 +68,17 @@ export class NativeBridge {
 
 export function nativeTransport(view = globalThis) {
   let transport = view.chrome?.webview;
-  if (!transport && (view.workFleet?.postMessage || view.webkit?.messageHandlers?.workFleet)) {
+  if (!transport && (view.pinItAnywhere?.postMessage || view.webkit?.messageHandlers?.pinItAnywhere)) {
     const listeners = new Set();
     const receive = event => {
       let data = event?.data ?? event;
       try { if (typeof data === 'string') data = JSON.parse(data); } catch { return; }
       for (const listener of listeners) listener({ data });
     };
-    if (view.workFleet) view.workFleet.onmessage = receive;
-    else view.__workFleetReceive = receive;
+    if (view.pinItAnywhere) view.pinItAnywhere.onmessage = receive;
+    else view.__pinItAnywhereReceive = receive;
     transport = {
-      postMessage: value => view.workFleet ? view.workFleet.postMessage(JSON.stringify(value)) : view.webkit.messageHandlers.workFleet.postMessage(value),
+      postMessage: value => view.pinItAnywhere ? view.pinItAnywhere.postMessage(JSON.stringify(value)) : view.webkit.messageHandlers.pinItAnywhere.postMessage(value),
       addEventListener: (_type, listener) => listeners.add(listener),
       removeEventListener: (_type, listener) => listeners.delete(listener),
     };

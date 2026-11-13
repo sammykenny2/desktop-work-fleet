@@ -11,9 +11,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-// Installed desktop hosts request these fixed names, including after the product rename.
-// Keep them stable; asset names inside the manifests can change. tests/fixtures/update-feed.json shares this contract.
-export const manifestNames = { windows: 'work-fleet-update-windows.json', linux: 'work-fleet-update-linux.json', macos: 'work-fleet-update-macos.json' };
+// Current desktop hosts and release producers use the same lookup names (ADR-071).
+// Earlier preview clients need a manual install. tests/fixtures/update-feed.json shares this contract.
+export const manifestNames = { windows: 'pin-it-anywhere-update-windows.json', linux: 'pin-it-anywhere-update-linux.json', macos: 'pin-it-anywhere-update-macos.json' };
 
 /** Every file one release carries, by platform. */
 export function releaseAssets(version, { includeAndroid = true } = {}) {

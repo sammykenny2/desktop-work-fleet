@@ -1,4 +1,4 @@
-import { copy, FleetError, requireValue, safeKey } from '../core/contracts.js';
+import { copy, PinItAnywhereError, requireValue, safeKey } from '../core/contracts.js';
 import { sha256, validDigest } from '../sources/files.js';
 import { t } from '../i18n/index.js';
 
@@ -7,7 +7,7 @@ export class IndexedDbStorage {
   #db;
   constructor(db) { this.#db = db; }
 
-  static open(name = 'work-fleet-v1') {
+  static open(name = 'pin-it-anywhere-v1') {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(name, 1);
       let failed = false;
@@ -18,7 +18,7 @@ export class IndexedDbStorage {
       };
       request.onerror = () => { failed = true; reject(request.error); };
       request.onblocked = () => {
-        failed = true; reject(new FleetError('storage-blocked', t('errors.storage.storageBlocked')));
+        failed = true; reject(new PinItAnywhereError('storage-blocked', t('errors.storage.storageBlocked')));
       };
       request.onsuccess = () => {
         if (failed) { request.result.close(); return; }
@@ -37,7 +37,7 @@ export class IndexedDbStorage {
       catch (error) { reject(error); return; }
       let result; let failure;
       tx.oncomplete = () => resolve(result);
-      tx.onabort = () => reject(failure || tx.error || new FleetError('storage-aborted', t('errors.storage.storageAborted')));
+      tx.onabort = () => reject(failure || tx.error || new PinItAnywhereError('storage-aborted', t('errors.storage.storageAborted')));
       const context = {
         result: value => { result = value; },
         fail: error => { failure = error; tx.abort(); },
@@ -97,11 +97,11 @@ export class IndexedDbStorage {
       request.onsuccess = () => {
         const current = request.result;
         if ((current?.revision ?? null) !== expectedRevision) {
-          context.fail(new FleetError('stale-writer', t('errors.storage.staleWriter')));
+          context.fail(new PinItAnywhereError('stale-writer', t('errors.storage.staleWriter')));
           return;
         }
         if (state.revision !== (expectedRevision === null ? 0 : expectedRevision + 1)) {
-          context.fail(new FleetError('invalid-revision', t('errors.storage.revisionGap'))); return;
+          context.fail(new PinItAnywhereError('invalid-revision', t('errors.storage.revisionGap'))); return;
         }
         store.put(state);
         if (replaceAttachments) tx.objectStore('attachments').delete(IDBKeyRange.bound([state.profileId], [state.profileId, []]));
@@ -146,7 +146,7 @@ export async function acquireProfile(profileId) {
   let release; let announce;
   const available = new Promise(resolve => { announce = resolve; });
   const lifetime = new Promise(resolve => { release = resolve; });
-  const held = navigator.locks.request(`work-fleet:${profileId}`, { ifAvailable: true }, async lock => {
+  const held = navigator.locks.request(`pin-it-anywhere:${profileId}`, { ifAvailable: true }, async lock => {
     announce(Boolean(lock));
     if (lock) await lifetime;
   });

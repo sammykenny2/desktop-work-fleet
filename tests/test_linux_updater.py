@@ -108,12 +108,12 @@ class LinuxUpdaterTests(unittest.TestCase):
 
     def test_fetcher_follows_only_allowed_https_redirects(self):
         feed = "https://github.com/o/r/releases.atom"
-        asset = "https://github.com/o/r/releases/download/v0.2.0/work-fleet-update-linux.json"
+        asset = "https://github.com/o/r/releases/download/v0.2.0/pin-it-anywhere-update-linux.json"
         storage = "https://release-assets.githubusercontent.com/x"
         opener = Opener({feed: feed_for(), asset: (302, storage), storage: b"manifest"})
-        fetcher = updater.Fetcher("WorkFleet/0.1.0", opener)
+        fetcher = updater.Fetcher("PinItAnywhere/0.1.0", opener)
         self.assertEqual(fetcher.fetch(feed, 100, updater.FEED_HOSTS), feed_for())
-        self.assertEqual(opener.requests[0].get_header("User-agent"), "WorkFleet/0.1.0")
+        self.assertEqual(opener.requests[0].get_header("User-agent"), "PinItAnywhere/0.1.0")
         self.assertIsNone(opener.requests[0].get_header("Authorization"))
         self.assertEqual(opener.requests[0].get_header("Accept"), "application/atom+xml")
         self.assertIsNone(opener.requests[0].get_header("X-github-api-version"))
@@ -130,18 +130,18 @@ class LinuxUpdaterTests(unittest.TestCase):
                 ({asset: (302, asset)}, asset, updater.DOWNLOAD_HOSTS, "provider_rejected")):
             with self.subTest(url=url, code=code):
                 with self.assertRaises(updater.UpdateError) as caught:
-                    updater.Fetcher("WorkFleet/0.1.0", Opener(routes)).fetch(url, 100, hosts)
+                    updater.Fetcher("PinItAnywhere/0.1.0", Opener(routes)).fetch(url, 100, hosts)
                 self.assertEqual(caught.exception.code, code)
         with self.assertRaises(updater.UpdateError) as caught:
-            updater.Fetcher("WorkFleet/0.1.0", Opener({feed: b"x" * 101})).fetch(feed, 100, updater.FEED_HOSTS)
+            updater.Fetcher("PinItAnywhere/0.1.0", Opener({feed: b"x" * 101})).fetch(feed, 100, updater.FEED_HOSTS)
         self.assertEqual(caught.exception.code, "metadata_invalid")
 
     def test_download_checks_size_and_digest(self):
         folder = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, folder)
-        url = "https://github.com/o/r/releases/download/v0.2.0/work-fleet_0.2.0_all.deb"
+        url = "https://github.com/o/r/releases/download/v0.2.0/pin-it-anywhere_0.2.0_all.deb"
         data = b"package bytes"
-        fetcher = updater.Fetcher("WorkFleet/0.1.0", Opener({url: data}))
+        fetcher = updater.Fetcher("PinItAnywhere/0.1.0", Opener({url: data}))
         seen = []
         fetcher.download(url, folder / "ok", len(data), hashlib.sha256(data).hexdigest(), seen.append)
         self.assertEqual((folder / "ok").read_bytes(), data)
@@ -154,7 +154,7 @@ class LinuxUpdaterTests(unittest.TestCase):
     def test_deb_must_be_this_package_newer_and_architecture_compatible(self):
         def run(fields):
             return lambda *_args, **_kwargs: completed(stdout="".join(f"{key}: {value}\n" for key, value in fields.items()))
-        good = {"Package": "work-fleet", "Version": "0.2.0", "Architecture": "all"}
+        good = {"Package": "pin-it-anywhere", "Version": "0.2.0", "Architecture": "all"}
         updater.check_deb("x.deb", "0.2.0", (0, 1, 0), run(good), "arm64")
         updater.check_deb("x.deb", "0.2.0", (0, 1, 0), run({**good, "Architecture": "arm64"}), "arm64")
         for fields, version, current in (({**good, "Package": "other"}, "0.2.0", (0, 1, 0)), ({**good, "Version": "0.2.1"}, "0.2.0", (0, 1, 0)),
@@ -173,7 +173,7 @@ class LinuxUpdaterTests(unittest.TestCase):
         states = []
         self.recorded = []
         instance = updater.Updater(folder, {"update": {"repository": "o/r", "channel": "preview"}}, "0.1.0", distribution, states.append,
-                                   self.recorded.append, fetcher=updater.Fetcher("WorkFleet/0.1.0", Opener(routes)), run=run,
+                                   self.recorded.append, fetcher=updater.Fetcher("PinItAnywhere/0.1.0", Opener(routes)), run=run,
                                    which=lambda name: f"/usr/bin/{name}" if tools else None)
         return instance, states
 
@@ -211,11 +211,11 @@ class LinuxUpdaterTests(unittest.TestCase):
         def run(command, **_kwargs):
             commands.append(command)
             if command[0] == "dpkg-deb":
-                return completed(stdout="Package: work-fleet\nVersion: 0.2.0\nArchitecture: all\n")
+                return completed(stdout="Package: pin-it-anywhere\nVersion: 0.2.0\nArchitecture: all\n")
             if command[0] == "dpkg":
                 return completed(stdout="amd64\n")
             return completed(pkexec["code"], stderr="dpkg: error\n")
-        routes = {feed: releases, base + "work-fleet-update-linux.json": manifest, base + "pin-it-anywhere_0.2.0_all.deb": deb}
+        routes = {feed: releases, base + "pin-it-anywhere-update-linux.json": manifest, base + "pin-it-anywhere_0.2.0_all.deb": deb}
         instance, states = self.updater_for(folder, routes, run)
         self.assertEqual(instance.snapshot()["nextAction"], "check")
         self.wait(instance, instance.check)
@@ -223,7 +223,7 @@ class LinuxUpdaterTests(unittest.TestCase):
         self.assertEqual((snapshot["status"], snapshot["version"], snapshot["summary"], snapshot["nextAction"]), ("update_available", "0.2.0", "New version", "download"))
         self.assertEqual(len(self.recorded), 1)
         requests = instance.fetcher.opener.requests
-        self.assertEqual([request.full_url for request in requests], [feed, base + "work-fleet-update-linux.json"])
+        self.assertEqual([request.full_url for request in requests], [feed, base + "pin-it-anywhere-update-linux.json"])
         self.assertTrue(all("api.github.com" not in request.full_url for request in requests))
         self.wait(instance, instance.download)
         self.assertEqual(instance.snapshot()["status"], "downloaded")
@@ -286,7 +286,7 @@ class LinuxUpdaterTests(unittest.TestCase):
             feed = "https://github.com/o/r/releases.atom"
             instance = updater.Updater(folder, {"update": {"repository": "o/r", "channel": "stable"}}, "0.1.0", "deb",
                                        lambda _state: None, lambda _time: None,
-                                       fetcher=updater.Fetcher("WorkFleet/0.1.0", Opener({feed: feed_for("v0.2.0")})),
+                                       fetcher=updater.Fetcher("PinItAnywhere/0.1.0", Opener({feed: feed_for("v0.2.0")})),
                                        which=lambda name: name)
             self.wait(instance, instance.check)
             self.assertEqual(instance.snapshot()["channel"], "stable")

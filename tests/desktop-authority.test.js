@@ -302,13 +302,13 @@ test('every desktop host accepts every field of a frame card and every scene com
   await f.workspace.layout.placeNew(f.workspace.working, [area]);
   const fields = new Set(f.frame().cards.flatMap(card => Object.keys(card)));
   const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
-  for (const path of ['src/native/linux/scenes.py', 'src/native/apple/macos/FleetSceneProtocol.swift', 'src/native/windows/core/DesktopFrame.cs']) {
+  for (const path of ['src/native/linux/scenes.py', 'src/native/apple/macos/PinItAnywhereSceneProtocol.swift', 'src/native/windows/core/DesktopFrame.cs']) {
     const allowed = read(path).match(/"(id groupId revision [^"]*)"/)[1].split(' ');
     for (const field of fields) assert.ok(allowed.includes(field), `${path} refuses the card field ${field}`);
   }
   const methods = [...read('src/desktop/authority.js').match(/const methods = new Set\(\[([\s\S]*?)\]\)/)[1].matchAll(/'([^']+)'/g)].map(match => match[1]);
   assert.ok(methods.includes('editor.delete'));
-  for (const path of ['src/native/linux/desktop.py', 'src/native/apple/macos/FleetDesktop.swift', 'src/native/windows/app/DesktopCoordinator.cs']) {
+  for (const path of ['src/native/linux/desktop.py', 'src/native/apple/macos/PinItAnywhereDesktop.swift', 'src/native/windows/app/DesktopCoordinator.cs']) {
     const source = read(path);
     for (const method of methods) assert.ok(source.includes(`"${method}"`), `${path} does not forward ${method}`);
   }

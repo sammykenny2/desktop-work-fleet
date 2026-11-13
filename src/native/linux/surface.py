@@ -197,16 +197,16 @@ class Surface:
         self.window.set_skip_pager_hint(True)
         self.window.set_focus_on_map(False)
         self.window.set_accept_focus(False)
-        self.window.get_style_context().add_class("fleet-desktop")
+        self.window.get_style_context().add_class("pinitanywhere-desktop")
         css = Gtk.CssProvider()
-        css.load_from_data(b".fleet-desktop { background: transparent; }")
+        css.load_from_data(b".pinitanywhere-desktop { background: transparent; }")
         self.window.get_style_context().add_provider(css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         visual = self.window.get_screen().get_rgba_visual()
         if visual is not None:
             self.window.set_visual(visual)
         if mode == "wayland-layer-shell":
             Layer.init_for_window(self.window)
-            Layer.set_namespace(self.window, "work-fleet")
+            Layer.set_namespace(self.window, "pin-it-anywhere")
             Layer.set_layer(self.window, {"wallpaper": Layer.Layer.BACKGROUND, "desktop": Layer.Layer.BOTTOM, "floating": Layer.Layer.TOP}[layer])
             Layer.set_exclusive_zone(self.window, -1)
             for edge in (Layer.Edge.TOP, Layer.Edge.BOTTOM, Layer.Edge.LEFT, Layer.Edge.RIGHT):
@@ -217,7 +217,7 @@ class Surface:
             self.window.set_keep_above(layer == "floating")
             self.window.set_keep_below(layer != "floating")
             self.window.stick()
-        self.local = web_factory(assets, "workfleet://app/desktop/index.html", self.receive, lambda: lost(self))
+        self.local = web_factory(assets, "pinitanywhere://app/desktop/index.html", self.receive, lambda: lost(self))
         self.local.context.connect("download-started", lambda _context, download: download.cancel())
         self.local.web.set_background_color(Gdk.RGBA(0, 0, 0, 0))
         self.local.web.connect("button-press-event", self.input)

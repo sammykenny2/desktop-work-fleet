@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// ADR-043 host-level files: the shared placement rule fixture, file round trips and damaged-file fallbacks, plus the

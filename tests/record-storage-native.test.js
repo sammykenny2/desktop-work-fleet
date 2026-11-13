@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FleetError } from '../src/core/contracts.js';
+import { PinItAnywhereError } from '../src/core/contracts.js';
 import { sha256 } from '../src/sources/files.js';
 import { MemoryRecordStore, recordTransaction } from '../src/storage/records.js';
 import { NativeRecordStore } from '../src/storage/records-native.js';
@@ -24,11 +24,11 @@ function session() {
         return { offset: args.offset, base64: Buffer.from(chunk).toString('base64'), done: args.offset + chunk.length === bytes.length };
       }
       case 'storage.records.commit': {
-        if (failBefore) throw new FleetError('native-outcome-unknown', 'Synthetic request timeout');
+        if (failBefore) throw new PinItAnywhereError('native-outcome-unknown', 'Synthetic request timeout');
         const value = JSON.parse(new TextDecoder().decode(stages.get(args.token)));
         const attachments = await Promise.all(args.attachments.map(async token => ({ id: await sha256(stages.get(token)), bytes: stages.get(token) })));
         const result = await memory.commit(value, args.expectedRevision, { attachments });
-        if (loseReply) throw new FleetError('native-outcome-unknown', 'Synthetic reply loss');
+        if (loseReply) throw new PinItAnywhereError('native-outcome-unknown', 'Synthetic reply loss');
         return result;
       }
       case 'storage.records.status': {

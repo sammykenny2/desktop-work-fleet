@@ -19,7 +19,7 @@ spec.loader.exec_module(runtime)
 class MacOSRuntimeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.temporary = tempfile.TemporaryDirectory(prefix="work-fleet-runtime-")
+        cls.temporary = tempfile.TemporaryDirectory(prefix="pin-it-anywhere-runtime-")
         cls.addClassCleanup(cls.temporary.cleanup)
         cls.root = Path(cls.temporary.name).resolve()
         cls.library = cls.root / "Sparkle"
@@ -64,7 +64,7 @@ class MacOSRuntimeTests(unittest.TestCase):
         app = self.app("original")
         moved = app.rename(self.root / "moved app with spaces.app")
         self.assertEqual(runtime.check_app(moved), 4)
-        # Exercise real dyld with a console fixture, without opening Work Fleet or its storage.
+        # Exercise real dyld with a console fixture, without opening Pin It Anywhere or its storage.
         subprocess.run([str(moved / "Contents/MacOS/Fixture")], check=True, capture_output=True)
 
     def test_released_app_without_rpath_is_rejected(self):

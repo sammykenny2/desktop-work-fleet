@@ -30,7 +30,7 @@ export class DatasetReset {
     superseded(same(preview, await this.preview(signal)));
     const pending = await this.#journal.getJob('dataset-reset');
     requireValue(!pending || pending.phase === 'complete', 'source-reset-pending', t('errors.sources.resetPending'));
-    const markerValue = { format: 'work-fleet-reset', schema: 1, resetAt: new Date().toISOString(), initialization: 'workspace-init-v1' };
+    const markerValue = { format: 'pin-it-anywhere-reset', schema: 1, resetAt: new Date().toISOString(), initialization: 'workspace-init-v1' };
     const bytes = bytesOf(markerValue), marker = validateFile({ id: await this.#store.allocateFileId({ signal }),
       kind: 'reset', sha256: await sha256(bytes), size: bytes.length });
     const job = { kind: 'dataset-reset', operationId: crypto.randomUUID(), sourceId: this.#store.sourceId,

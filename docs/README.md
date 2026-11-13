@@ -11,6 +11,7 @@ The policy is in [SPEC-007](specs/007-schema-evolution-and-migrations.md) and [A
 
 | Document | Authority and purpose |
 |---|---|
+| [ADR-071](decisions/071-complete-product-name-cutover.md) | Complete source/project/asset/configuration/updater naming; earlier preview installations need explicit data, signing and manual-install acceptance |
 | [ADR-069](decisions/069-pin-it-anywhere-product-identity.md)/[ADR-070](decisions/070-release-channels-and-architecture.md)/[SPEC-013](specs/013-product-identity-and-distribution.md)/[PLAN-014](plans/014-product-identity-and-distribution.md) | Final product/repo/application names and accepted distribution policy; identity cutover, Release-only delivery, Windows ARM64 and mobile beta acceptance are planned, not implemented by the documentation decision |
 | [ADR-063](decisions/063-efficient-idle-sync.md)/[SPEC-011](specs/011-efficient-idle-sync.md)/[PLAN-012](plans/012-efficient-idle-sync.md) | Approved idle-sync optimization: unchanged persisted formats, one-request empty checks, explicit validation boundaries, native connection reuse and authenticated measurement gates; implementation in progress |
 | [Google Drive reset diagnostics handoff](handoff/2026-11-03-google-drive-reset-diagnostics.md) | Maintainer-requested investigation handoff: observed reset failures, evidence and test limitations, correction to the prior check report, and the unfinished authenticated-probe route |

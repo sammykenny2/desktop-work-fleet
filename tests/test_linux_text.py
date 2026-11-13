@@ -106,13 +106,13 @@ class StringTable(unittest.TestCase):
 
 
 class HostLanguage(unittest.TestCase):
-    """host.language.set and host.info, with FleetApp's methods run on a stand-in owner: no GTK."""
+    """host.language.set and host.info, with PinItAnywhereApp's methods run on a stand-in owner: no GTK."""
     def setUp(self):
         self.directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.directory)
         self.addCleanup(text.set_locale, "en")
         tree = ast.parse((NATIVE / "host.py").read_text("utf-8"))
-        owner = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "FleetApp")
+        owner = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "PinItAnywhereApp")
         methods = [node for node in owner.body if isinstance(node, ast.FunctionDef) and node.name in ("shell_invoke", "describe_language", "apply_language")]
         self.assertEqual(len(methods), 3)
         scope = {"p": protocol, "hostsettings": hostsettings, "text": text, "t": text.t, "os": os}

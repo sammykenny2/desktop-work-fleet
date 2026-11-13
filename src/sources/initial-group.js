@@ -16,7 +16,7 @@ export async function initialGroupRecord(sourceId, resetIds) {
   requireValue(Array.isArray(resetIds) && resetIds.every(validFileId) && new Set(resetIds).size === resetIds.length,
     'invalid-initial-group', t('errors.sources.initialGroupResetIds'));
   resetIds = [...resetIds].sort();
-  const digest = await sha256(new TextEncoder().encode(canonicalJson(['work-fleet-initial-group', sourceId, resetIds])));
+  const digest = await sha256(new TextEncoder().encode(canonicalJson(['pin-it-anywhere-initial-group', sourceId, resetIds])));
   return revisionRecord('group', { id: `initial-group:${digest}`, revision: `initial-group-root:${digest}`,
     name: INITIAL_GROUP_NAME, deleted: false });
 }

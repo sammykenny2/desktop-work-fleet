@@ -1,0 +1,145 @@
+import Foundation
+import GoogleSignIn
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
+
+@MainActor final class PinItAnywhereGoogle {
+    static let scope = "https://www.googleapis.com/auth/drive.appdata"
+    let clientID: String
+    let profile: String
+    private var account: [String: Any]?
+    private var prepared: String?
+    private var closed = false
+    private var authorization: (id: UUID, task: Task<String, Error>)?
+    private var verifiedToken: String?
+    // The SDK owns one current-options callback during a cold restore, including across host instances.
+    private static var restoration: (id: UUID, task: Task<GIDGoogleUser, Error>)?
+    #if os(macOS)
+    var presenting: (() -> NSWindow?)?
+    #else
+    var presenting: (() -> UIViewController?)?
+    #endif
+    init(profile: String, config: [String: Any]) throws {
+        self.profile = profile
+        #if os(macOS)
+        let platform = "macos"
+        #else
+        let platform = "ios"
+        #endif
+        let clients = (config["google"] as? [String: Any])?["clients"] as? [String: Any] ?? [:]
+        clientID = clients[platform] as? String ?? ""
+        if !clientID.isEmpty { GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID) }
+        if profile.hasPrefix("google:"), let bytes = try PinItAnywhereKeychain.read("google-account:" + String(profile.dropFirst(7))) {
+            let saved = try PinItAnywhereProtocol.json(bytes); if saved["clientID"] as? String == clientID && saved["accountId"] as? String == String(profile.dropFirst(7)) { account = saved }
+        }
+    }
+    var available: Bool { !clientID.isEmpty }
+    func status() -> [String: Any] { ["configured": available, "connected": account != nil, "accountId": account?["accountId"] ?? NSNull(), "email": account?["email"] ?? NSNull(), "profileId": profile] }
+    func signIn() async throws -> [String: Any] {
+        try PinItAnywhereProtocol.require(!closed && available, "google-config", "Set the Apple Google client ID and rebuild the app.")
+        guard let presenter = presenting?() else { throw PinItAnywhereFailure("google-unavailable", "The sign-in screen isn't available right now.") }
+        // Interactive sign-in already opens the account chooser. Keep the existing SDK session if the user cancels.
+        prepared = nil; verifiedToken = nil
+        let result: GIDSignInResult = try await withCheckedThrowingContinuation { continuation in
+            GIDSignIn.sharedInstance.signIn(withPresenting: presenter, hint: nil, additionalScopes: [Self.scope]) { result, error in
+                if let error { continuation.resume(throwing: Self.failure(error)) }
+                else if let result { continuation.resume(returning: result) }
+                else { continuation.resume(throwing: PinItAnywhereFailure("google-cancelled", "Google sign-in didn't finish.")) }
+            }
+        }
+        try PinItAnywhereProtocol.require(!closed && result.user.grantedScopes?.contains(Self.scope) == true, "source-permission", "Access to Google app data wasn't granted.")
+        let identity = try await identify(result.user.accessToken.tokenString)
+        let id = try PinItAnywhereProtocol.text(identity, "sub", 255); try PinItAnywhereProtocol.require(PinItAnywhereProtocol.isAccount(id), "google-account", "The Google account ID isn't valid.")
+        let saved: [String: Any] = ["accountId": id, "email": identity["email"] as? String ?? "", "clientID": clientID]
+        try PinItAnywhereKeychain.save("google-account:" + id, PinItAnywhereProtocol.encode(saved)); prepared = id
+        return ["accountId": id, "email": saved["email"]!, "profileId": "google:" + id]
+    }
+    private func identify(_ token: String) async throws -> [String: Any] {
+        var request = URLRequest(url: URL(string: "https://openidconnect.googleapis.com/v1/userinfo")!); request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+        let bytes: Data, response: HTTPURLResponse
+        do { (bytes, response) = try await BoundedHTTP(maximum: 65536).send(request) }
+        catch { throw Self.failure(error) }
+        try PinItAnywhereProtocol.require(response.statusCode == 200 && !closed, "unauthorized", "Couldn't confirm the Google account."); return try PinItAnywhereProtocol.json(bytes)
+    }
+    func open(_ id: String) throws -> String {
+        try PinItAnywhereProtocol.require(!closed && id == prepared && PinItAnywhereKeychain.read("google-account:" + id) != nil, "google-account", "Finish signing in to this account first."); prepared = nil; return "google:" + id
+    }
+    func token(_ expected: String) async throws -> String {
+        try checkAccount(expected)
+        if authorization == nil {
+            authorization = (UUID(), Task { try await self.prepareToken(expected) })
+        }
+        let pending = authorization!
+        defer { if authorization?.id == pending.id { authorization = nil } }
+        let value = try await pending.task.value
+        try checkAccount(expected); return value
+    }
+    private func checkAccount(_ expected: String) throws {
+        try PinItAnywhereProtocol.require(!closed && available && profile == "google:" + expected && account?["accountId"] as? String == expected,
+            "stale-session", "The Google account doesn't match the workspace.")
+    }
+    private static func restoreUser() async throws -> GIDGoogleUser {
+        if restoration == nil {
+            restoration = (UUID(), Task {
+                try await withCheckedThrowingContinuation { continuation in
+                    GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
+                        if let error { continuation.resume(throwing: Self.failure(error)) }
+                        else if let user { continuation.resume(returning: user) }
+                        else { continuation.resume(throwing: PinItAnywhereFailure("unauthorized", "Sign in to Google again.")) }
+                    }
+                }
+            })
+        }
+        let pending = restoration!
+        defer { if restoration?.id == pending.id { restoration = nil } }
+        return try await pending.task.value
+    }
+    private func prepareToken(_ expected: String) async throws -> String {
+        try checkAccount(expected)
+        let restored: GIDGoogleUser
+        if let current = GIDSignIn.sharedInstance.currentUser { restored = current }
+        else { restored = try await Self.restoreUser() }
+        try checkAccount(expected)
+        let user: GIDGoogleUser = try await withCheckedThrowingContinuation { continuation in restored.refreshTokensIfNeeded { user, error in
+            if let error { continuation.resume(throwing: Self.failure(error)) }
+            else if let user { continuation.resume(returning: user) }
+            else { continuation.resume(throwing: PinItAnywhereFailure("unauthorized", "Google access needs to be renewed.")) }
+        } }
+        try checkAccount(expected)
+        try PinItAnywhereProtocol.require(user.grantedScopes?.contains(Self.scope) == true, "unauthorized", "Access to Google app data needs to be confirmed again.")
+        let token = user.accessToken.tokenString
+        if verifiedToken != token {
+            let identity = try await identify(token)
+            try checkAccount(expected)
+            try PinItAnywhereProtocol.require(PinItAnywhereProtocol.text(identity, "sub", 255) == expected, "stale-session", "The Google SDK returned another account. No notes were sent.")
+            verifiedToken = token
+        }
+        return token
+    }
+    // Only this device signs out: the SDK's disconnect revokes the project's grant for every client, so every other device
+    // signed in to this account would lose sync within the hour (ADR-021, amended 2026-10-15).
+    func signOut() async throws {
+        if let id = account?["accountId"] as? String { try PinItAnywhereKeychain.remove("google-account:" + id) }; account = nil
+        prepared = nil; verifiedToken = nil
+        GIDSignIn.sharedInstance.signOut()
+    }
+    nonisolated private static func failure(_ error: Error) -> PinItAnywhereFailure {
+        if let failure = error as? PinItAnywhereFailure { return failure }
+        let value = error as NSError
+        if value.domain == NSURLErrorDomain { return PinItAnywhereFailure("network", "Couldn't connect to Google. Check your network and try again.") }
+        if value.domain == kGIDSignInErrorDomain {
+            switch value.code {
+            case GIDSignInError.Code.canceled.rawValue: return PinItAnywhereFailure("google-cancelled", "Google sign-in was cancelled.")
+            case GIDSignInError.Code.keychain.rawValue: return PinItAnywhereFailure("vault-unavailable", "Couldn't save the Google sign-in. Unlock the device and try again.")
+            case GIDSignInError.Code.hasNoAuthInKeychain.rawValue, GIDSignInError.Code.refreshTokenExpired.rawValue: return PinItAnywhereFailure("unauthorized", "Google access has expired. Sign in again.")
+            default: break
+            }
+        }
+        return PinItAnywhereFailure("google-unavailable", "Google sign-in didn't finish. Try again later.")
+    }
+    func close() { closed = true; prepared = nil; verifiedToken = nil }
+    static func handle(_ url: URL) -> Bool { GIDSignIn.sharedInstance.handle(url) }
+}

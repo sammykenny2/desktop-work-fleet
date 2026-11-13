@@ -1,5 +1,5 @@
 using System.IO;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 internal static class AttachmentFilesProbe
 {

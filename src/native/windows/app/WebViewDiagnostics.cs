@@ -1,13 +1,13 @@
 using Microsoft.Web.WebView2.Core;
 using System.Globalization;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>Renderer inspection for Debug builds. Release compiles no DevTools or debugging-port path.</summary>
 public static class WebViewDiagnostics
 {
-  public const string PortVariable = "WORK_FLEET_WEBVIEW_DEBUG_PORT";
+  public const string PortVariable = "PIN_IT_ANYWHERE_WEBVIEW_DEBUG_PORT";
 #if DEBUG
   public static bool DevToolsEnabled => true;
   /// <summary>Opt-in loopback CDP listener; unset leaves WebView2 without a debugging port.</summary>

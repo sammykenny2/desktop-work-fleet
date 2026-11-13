@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// The one-time Google sign-in redirect listener on 127.0.0.1 (ADR-021). A browser may open a spare connection beside the one

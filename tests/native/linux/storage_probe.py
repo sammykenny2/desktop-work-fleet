@@ -36,7 +36,7 @@ status = Path(f"/proc/{bus_pid}/status").read_text()
 if f"PPid:\t{parent}\n" not in status:
     raise RuntimeError("D-Bus daemon does not belong to this private session")
 
-app = "app.workfleet.storageprobe"
+app = "dev.sammykenny2.pinitanywhere.storageprobe"
 legacy = database.Vault(app)
 environment = dict(os.environ)
 environment["GNOME_KEYRING_CONTROL"] = os.environ["XDG_RUNTIME_DIR"]
@@ -108,7 +108,7 @@ with (OUTPUT / "daemon.log").open("wb") as log:
         print("PASS new credentials and backup passwords remain only in the system vault")
         assert credentials.read("google-account", "fixture") == "synthetic-token"
         assert Secret.password_store_sync(legacy.schema, legacy.attributes("google-account", "fixture"),
-                                          Secret.COLLECTION_DEFAULT, "Work Fleet external refresh probe",
+                                          Secret.COLLECTION_DEFAULT, "Pin It Anywhere external refresh probe",
                                           "provider-updated-token", None)
         assert credentials.read("google-account", "fixture") == "provider-updated-token"
         print("PASS reads observe fresh provider values without using libsecret's secret cache")
@@ -116,7 +116,7 @@ with (OUTPUT / "daemon.log").open("wb") as log:
         raw = (folder / "storage-key").read_bytes()
         (folder / "storage-key").unlink()
         assert Secret.password_store_sync(legacy.schema, legacy.attributes("storage-key", "v1"),
-                                          Secret.COLLECTION_DEFAULT, "Work Fleet storage probe",
+                                          Secret.COLLECTION_DEFAULT, "Pin It Anywhere storage probe",
                                           base64.b64encode(raw).decode("ascii"), None)
         db = database.Database(folder, "local", legacy)
         assert db.secret("fixture", "private") == b"private notes"
@@ -165,7 +165,7 @@ with (OUTPUT / "daemon.log").open("wb") as log:
         db.connection.execute("INSERT INTO credentials VALUES(?,?,?)", ("google-account", "fixture", old))
         db.secret("backup-key", "old-password", b"pending-password")
         assert credentials.secrets.migrate_pending() == 0
-        for name in ("fleet.sqlite3", "fleet.sqlite3-wal"):
+        for name in ("pinitanywhere.sqlite3", "pinitanywhere.sqlite3-wal"):
             file = folder / name
             if file.exists():
                 assert old not in file.read_bytes()

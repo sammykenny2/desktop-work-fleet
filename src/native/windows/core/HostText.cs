@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// Text the Windows host draws itself (tray, dialogs, picker titles, fatal-error text) and descriptive text it returns for

@@ -99,7 +99,7 @@ Draft lineage is compared on canonical JSON values after strict parsing, not on 
 
 ### Public container v1
 
-Suggested file name: `work-fleet-backup-YYYY-MM-DD-HHMMSS-<short-id>.zip`.
+Suggested file name: `pin-it-anywhere-backup-YYYY-MM-DD-HHMMSS-<short-id>.zip`.
 A plain ZIP uses store (0) or deflate (8), with UTF-8 JSON and fixed ASCII paths; the ordinals are unrelated to the
 actual data IDs:
 
@@ -128,7 +128,7 @@ The manifest has only the following fields; an unknown schema is rejected:
 
 | Field | v1 definition |
 |---|---|
-| format / schemaVersion | work-fleet-backup / 1 |
+| format / schemaVersion | pin-it-anywhere-backup / 1 |
 | backupId | A valid ID per SPEC-004, generated once when the backup is created |
 | createdAt | A real UTC ISO date with fixed milliseconds, YYYY-MM-DDTHH:mm:ss.sssZ |
 | appVersion | A version description of 1–64 UTF-16 code units |
@@ -168,7 +168,7 @@ of the whole plain ZIP, so inner file names, the manifest and the content are al
 extract only the two outer entries;
 this format is not a traditional ZIP password or WinZip AES.
 
-The header has only format=work-fleet-encrypted-backup, schemaVersion=1, cipher=AES-256-GCM,
+The header has only format=pin-it-anywhere-encrypted-backup, schemaVersion=1, cipher=AES-256-GCM,
 kdf=PBKDF2-HMAC-SHA256, iterations=600000, a 16-byte salt, a 12-byte nonce (lowercase hex) and tagBits=128.
 Salt and nonce are generated randomly every time, and the canonical header is the additional authenticated data.
 The password is UTF-8 without Unicode normalization; on export it has at least 12 Unicode code points and at most 1024
@@ -264,7 +264,7 @@ records are dropped. With the option the backup's positions and layers apply. Si
 display and main-window settings belong to this computer's desk, which no restore changes: groups new to this device take
 free regions, as after a sync, and new papers are placed in those regions once the restore lands.
 
-Normal sync pauses in the `reset` stage. The reset marker is written first and the current project's Work Fleet
+Normal sync pauses in the `reset` stage. The reset marker is written first and the current project's Pin It Anywhere
 appDataFolder is cleared, keeping the control markers; then the `upload` stage is persisted, and only then are all
 known revisions and attachments of the backup uploaded.
 This is not a Drive multi-file atomic transaction; an interruption can leave the cloud blank or partial, and after a

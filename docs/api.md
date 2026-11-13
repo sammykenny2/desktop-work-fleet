@@ -1,6 +1,6 @@
 # Validation Version API
 
-Updated: 2026-10-03. Implementation: `src/server/work_fleet.py`, schema 1; every write is committed in an SQLite
+Updated: 2026-10-03. Implementation: `src/server/pin_it_anywhere.py`, schema 1; every write is committed in an SQLite
 transaction.
 
 The same origin serves HTML and JSON. The JSON API uses `Authorization: Bearer <device-token>`;

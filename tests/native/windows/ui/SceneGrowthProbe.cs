@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 /// <summary>
 /// ADR-020 on real windows: a scene still fills its bounds after they grow past the largest size Windows allowed when its

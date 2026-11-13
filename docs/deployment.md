@@ -6,13 +6,14 @@ and release procedure. Current status is in [PROGRESS](../PROGRESS.md), version 
 
 ## Selected policy and current implementation
 
-Final names are in [ADR-069](decisions/069-pin-it-anywhere-product-identity.md); selected distribution formats,
+Final names are in [ADR-069](decisions/069-pin-it-anywhere-product-identity.md), with the complete implementation
+cutover in [ADR-071](decisions/071-complete-product-name-cutover.md); selected distribution formats,
 architectures and signing/build-mode rules are in [ADR-070](decisions/070-release-channels-and-architecture.md).
 [SPEC-013](specs/013-product-identity-and-distribution.md) defines acceptance and
 [PLAN-014](plans/014-product-identity-and-distribution.md) orders the changes. No remote rename or service/signing
 configuration change was performed by that documentation decision.
 
-The procedures below describe existing tooling and retain current Work Fleet file names. Android delivery requires a
+The procedures below describe existing tooling and retain current Pin It Anywhere file names. Android delivery requires a
 signed Release APK and the release-signing settings below; Debug remains local development tooling. The maintainer
 explicitly retained the existing Windows x64 test-certificate MSIX/CER route for interim GitHub previews while Certum
 issuance is pending; see ADR-070. Trusted Windows distribution still needs its separate signing cutover.
@@ -26,9 +27,9 @@ Update these procedures alongside implementation; the CER steps apply only to th
 | Platform | Packaging entry point | Output and prerequisites |
 |---|---|---|
 | Windows x64 | `scripts/windows/Build-WindowsPackage.ps1` | MSIX/portable ZIP with a bundled .NET 10 Desktop runtime; running it still needs WebView2, packaging needs the .NET SDK/Windows SDK |
-| macOS | Xcode: open `src/native/apple/WorkFleet.xcodeproj`; or `scripts/macos/build-native-app.sh --platform macos --release`, `package-native-app.sh` | xcarchive/PKG/optional DMG; Xcode, Node 22+/npm, an Apple team and signing identities |
+| macOS | Xcode: open `src/native/apple/PinItAnywhere.xcodeproj`; or `scripts/macos/build-native-app.sh --platform macos --release`, `package-native-app.sh` | xcarchive/PKG/optional DMG; Xcode, Node 22+/npm, an Apple team and signing identities |
 | Linux | `scripts/linux/build-native-app.sh`; optional `--release --deb`; on Windows, `Build-LinuxPackage.ps1` | source/runtime tar.gz/DEB; offline notes need the system GTK/WebKitGTK, Google and saved backup passwords also need a Secret Service |
-| iOS | The same committed Xcode project, scheme WorkFleetIOS; or `scripts/macos/build-native-app.sh --platform ios --release`, `package-native-app.sh` | xcarchive/IPA; Xcode, Node 22+/npm, an Apple team, App Group profiles for the app and the extension |
+| iOS | The same committed Xcode project, scheme PinItAnywhereIOS; or `scripts/macos/build-native-app.sh --platform ios --release`, `package-native-app.sh` | xcarchive/IPA; Xcode, Node 22+/npm, an Apple team, App Group profiles for the app and the extension |
 | Android | Android Studio: open `src/native/android`; or `scripts/windows/Build-AndroidApp.ps1`/`scripts/linux/build-android-app.sh` | local Debug APK, signed Release APK (`-Signed -Apk`/`--signed --apk`) or Release AAB; Node 22+, npm, JDK 17, Android SDK 36. The Gradle 9.6.0 Wrapper is included and assets are generated automatically; see [opening and building](../src/native/android/README.md) |
 
 ## Versions and release file names
@@ -76,14 +77,14 @@ All platforms put their release files and `.sha256` files directly in `build/`, 
 subdirectories; an old file with the same name is overwritten, and different versions coexist.
 Intermediate output goes to a fixed work directory per platform, emptied at the start of every build: Windows
 `build/windows/package`, Apple `build/apple/preview-<macos|ios>` (with README.txt/toolchain.txt) and
-`build/apple/export-<macos|ios>`, Linux `build/linux/work-fleet-<version>`; Android output from Gradle is copied to
+`build/apple/export-<macos|ios>`, Linux `build/linux/pin-it-anywhere-<version>`; Android output from Gradle is copied to
 `build/`.
 Windows and Apple move files to `build/` only after the whole build, signing and notarization have succeeded, so a
 failure leaves no partial output.
 
 - Windows: `<Version>` in `src/native/windows/Directory.Build.props`, used for the assembly version, the MSIX identity
   (with `.0` appended) and `PinItAnywhere-<version>-x64.msix`/`PinItAnywhere-<version>-x64.zip`.
-- macOS/iOS: `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` in `src/native/apple/config/WorkFleet.xcconfig`;
+- macOS/iOS: `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` in `src/native/apple/config/PinItAnywhere.xcconfig`;
   an override in Local.xcconfig or on the command line makes resource preparation fail. The packaging scripts read the
   app's Info.plist.
   - macOS command-line builds always include arm64/x86_64, and both architectures are checked before packaging.
@@ -100,11 +101,20 @@ failure leaves no partial output.
   filename style, and the source/runtime archive is `build/pin-it-anywhere-<version>.tar.gz`, with a matching top-level directory.
 
 Distribution filenames use `PinItAnywhere` (lowercase `pin-it-anywhere` for Linux), including the companion
-`PinItAnywhere-preview.cer`. This renames the public certificate file, not its contents or the package's signer.
-Keep `work-fleet-update-windows.json`, `work-fleet-update-linux.json`, `work-fleet-update-macos.json` and `appcast.xml`
-at their existing names because installed desktop hosts request them by those names. Their asset entries and URLs
-name the new downloads. Internal Apple targets, Windows package identity/publisher and the installed Debian package
-name `work-fleet` are independent of download filenames and remain unchanged. Historical published assets are not renamed.
+`PinItAnywhere-preview.cer`. The new Windows preview Publisher is `CN=Pin It Anywhere Preview`; its signing
+certificate must match. Existing signing Secrets are not evidence that the new Publisher can be signed.
+Current hosts request `pin-it-anywhere-update-windows.json`, `pin-it-anywhere-update-linux.json`,
+`pin-it-anywhere-update-macos.json` and `appcast.xml`, whose entries point at the matching downloads.
+Earlier preview updaters require a manual install because the manifest lookup name changed. The Windows package
+identity defaults to `dev.sammykenny2.pinitanywhere`; the Debian package and installed command are `pin-it-anywhere`.
+These are separate installed identities from earlier previews. Retain the earlier app and data until the intended
+recovery route is accepted; do not uninstall/reset them automatically. V1 protocol names and storage labels also
+changed, so earlier backups and cloud data must not be claimed compatible without explicit recovery acceptance.
+Historical published assets are not renamed.
+
+Build configuration uses `PIN_IT_ANYWHERE_` environment keys, including GitHub Variables and Secrets. Update the
+repository settings and ignored local `.env`/Apple `Local.xcconfig` together before a signed build; no retired-prefix
+fallback is available. Apple/Android app IDs, profiles, OAuth clients and the Android signer remain the registered ones.
 
 Public settings are in `.env.example`: each platform's Google client, the app ID, the Apple team/App Group, the
 Microsoft package identity/publisher, and privacy and support data. Private keys and passwords come from the OS
@@ -144,14 +154,14 @@ The existing GitHub `windows-v0.1.2` is a framework-dependent package released b
 matching .NET 8 Desktop runtime installed separately; it is not replaced.
 `windows-v0.1.0` and `windows-v0.1.1` require Windows 11 24H2 or later; `windows-v0.1.2` lowered the floor to build
 22000. An installed 0.1.2 has no in-app updater, so moving to 0.2.0 or later needs a manual install.
-The ZIP contains `WorkFleet.exe`, the bundled runtime and dependencies; the MSIX and the ZIP both keep the runtime's full
+The ZIP contains `PinItAnywhere.exe`, the bundled runtime and dependencies; the MSIX and the ZIP both keep the runtime's full
 licences/notices and NuGet package metadata, and neither contains a runtime installer.
 An unsigned preview MSIX is not treated as directly installable or as a store deliverable, and the ZIP has no
 executable signature either.
 Without an existing trusted preview certificate, a plain `Build-WindowsPackage.ps1 -SkipRestore` produces an unsigned
 MSIX/ZIP, and `Test-WindowsPackage.ps1 -PackagePath build/PinItAnywhere-VERSION-x64.msix -Unsigned` checks only the package
 contents.
-Users unpack the ZIP and run `WorkFleet.exe`; the ZIP and the unpackaged Debug build share `%LOCALAPPDATA%\WorkFleet`,
+Users unpack the ZIP and run `PinItAnywhere.exe`; the ZIP and the unpackaged Debug build share `%LOCALAPPDATA%\PinItAnywhere`,
 so close an older instance that uses the same data folder first.
 The MSIX uses the package's private data folder; updates keep it, and uninstalling removes all local data inside the
 package (including Google account workspaces, drafts, settings, credentials and caches).
@@ -205,8 +215,8 @@ applies to all platforms, and also to an agent's documentation and handoff wrap-
    still requires all desktop assets. Publishing permits an intentionally skipped Android job, and requires every
    selected build to succeed. Only then does it create the tag and the
    prerelease in one step, whose text is the entry's change bullets followed by each platform's installation steps.
-   The release carries the MSIX, the public CER and `work-fleet-update-windows.json`; the DMG, the Sparkle ZIP,
-   `appcast.xml` and `work-fleet-update-macos.json`; the DEB and `work-fleet-update-linux.json`; the APK when included; and a
+   The release carries the MSIX, the public CER and `pin-it-anywhere-update-windows.json`; the DMG, the Sparkle ZIP,
+   `appcast.xml` and `pin-it-anywhere-update-macos.json`; the DEB and `pin-it-anywhere-update-linux.json`; the APK when included; and a
    `.sha256` for each installer. A failure leaves no release.
    The only dispatch input is `include_android` (there is no `summary` input): the release text and the update summary
    come only from the entry, and Android installation instructions are omitted for desktop-only previews.
@@ -233,15 +243,15 @@ This boundary does not depend on whether the workflows can currently only be dis
 directive in a commit message does not replace it.
 
 Settings the GitHub repository needs:
-- Variables: `WORK_FLEET_GOOGLE_PROJECT_ID`, `WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID`.
-- Secrets: `WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET`, `WORK_FLEET_WINDOWS_SIGNING_PFX_BASE64`,
-  `WORK_FLEET_WINDOWS_SIGNING_PFX_PASSWORD`.
+- Variables: `PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID`, `PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_ID`.
+- Secrets: `PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_SECRET`, `PIN_IT_ANYWHERE_WINDOWS_SIGNING_PFX_BASE64`,
+  `PIN_IT_ANYWHERE_WINDOWS_SIGNING_PFX_PASSWORD`.
   Without the Google settings or the signing certificate the workflow fails, and no package that cannot sign in or
   cannot be installed is published.
 
 CI signs with the preview certificate in the repository secrets above; the local `-LocalTestSign` uses a certificate
 from the local store, and the two need not be the same certificate.
-The CI preview certificate is the same `CN=Work Fleet Preview` certificate used locally: on 2026-10-06 its PFX was
+The CI preview certificate is the same `CN=Pin It Anywhere Preview` certificate used locally: on 2026-10-06 its PFX was
 exported with a random password, reloaded locally to confirm it, and stored as a Secret together with the Google client
 secret.
 A package with the same package identity/publisher and a higher version installs as an upgrade, but the installing
@@ -253,7 +263,7 @@ On each computer, the CER must first be imported into LocalMachine/TrustedPeople
 with a higher version installs directly as an upgrade, and the same version must be uninstalled first.
 Since the repository is public, the release page can be downloaded without signing in.
 
-In-app updates (ADR-044): `Build-WindowsPackage.ps1` writes `build/work-fleet-update-windows.json` next to the MSIX
+In-app updates (ADR-044): `Build-WindowsPackage.ps1` writes `build/pin-it-anywhere-update-windows.json` next to the MSIX
 (version, the `v<version>` tag, x64 installer name, size and SHA-256; `-UpdateSummary` adds a summary of at most 500
 characters, which `preview-release.yml` takes from the release-notes entry). `Test-WindowsPackage.ps1` checks that it
 matches the MSIX, and the release carries it together with the MSIX.
@@ -262,12 +272,12 @@ An installed MSIX checks the `v<version>` releases from Settings > General > Ver
 An app that had been running for at least 60 seconds is reopened after the installation.
 
 Linux previews: `linux-package.yml` builds the DEB from `src/native/linux/VERSION` with its `.sha256` and
-`work-fleet-update-linux.json` (written by `package-deb.sh`; `--update-summary` adds the summary, which the release
+`pin-it-anywhere-update-linux.json` (written by `package-deb.sh`; `--update-summary` adds the summary, which the release
 takes from the release-notes entry, as it does the release text). Bumping and dispatch need the user's authorization
 in the same way; the repository settings it needs are the variables
-`WORK_FLEET_GOOGLE_PROJECT_ID`, `WORK_FLEET_GOOGLE_LINUX_CLIENT_ID` and the secret
-`WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET`.
-`WORK_FLEET_GOOGLE_LINUX_CLIENT_ID` and `WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET` were set from the local `.env` with `gh`
+`PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID`, `PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_ID` and the secret
+`PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_SECRET`.
+`PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_ID` and `PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_SECRET` were set from the local `.env` with `gh`
 on 2026-10-14; they use the same Desktop OAuth client as Windows.
 Only an app installed from the DEB has in-app updates: it downloads and verifies the package and installs it with
 pkexec (which needs the system password and a polkit authentication agent), then saves and restarts on success.
@@ -285,7 +295,7 @@ in [ADR-044](decisions/044-desktop-in-app-updates-from-github-releases.md).
 
 macOS previews and updates (Sparkle):
 1. `macos-package.yml` builds a DMG and a Sparkle update ZIP that are Developer ID signed, notarized and stapled,
-   with `appcast.xml` and `work-fleet-update-macos.json`; it produces no PKG and needs no Installer certificate. They go
+   with `appcast.xml` and `pin-it-anywhere-update-macos.json`; it produces no PKG and needs no Installer certificate. They go
    into the same `v<version>` release, the update summary comes from the release-notes entry, and dispatch still needs
    the user's explicit authorization.
 2. Prepare a Developer ID Application `.p12` (with the private key and the Apple intermediate), its export password, and a
@@ -296,14 +306,14 @@ macOS previews and updates (Sparkle):
    The App Sandbox and the Data Protection Keychain are not removed for CI signing.
 3. Notarization uses an App Store Connect Team API key dedicated to this project; the Key ID must pair with the `.p8`,
    and the Issuer ID belongs to the same team.
-   GitHub variables: `WORK_FLEET_APPLE_TEAM_ID`, `WORK_FLEET_APP_ID`, `WORK_FLEET_GOOGLE_PROJECT_ID`,
-   `WORK_FLEET_GOOGLE_MACOS_CLIENT_ID`, `WORK_FLEET_SPARKLE_PUBLIC_KEY`, `MACOS_APPLICATION_IDENTITY`,
-   `WORK_FLEET_PRIVACY_URL`, `WORK_FLEET_SUPPORT_URL`, `WORK_FLEET_SUPPORT_EMAIL`.
+   GitHub variables: `PIN_IT_ANYWHERE_APPLE_TEAM_ID`, `PIN_IT_ANYWHERE_APP_ID`, `PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID`,
+   `PIN_IT_ANYWHERE_GOOGLE_MACOS_CLIENT_ID`, `PIN_IT_ANYWHERE_SPARKLE_PUBLIC_KEY`, `MACOS_APPLICATION_IDENTITY`,
+   `PIN_IT_ANYWHERE_PRIVACY_URL`, `PIN_IT_ANYWHERE_SUPPORT_URL`, `PIN_IT_ANYWHERE_SUPPORT_EMAIL`.
    Secrets: `MACOS_DEVELOPER_ID_APPLICATION_P12_BASE64`, `MACOS_CERTIFICATES_PASSWORD`, `MACOS_DEVELOPER_ID_PROFILE_BASE64`,
    `MACOS_NOTARY_KEY_P8_BASE64`, `MACOS_NOTARY_KEY_ID`, `MACOS_NOTARY_ISSUER_ID`, `SPARKLE_PRIVATE_KEY`.
    The runner uses a temporary keychain, checks the profile's validity period, Team, App ID, Keychain group and
    certificate, and then archives and exports with manual signing;
-   the archive's manual profile applies only to the WorkFleetMac Release target, without a global provisioning override
+   the archive's manual profile applies only to the PinItAnywhereMac Release target, without a global provisioning override
    that would affect the SPM resource bundles.
    Temporary secrets are removed even when the run fails. The public release fields are checked once before the build,
    instead of discovering a missing value only at archive time.
@@ -320,7 +330,7 @@ macOS previews and updates (Sparkle):
 
 One-time Sparkle key setup: after the packages are resolved or built, the tools are in
 `build/apple/SourcePackages/artifacts/sparkle/Sparkle/bin/`.
-`generate_keys --account app.workfleet.preview` creates a separate keychain item; with the same account, `-p` prints the
+`generate_keys --account dev.sammykenny2.pinitanywhere` creates a separate keychain item; with the same account, `-p` prints the
 public key and `-x <private key file>` exports it to a secure backup outside the repository, whose content becomes the
 secret `SPARKLE_PRIVATE_KEY`.
 Do not regenerate or overwrite this key for each release; locally, the key generated for that account is passed to the
@@ -334,10 +344,10 @@ can run locally:
 ```bash
 bash scripts/macos/build-native-app.sh --platform macos --release \
   --application-identity "$APPLICATION_IDENTITY" --provisioning-profile "$PROFILE_UUID"
-SPARKLE_PRIVATE_KEY_FILE="$HOME/Signing/WorkFleet-Sparkle.key" \
+SPARKLE_PRIVATE_KEY_FILE="$HOME/Signing/PinItAnywhere-Sparkle.key" \
   bash scripts/macos/package-native-app.sh --platform macos --method developer-id \
   --application-identity "$APPLICATION_IDENTITY" --provisioning-profile "$PROFILE_UUID" \
-  --notary-profile work-fleet-notary --dmg --no-pkg
+  --notary-profile pin-it-anywhere-notary --dmg --no-pkg
 ```
 
 The macOS Debug and Release targets set `@executable_path/../Frameworks` in `LD_RUNPATH_SEARCH_PATHS` explicitly, so
@@ -354,12 +364,12 @@ dropped since 2026-10-12 ("The network connection was lost", error 68; four runs
 The job therefore blocks outbound UDP 443 before packaging, GitHub's workaround, so stapler falls back to TCP; on
 `macos-15` on 2026-10-23, 6 of 10 staple-and-validate rounds failed with UDP 443 open and 10 of 10 passed with it
 blocked. Remove that step once the issue is fixed. Each staple and validate is still retried up to six times with pauses growing from
-one minute (`WORK_FLEET_STAPLER_PAUSE` sets the first pause in seconds);
+one minute (`PIN_IT_ANYWHERE_STAPLER_PAUSE` sets the first pause in seconds);
 only when everything succeeds are `PinItAnywhere-<version>-macos-universal.dmg`/`.zip`, their `.sha256` files,
-`appcast.xml` and `work-fleet-update-macos.json` delivered to `build/`.
+`appcast.xml` and `pin-it-anywhere-update-macos.json` delivered to `build/`.
 Ordinary local packaging still produces a PKG by default; only `--no-pkg` skips it. Notarizing a PKG still needs
 `--installer-identity`.
-When using a notary keychain other than the default, set `WORK_FLEET_SIGNING_KEYCHAIN`.
+When using a notary keychain other than the default, set `PIN_IT_ANYWHERE_SIGNING_KEYCHAIN`.
 
 The app ID, App Group and Team for direct Xcode builds come from the local xcconfig described in the
 [Apple project](../src/native/apple/README.md);
@@ -386,9 +396,9 @@ When Android is included, releases publish the APK through [preview releases](#p
 calls `android-apk.yml` with the release commit, and the verified APK goes into the `v<version>` release with the other platforms
 ([ADR-055](decisions/055-mobile-device-build-workflows.md)).
 
-Repository Variables: `WORK_FLEET_APP_ID`, `WORK_FLEET_GOOGLE_PROJECT_ID`, `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`,
-`WORK_FLEET_GOOGLE_WEB_CLIENT_ID`, `WORK_FLEET_ANDROID_RELEASE_SHA1` (colon-separated signing SHA-1),
-`WORK_FLEET_PRIVACY_URL`, `WORK_FLEET_SUPPORT_URL` and `WORK_FLEET_SUPPORT_EMAIL`.
+Repository Variables: `PIN_IT_ANYWHERE_APP_ID`, `PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID`, `PIN_IT_ANYWHERE_GOOGLE_ANDROID_CLIENT_ID`,
+`PIN_IT_ANYWHERE_GOOGLE_WEB_CLIENT_ID`, `PIN_IT_ANYWHERE_ANDROID_RELEASE_SHA1` (colon-separated signing SHA-1),
+`PIN_IT_ANYWHERE_PRIVACY_URL`, `PIN_IT_ANYWHERE_SUPPORT_URL` and `PIN_IT_ANYWHERE_SUPPORT_EMAIL`.
 The Android and Web clients must belong to the selected project; no Web client secret is needed.
 Register an Android OAuth client for the final package ID and actual direct-APK release signer. Register the
 Google Play app-signing fingerprint separately when configuring Play delivery; the upload key does not establish it.
@@ -418,17 +428,17 @@ iOS is built, signed and installed locally; GitHub workflows do not compile, sig
 registered device UDIDs. Skipping a Release does not hide those identifiers when the IPA is still uploaded as an
 artifact of this public repository. Do not upload device IPAs, profiles or real-device data backups to public storage.
 
-On a Mac with Xcode and a configured Apple Development identity, open `src/native/apple/WorkFleet.xcodeproj`, choose
-`WorkFleetIOS` and the connected device, then Run. The local CLI equivalent is:
+On a Mac with Xcode and a configured Apple Development identity, open `src/native/apple/PinItAnywhere.xcodeproj`, choose
+`PinItAnywhereIOS` and the connected device, then Run. The local CLI equivalent is:
 
 ```bash
 bash scripts/macos/build-native-app.sh --platform ios
-codesign --verify --deep --strict build/apple/DerivedData/Build/Products/Debug-iphoneos/WorkFleetIOS.app
+codesign --verify --deep --strict build/apple/DerivedData/Build/Products/Debug-iphoneos/PinItAnywhereIOS.app
 bash scripts/macos/package-preview-app.sh --platform ios
 ```
 
-Local `.env` settings: `WORK_FLEET_APP_ID`, `WORK_FLEET_APPLE_TEAM_ID`, `WORK_FLEET_GOOGLE_PROJECT_ID`,
-`WORK_FLEET_GOOGLE_IOS_CLIENT_ID` and optionally `WORK_FLEET_APP_GROUP_ID` (default `group.<APP_ID>`).
+Local `.env` settings: `PIN_IT_ANYWHERE_APP_ID`, `PIN_IT_ANYWHERE_APPLE_TEAM_ID`, `PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID`,
+`PIN_IT_ANYWHERE_GOOGLE_IOS_CLIENT_ID` and optionally `PIN_IT_ANYWHERE_APP_GROUP_ID` (default `group.<APP_ID>`).
 The private signing identity stays in the Mac's Keychain; the main app and Share Extension each need a local profile.
 For existing Xcode-managed profiles that cannot use manual Xcode signing, first build with `--unsigned`, then use
 `python3 scripts/sign_ios_app.py --help` to sign locally with both profiles and the matching public DER certificate.

@@ -23,7 +23,7 @@ test('Google export synchronizes newer remote notes and saves sync metadata in t
     confirmKnownData: async () => { prompted = true; return true; } });
   const document = await openBackup(backup.bytes);
   assert.equal(backup.knownDataOnly, false); assert.equal(prompted, false);
-  assert.equal(document.manifest.format, 'work-fleet-backup'); assert.equal(document.manifest.scope, 'known-local-data');
+  assert.equal(document.manifest.format, 'pin-it-anywhere-backup'); assert.equal(document.manifest.scope, 'known-local-data');
   assert.ok(document.manifest.lastSuccessfulSyncAt); assert.equal(document.manifest.pendingOperations, 0);
   assert.ok(document.data.records.some(record => record.value.content?.text === 'other device newest'));
   await sync.stop({ endSession: false }); await remoteSync.stop({ endSession: false });
@@ -58,7 +58,7 @@ test('incomplete sync needs fallback; cancellation and profile changes cannot ex
 test('offline local export does not request Google sync or fallback', async () => {
   const f = await client('local');
   const backup = await createSourceBackup({ ...f, source: { sync: async () => { throw new Error('must not sync'); } } });
-  assert.equal(backup.knownDataOnly, false); assert.equal((await openBackup(backup.bytes)).manifest.format, 'work-fleet-backup');
+  assert.equal(backup.knownDataOnly, false); assert.equal((await openBackup(backup.bytes)).manifest.format, 'pin-it-anywhere-backup');
 });
 
 test('a failed later sync preserves the durable timestamp of the last completed sync', async () => {

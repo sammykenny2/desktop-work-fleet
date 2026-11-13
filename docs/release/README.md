@@ -29,9 +29,9 @@ Without signing inputs, the Android `bundleRelease` produces an unsigned AAB.
 `Build-AndroidApp.ps1 -Signed` or `build-android-app.sh --signed` requires the following process or CI environment
 variables and signs the release AAB with the upload key, for Play App Signing to receive:
 
-- `WORK_FLEET_ANDROID_KEYSTORE`: absolute path of the existing keystore.
-- `WORK_FLEET_ANDROID_KEY_ALIAS`: upload key alias.
-- `WORK_FLEET_ANDROID_STORE_PASSWORD`, `WORK_FLEET_ANDROID_KEY_PASSWORD`: provided by the CI secret environment.
+- `PIN_IT_ANYWHERE_ANDROID_KEYSTORE`: absolute path of the existing keystore.
+- `PIN_IT_ANYWHERE_ANDROID_KEY_ALIAS`: upload key alias.
+- `PIN_IT_ANYWHERE_ANDROID_STORE_PASSWORD`, `PIN_IT_ANYWHERE_ANDROID_KEY_PASSWORD`: provided by the CI secret environment.
 
 All four must be provided together; they must not be written into `.env`, public JSON or command-line arguments. The
 script does not create keys, sign in to a store or upload anything.

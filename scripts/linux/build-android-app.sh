@@ -23,10 +23,10 @@ project_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$project_root"
 export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$project_root/build/gradle-home}"
 if [[ "$signed" == 1 ]]; then
-    for name in WORK_FLEET_ANDROID_KEYSTORE WORK_FLEET_ANDROID_KEY_ALIAS WORK_FLEET_ANDROID_STORE_PASSWORD WORK_FLEET_ANDROID_KEY_PASSWORD; do
+    for name in PIN_IT_ANYWHERE_ANDROID_KEYSTORE PIN_IT_ANYWHERE_ANDROID_KEY_ALIAS PIN_IT_ANYWHERE_ANDROID_STORE_PASSWORD PIN_IT_ANYWHERE_ANDROID_KEY_PASSWORD; do
         [[ -n "${!name:-}" ]] || { printf 'Signed release requires %s in the process/CI environment.\n' "$name" >&2; exit 1; }
     done
-    export WORK_FLEET_REQUIRE_SIGNED_ANDROID=1
+    export PIN_IT_ANYWHERE_REQUIRE_SIGNED_ANDROID=1
 fi
 sdk_settings=$(node scripts/toolchain-env.mjs)
 android_sdk=$(printf '%s' "$sdk_settings" | node -e 'let v="";process.stdin.on("data",s=>v+=s).on("end",()=>process.stdout.write(JSON.parse(v).ANDROID_HOME))')

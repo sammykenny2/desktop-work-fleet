@@ -12,14 +12,14 @@ import unittest
 class MacOSUpdatePresentationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.temporary = tempfile.TemporaryDirectory(prefix="work-fleet-update-presentation-")
+        cls.temporary = tempfile.TemporaryDirectory(prefix="pin-it-anywhere-update-presentation-")
         cls.addClassCleanup(cls.temporary.cleanup)
         folder = Path(cls.temporary.name)
         root = Path(__file__).resolve().parents[1]
         cls.executable = folder / "UpdatePresentationProbe"
         result = subprocess.run([
             "swiftc", "-warnings-as-errors", "-module-cache-path", str(folder / "module-cache"),
-            str(root / "src/native/apple/macos/FleetUpdatePresentation.swift"),
+            str(root / "src/native/apple/macos/PinItAnywhereUpdatePresentation.swift"),
             str(root / "tests/native/apple/UpdatePresentationProbe.swift"), "-o", str(cls.executable),
         ], text=True, capture_output=True, timeout=120)
         if result.returncode:

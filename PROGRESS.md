@@ -20,12 +20,17 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - Current version numbers are in the per-platform version files listed in [deployment](docs/deployment.md).
 - Final identity and distribution targets are accepted in
   [ADR-069](docs/decisions/069-pin-it-anywhere-product-identity.md) and
-  [ADR-070](docs/decisions/070-release-channels-and-architecture.md). The repository and generated update source use
+  [ADR-070](docs/decisions/070-release-channels-and-architecture.md), with the full implementation-name cutover in
+  [ADR-071](docs/decisions/071-complete-product-name-cutover.md). The repository and generated update source use
   `sammykenny2/pin-it-anywhere`. Renderer/native display names and Apple/Android system-name resources use the final
   localized names. Every native project uses the Cat Note app icon, and the macOS menu bar its template glyph;
   real-device, launcher and shell rendering is unverified. Apple/Android build defaults use the final IDs; the new
-  Google clients, support settings and Apple registrations/profiles are configured locally and in CI. Windows
-  localized package resources, trusted Windows signing, ARM64 packaging and native/provider acceptance remain pending
+  Google clients, support settings and Apple registrations/profiles remain registered. Source/project names, updater
+  lookup names, build keys and V1 identifiers use the current product identity. Renamed CI settings and a matching
+  Windows preview signer are configured; signed Windows install/update acceptance remains open. The maintainer's
+  cutover uses fresh test data; existing data
+  is retained, and general recovery acceptance remains open. Windows localized package
+  resources, trusted Windows signing, ARM64 packaging and native/provider acceptance remain pending
   under [PLAN-014](docs/plans/014-product-identity-and-distribution.md).
 
 ## Status by area

@@ -3,8 +3,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.IO;
-using WorkFleet.Windows;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows;
+using PinItAnywhere.Windows.Core;
 
 internal static class DesktopIntegrationProbe
 {
@@ -12,7 +12,7 @@ internal static class DesktopIntegrationProbe
   {
     using var value = JsonDocument.Parse(await core.ExecuteScriptAsync(script)); return value.RootElement.Clone();
   }
-  private static async Task Wait(Func<Task<bool>> check, string description, FleetWindow main)
+  private static async Task Wait(Func<Task<bool>> check, string description, PinItAnywhereWindow main)
   {
     var until = DateTime.UtcNow.AddSeconds(45);
     while (DateTime.UtcNow < until) { if (await check()) return; await Task.Delay(60); }
@@ -22,7 +22,7 @@ internal static class DesktopIntegrationProbe
       scenes.Add(surface.WebView.CoreWebView2 is null ? "uninitialized" : (await Eval(surface.WebView.CoreWebView2, "({url:location.href,visibility:document.visibilityState,text:document.body?.innerText.slice(0,300)})")).ToString());
     throw new Exception($"Desktop probe timed out: {description}; owner={state}; scenes={string.Join(";", scenes)}");
   }
-  public static async Task Run(FleetWindow main, string directory)
+  public static async Task Run(PinItAnywhereWindow main, string directory)
   {
     async Task Layer(string value)
     {
@@ -202,7 +202,7 @@ internal static class DesktopIntegrationProbe
   // Ctrl and a double click on the resting paper open a quick edit on the Top layer (SPEC-003, 2026-10-24); the scene
   // takes the key from the frame after the switch changes, so the gesture repeats until the editor shows. The scene finds
   // the paper under the pointer, so the double click lands on the title band.
-  public static Task QuickEdit(CoreWebView2 resident, CoreWebView2 floating, FleetWindow main, string message) => Wait(async () =>
+  public static Task QuickEdit(CoreWebView2 resident, CoreWebView2 floating, PinItAnywhereWindow main, string message) => Wait(async () =>
   {
     await Eval(resident, "(()=>{const t=document.querySelector('.card-summary');if(!t)return;const r=t.getBoundingClientRect();t.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true,clientX:r.x+r.width/2,clientY:r.y+r.height/2}))})()");
     return (await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True;
@@ -211,7 +211,7 @@ internal static class DesktopIntegrationProbe
   // Ctrl and a drag move the resting Desktop-layer paper (SPEC-003, 2026-10-24). DevTools mouse input goes through the
   // browser like a real press with Ctrl held, without system input; it does not exercise native capture or hit-testing.
   // While it drags, the paper rides the Top layer and the attached scene stays shown; at the drop it rests there again.
-  private static async Task QuickMove(FleetWindow main, CoreWebView2 resident, CoreWebView2 floating)
+  private static async Task QuickMove(PinItAnywhereWindow main, CoreWebView2 resident, CoreWebView2 floating)
   {
     var point = await Eval(resident, "(()=>{const r=document.querySelector('.card-summary').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,left:parseFloat(document.querySelector('.card').style.left)}})()");
     double x = point.GetProperty("x").GetDouble(), y = point.GetProperty("y").GetDouble(), left = point.GetProperty("left").GetDouble();
@@ -230,7 +230,7 @@ internal static class DesktopIntegrationProbe
     Console.WriteLine("PASS Ctrl and a drag move a resting desktop paper on the Top layer and leave it on its own layer");
   }
 
-  public static async Task CloseWithDraft(FleetWindow main)
+  public static async Task CloseWithDraft(PinItAnywhereWindow main)
   {
     await Wait(async () => main.Desktop?.Surfaces.Count >= 2 && main.Desktop.Surfaces.Take(2).All(s => s.WebView.CoreWebView2 is not null)
       && (await Eval(main.Desktop.Surfaces[0].WebView.CoreWebView2, "Boolean(document.querySelector('.card'))")).ValueKind == JsonValueKind.True,

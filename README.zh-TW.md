@@ -75,7 +75,7 @@ Android Studio 的 **Open** 選擇 `src/native/android`，完成 Gradle Sync 後
 
 ## 在 Xcode 開啟 iOS／macOS
 
-Mac clone 完整 repository 後直接開啟 `src/native/apple/WorkFleet.xcodeproj`，選 `WorkFleetIOS` 或 `WorkFleetMac`。
+Mac clone 完整 repository 後直接開啟 `src/native/apple/PinItAnywhere.xcodeproj`，選 `PinItAnywhereIOS` 或 `PinItAnywhereMac`。
 專案、schemes 與圖示已納入 Git，使用相對路徑。安裝 Node 22+／npm 後，Xcode 建置會自動準備介面資產。
 個人身份與 Team 放在忽略的 `src/native/apple/config/Local.xcconfig`；詳見 [Apple 專案說明](src/native/apple/README.md)。
 
@@ -87,7 +87,7 @@ Mac clone 完整 repository 後直接開啟 `src/native/apple/WorkFleet.xcodepro
 bash scripts/macos/start-validation.sh
 ```
 
-選單列 WF → Quick capture / Unlock 開啟 editor，WF → Lock 恢復展示（0.1.0 驗證版的介面只有英文）。
+選單列 PIA → Quick capture / Unlock 開啟 editor，PIA → Lock 恢復展示（0.1.0 驗證版的介面只有英文）。
 這是驗證版流程，尚未包含上述群組操作與 Google 登入。
 建置／配對／備份方式見 [操作文件](docs/setup-guide.md)，檢查見 [testing](docs/testing.md)。
 本版本不需安裝 pip/npm runtime 套件；1.0 App 改用 `src/native/` 下的原生主機。

@@ -3,12 +3,12 @@
     Prove the in-app MSIX update end to end with an isolated probe package.
 .DESCRIPTION
     Takes the locally signed build/PinItAnywhere-VERSION-x64.msix (Build-WindowsPackage.ps1 -LocalTestSign) and makes two
-    copies under the probe identity app.workfleet.updateprobe.e2e: VERSION and the next patch version, both signed with
+    copies under the probe identity dev.sammykenny2.pinitanywhere.updateprobe.e2e: VERSION and the next patch version, both signed with
     the same locally trusted certificate. Installs the first, gives it a local feed folder instead of GitHub
     (ADR-044; only this identity reads one) and lets it download, verify and install the second, which closes it.
     Passes when Windows reports the newer version, then removes the probe package and its data.
-    The installed Work Fleet package, its data and its certificate trust are never touched. The probe window and an
-    empty desktop scene appear briefly; another running Work Fleet keeps its own global shortcuts.
+    The installed Pin It Anywhere package, its data and its certificate trust are never touched. The probe window and an
+    empty desktop scene appear briefly; another running Pin It Anywhere keeps its own global shortcuts.
 .PARAMETER PackagePath
     Signed MSIX to copy. Defaults to build/PinItAnywhere-VERSION-x64.msix.
 .PARAMETER SdkBin
@@ -20,7 +20,7 @@
 param([string]$PackagePath, [string]$SdkBin)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$ProbeName = 'app.workfleet.updateprobe.e2e'
+$ProbeName = 'dev.sammykenny2.pinitanywhere.updateprobe.e2e'
 function Find-SdkTool([string]$Name) {
     if ($SdkBin) { $Tool = Join-Path $SdkBin $Name; if (Test-Path -LiteralPath $Tool -PathType Leaf) { return $Tool }; throw "Missing SDK tool: $Tool" }
     $OnPath = Get-Command $Name -ErrorAction SilentlyContinue; if ($OnPath) { return $OnPath.Source }
@@ -31,7 +31,7 @@ function Find-SdkTool([string]$Name) {
     throw "Windows SDK $Name is required. Set -SdkBin to its directory."
 }
 function Remove-Probe {
-    Get-Process -Name WorkFleet -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*\$ProbeName*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-Process -Name PinItAnywhere -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*\$ProbeName*" } | Stop-Process -Force -ErrorAction SilentlyContinue
     Get-AppxPackage -Name $ProbeName | Remove-AppxPackage
 }
 $MakeAppx = Find-SdkTool 'MakeAppx.exe'; $SignTool = Find-SdkTool 'SignTool.exe'
@@ -58,7 +58,7 @@ if ($Certificate.Count -ne 1) { throw "Needs exactly one trusted signing certifi
 function New-ProbePackage([string]$PackageVersion, [string]$Destination) {
     [xml]$Manifest = $Original.OuterXml
     $Manifest.Package.Identity.Name = $ProbeName; $Manifest.Package.Identity.Version = "$PackageVersion.0"
-    $Manifest.Package.Properties.DisplayName = 'Work Fleet update probe'
+    $Manifest.Package.Properties.DisplayName = 'Pin It Anywhere update probe'
     $Manifest.Save($ManifestPath)
     & $MakeAppx pack /d $Unpacked /p $Destination /o /h SHA256 > (Join-Path $Work 'pack.log')
     if ($LASTEXITCODE -ne 0) { throw "MakeAppx pack failed for $PackageVersion." }
@@ -68,11 +68,11 @@ function New-ProbePackage([string]$PackageVersion, [string]$Destination) {
 $First = Join-Path $Work "probe-$Version.msix"; $SecondName = "PinItAnywhere-$Next-x64.msix"; $Second = Join-Path $Feed $SecondName
 New-ProbePackage $Version $First
 New-ProbePackage $Next $Second
-# The same shapes the updater reads from GitHub: a public Atom feed and the release's work-fleet-update-windows.json.
+# The same shapes the updater reads from GitHub: a public Atom feed and the release's pin-it-anywhere-update-windows.json.
 $Size = (Get-Item -LiteralPath $Second).Length; $Sha = (Get-FileHash -Algorithm SHA256 -LiteralPath $Second).Hash.ToLowerInvariant()
 $Update = [ordered]@{ schemaVersion = 1; platform = 'windows'; version = $Next; tag = "v$Next"; summary = 'update probe'
     assets = @([ordered]@{ arch = 'x64'; name = $SecondName; size = $Size; sha256 = $Sha }) }
-$UpdatePath = Join-Path $Feed 'work-fleet-update-windows.json'
+$UpdatePath = Join-Path $Feed 'pin-it-anywhere-update-windows.json'
 [IO.File]::WriteAllText($UpdatePath, ($Update | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
 $ProbeRepository = (Get-Content -LiteralPath (Join-Path $Unpacked 'Config/public.json') -Raw | ConvertFrom-Json).update.repository
 $ReleasePage = "https://github.com/$ProbeRepository/releases/tag/v$Next"
@@ -84,12 +84,12 @@ try {
     Add-AppxPackage -Path $First
     $Installed = Get-AppxPackage -Name $ProbeName
     if ($Installed.Version -ne "$Version.0") { throw "Probe installed as $($Installed.Version)." }
-    $Data = Join-Path $env:LOCALAPPDATA "Packages\$($Installed.PackageFamilyName)\LocalCache\Local\WorkFleet"
+    $Data = Join-Path $env:LOCALAPPDATA "Packages\$($Installed.PackageFamilyName)\LocalCache\Local\PinItAnywhere"
     New-Item -ItemType Directory -Path $Data -Force | Out-Null
     # No sign-in task for the probe; the feed file makes this identity download and install the next version once ready.
     [IO.File]::WriteAllText((Join-Path $Data 'host-preferences.json'), '{"version":1,"startAtLogin":false,"closeToTray":true,"openMainAtLogin":false,"language":"en"}')
     [IO.File]::WriteAllText((Join-Path $Data 'update-probe.txt'), $Feed)
-    Start-Process "shell:AppsFolder\$($Installed.PackageFamilyName)!WorkFleet"
+    Start-Process "shell:AppsFolder\$($Installed.PackageFamilyName)!PinItAnywhere"
     $Deadline = (Get-Date).AddMinutes(4); $Result = Join-Path $Data 'update-probe-result.txt'
     while ((Get-Date) -lt $Deadline) {
         $Now = Get-AppxPackage -Name $ProbeName

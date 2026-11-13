@@ -19,7 +19,7 @@ export class NativeFiles {
       void (async () => {
         const response = await fetch(link.href); const blob = await response.blob();
         requireValue(blob.size <= this.#maximum, 'file-capacity', t('errors.storage.exportTooLarge'));
-        const result = await this.export(new Uint8Array(await blob.arrayBuffer()), link.download || 'work-fleet-export');
+        const result = await this.export(new Uint8Array(await blob.arrayBuffer()), link.download || 'pin-it-anywhere-export');
         report(result.completed ? t('backup.export.fileExported') : t('backup.export.cancelled'));
       })().catch(error => report(error.message, true));
     };

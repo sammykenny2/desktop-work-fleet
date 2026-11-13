@@ -1,4 +1,4 @@
-import { copy, FleetError, requireValue, safeKey } from '../core/contracts.js';
+import { copy, PinItAnywhereError, requireValue, safeKey } from '../core/contracts.js';
 import { sha256, validDigest } from '../sources/files.js';
 import { canonicalJson } from '../sources/json.js';
 import { createBackup } from './payload.js';
@@ -12,7 +12,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const integer = value => Number.isSafeInteger(value) && value >= 0;
 const reference = value => safeKey(value) && value.length <= 256;
 const validJob = job => job && uuidPattern.test(job.id) && uuidPattern.test(job.scheduleId) && uuidPattern.test(job.policyId)
-  && reference(job.destinationId) && job.name === `work-fleet-auto-${job.id}.zip`
+  && reference(job.destinationId) && job.name === `pin-it-anywhere-auto-${job.id}.zip`
   && integer(job.sourceRevision) && integer(job.createdAt) && typeof job.encrypted === 'boolean'
   && validDigest(job.sha256) && integer(job.size) && job.size > 0 && job.size <= BACKUP_LIMITS.encryptedBytes;
 
@@ -209,7 +209,7 @@ export class AutomaticBackup {
       try { bytes = await this.#files.read({ ...copy(latest), profileId: this.#state.profileId, signal }); }
       catch (error) {
         if (!['backup-file-unowned', 'backup-file-changed'].includes(error.code)) throw error;
-        throw new FleetError('backup-latest-missing', t('errors.backup.latestReplaced'));
+        throw new PinItAnywhereError('backup-latest-missing', t('errors.backup.latestReplaced'));
       }
       requireValue(bytes !== null && bytes.length === latest.size && await sha256(bytes) === latest.sha256,
         'backup-latest-missing', t('errors.backup.latestMissing'));
@@ -246,7 +246,7 @@ export class AutomaticBackup {
       } finally { plaintext.fill(0); }
     }
     const job = { id, scheduleId: settings.scheduleId, policyId: settings.policyId, destinationId: settings.destinationId,
-      name: `work-fleet-auto-${id}.zip`, sourceRevision, createdAt: now,
+      name: `pin-it-anywhere-auto-${id}.zip`, sourceRevision, createdAt: now,
       encrypted: backup.encrypted, sha256: await sha256(backup.bytes), size: backup.bytes.length };
     checkCancelled(signal); await backup.verify?.(); await this.#save({ pending: job });
     const result = await this.#files.create({ ...copy(job), profileId: snapshot.profileId, bytes: backup.bytes, signal });

@@ -34,7 +34,7 @@ finally:
 class LinuxDataFailureTests(unittest.TestCase):
     def test_a_file_that_is_not_sqlite_is_damaged(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "fleet.sqlite3"
+            path = Path(directory) / "pinitanywhere.sqlite3"
             path.write_bytes(b"these bytes are not a SQLite database")
             with self.assertRaises(sqlite3.DatabaseError) as raised:
                 connection = sqlite3.connect(path)
@@ -67,11 +67,11 @@ class LinuxDataFailureTests(unittest.TestCase):
     def test_setting_aside_moves_the_database_and_its_key_together(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name in ("fleet.sqlite3", "fleet.sqlite3-wal", "storage-key", "profile.txt", "host-preferences.json"):
+            for name in ("pinitanywhere.sqlite3", "pinitanywhere.sqlite3-wal", "storage-key", "profile.txt", "host-preferences.json"):
                 (root / name).write_text(name)
             folder = datafailure.set_aside(root, datetime(2026, 10, 23, 9, 30))
             self.assertEqual(folder, root / "set-aside-20261023-093000")
-            self.assertEqual(sorted(path.name for path in folder.iterdir()), ["fleet.sqlite3", "fleet.sqlite3-wal", "storage-key"])
+            self.assertEqual(sorted(path.name for path in folder.iterdir()), ["pinitanywhere.sqlite3", "pinitanywhere.sqlite3-wal", "storage-key"])
             self.assertEqual(sorted(path.name for path in root.iterdir() if path.is_file()), ["host-preferences.json", "profile.txt"])
             with self.assertRaises(p.Failure) as raised:
                 datafailure.set_aside(root, datetime(2026, 10, 23, 9, 31))
@@ -80,7 +80,7 @@ class LinuxDataFailureTests(unittest.TestCase):
     def test_a_failed_move_puts_back_what_it_moved(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name in ("fleet.sqlite3", "fleet.sqlite3-wal", "storage-key"):
+            for name in ("pinitanywhere.sqlite3", "pinitanywhere.sqlite3-wal", "storage-key"):
                 (root / name).write_text(name)
             real = os.rename
 
@@ -91,12 +91,12 @@ class LinuxDataFailureTests(unittest.TestCase):
             with mock.patch.object(datafailure.os, "rename", rename), self.assertRaises(p.Failure) as raised:
                 datafailure.set_aside(root, datetime(2026, 10, 23, 9, 30))
             self.assertEqual(raised.exception.code, "data-set-aside")
-            self.assertEqual(sorted(path.name for path in root.iterdir()), ["fleet.sqlite3", "fleet.sqlite3-wal", "storage-key"])
+            self.assertEqual(sorted(path.name for path in root.iterdir()), ["pinitanywhere.sqlite3", "pinitanywhere.sqlite3-wal", "storage-key"])
 
     def test_a_failed_put_back_says_where_the_files_are(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name in ("fleet.sqlite3", "storage-key"):
+            for name in ("pinitanywhere.sqlite3", "storage-key"):
                 (root / name).write_text(name)
             real = os.rename
 
@@ -109,7 +109,7 @@ class LinuxDataFailureTests(unittest.TestCase):
                 datafailure.set_aside(root, datetime(2026, 10, 23, 9, 30))
             self.assertEqual(raised.exception.code, "data-set-aside-incomplete")
             self.assertIn("set-aside-20261023-093000", str(raised.exception))
-            self.assertTrue((root / "set-aside-20261023-093000" / "fleet.sqlite3").exists())
+            self.assertTrue((root / "set-aside-20261023-093000" / "pinitanywhere.sqlite3").exists())
 
 
 if __name__ == "__main__":

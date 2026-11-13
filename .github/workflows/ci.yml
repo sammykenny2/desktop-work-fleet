@@ -57,7 +57,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - name: Build the headless desktop test image
-        run: docker build -t work-fleet-linux-desktop-tests -f tests/native/linux/Dockerfile tests/native/linux
+        run: docker build -t pin-it-anywhere-linux-desktop-tests -f tests/native/linux/Dockerfile tests/native/linux
       - name: Desktop layers in headless labwc
         run: |
           mkdir -p build/linux-layer-checks
@@ -65,7 +65,7 @@ jobs:
           docker run --rm --network none \
             --mount "type=bind,source=$PWD,target=/workspace,readonly" \
             --mount "type=bind,source=$PWD/build/linux-layer-checks,target=/evidence" \
-            work-fleet-linux-desktop-tests dbus-run-session -- \
+            pin-it-anywhere-linux-desktop-tests dbus-run-session -- \
             bash /workspace/scripts/linux/test-desktop-layers.sh /evidence /evidence/scenarios.json
       # Independent of the desktop-layer result, so one failure does not hide the other.
       - name: Main window and startup behavior on X11 and labwc
@@ -75,7 +75,7 @@ jobs:
           docker run --rm --network none \
             --mount "type=bind,source=$PWD,target=/workspace,readonly" \
             --mount "type=bind,source=$PWD/build/linux-host-checks,target=/evidence" \
-            work-fleet-linux-desktop-tests dbus-run-session -- bash /workspace/scripts/linux/test-host-shell.sh /evidence
+            pin-it-anywhere-linux-desktop-tests dbus-run-session -- bash /workspace/scripts/linux/test-host-shell.sh /evidence
       # The containers run as root and the host check makes private 0700 data and XDG config folders, which the
       # runner user could not read for the upload.
       - name: Let the runner read the evidence
@@ -110,7 +110,7 @@ jobs:
       - name: Build and run the core probes
         run: |
           ./scripts/windows/Build-WindowsApp.ps1 -Configuration Debug -IncludeTests
-          dotnet tests/native/windows/core/bin/Debug/net10.0-windows/WorkFleet.Windows.Core.Tests.dll (Join-Path $env:RUNNER_TEMP 'core')
+          dotnet tests/native/windows/core/bin/Debug/net10.0-windows/PinItAnywhere.Windows.Core.Tests.dll (Join-Path $env:RUNNER_TEMP 'core')
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Build and inspect an unsigned package
         run: |

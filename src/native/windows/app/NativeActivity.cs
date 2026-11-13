@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Threading;
 using System.Windows.Interop;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>Release OS registrations synchronously on activation; the focused document handles local keys.</summary>
 public sealed class NativeActivity : IDisposable

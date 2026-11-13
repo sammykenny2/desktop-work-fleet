@@ -28,7 +28,7 @@ def signing_entitlements(team, bundle_id, app_group, keychain=False):
 def validate_bundle(app, app_id):
     if app.is_symlink() or not app.is_dir():
         raise ValueError("A compiled iOS app directory is required.")
-    share = app / "PlugIns/WorkFleetShare.appex"
+    share = app / "PlugIns/PinItAnywhereShare.appex"
     extensions = list(app.rglob("*.appex"))
     if extensions != [share] or share.is_symlink() or list(app.rglob("*.app")):
         raise ValueError("The app must contain only the expected share extension.")
@@ -63,7 +63,7 @@ def sign_app(app, app_profile, share_profile, certificate, team, app_id, app_gro
     for framework in sorted(app.rglob("*.framework"), key=lambda path: len(path.parts), reverse=True):
         if framework.is_dir() and not framework.is_symlink():
             subprocess.run([*arguments, str(framework)], check=True)
-    with tempfile.TemporaryDirectory(prefix="work-fleet-ios-entitlements-") as directory:
+    with tempfile.TemporaryDirectory(prefix="pin-it-anywhere-ios-entitlements-") as directory:
         for name, bundle, profile, identifier in [("share", share, share_profile, app_id + ".share"),
                                                   ("app", app, app_profile, app_id)]:
             entitlements = Path(directory) / (name + ".plist")

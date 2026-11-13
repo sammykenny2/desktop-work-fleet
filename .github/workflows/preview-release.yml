@@ -68,9 +68,9 @@ jobs:
           node scripts/release-notes.mjs --version "$VERSION" > /dev/null
           {
             echo "summary=$(node scripts/release-notes.mjs --version "$VERSION" --summary)"
-            echo 'changes<<WORK_FLEET_RELEASE_NOTES'
+            echo 'changes<<PIN_IT_ANYWHERE_RELEASE_NOTES'
             node scripts/release-notes.mjs --version "$VERSION"
-            echo 'WORK_FLEET_RELEASE_NOTES'
+            echo 'PIN_IT_ANYWHERE_RELEASE_NOTES'
           } >> "$GITHUB_OUTPUT"
       - run: npm ci --ignore-scripts
       - run: npm test
@@ -176,7 +176,8 @@ jobs:
              \`\`\`
           3. Double-click \`PinItAnywhere-${VERSION}-x64.msix\` to install it.
 
-          A version higher than the installed one installs as an upgrade and preserves the package's local files; the same version must be uninstalled first. Check the changes above for data-format compatibility and any required reset before upgrading.
+          This identity cutover requires a manual installation. Keep the earlier app and its data until recovery in this app is verified; the Windows package identity, Linux package name, updater manifests and V1 format names have changed. No automatic data conversion is performed.
+          Subsequent higher versions with the same package identity and publisher install as upgrades and preserve that package's local files. Check the changes above for data-format compatibility before upgrading.
           Uninstalling removes all local data inside the package (including drafts, settings and the Google sign-in); export a ZIP from Settings > Data and backup first.
           Uninstalling does not affect exported ZIPs or Google cloud data. Moving data from a ZIP or Debug build requires a backup format supported by the target version; keep the earlier version available to read an incompatible backup.
 
@@ -192,7 +193,7 @@ jobs:
           if [ "$INCLUDE_ANDROID" = true ]; then
           cat >> "$RUNNER_TEMP/notes.md" <<EOF
           ## Android
-          The Android application identity has also changed from older Work Fleet previews; keep the old app and its backup until the new installation has the notes you need.
+          The Android application identity has also changed from older Pin It Anywhere previews; keep the old app and its backup until the new installation has the notes you need.
           Requires Android 9 (API 28) or later. Download \`PinItAnywhere-${VERSION}-android-release.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r PinItAnywhere-${VERSION}-android-release.apk\` from a computer.
           This is a signed Release APK. Updates require the same application ID and signing key and a higher versionCode. It cannot replace a Debug APK signed with the old test key; export a backup before removing an old installation. Google Play signing is configured separately. Check the changes above for data-format compatibility and any required reset before upgrading.
 

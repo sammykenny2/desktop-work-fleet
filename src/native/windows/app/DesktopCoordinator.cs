@@ -6,9 +6,9 @@ using System.Text.Json;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Threading;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>Display-only surfaces route fixed commands to the single management document. No second database owner.</summary>
 public sealed class DesktopCoordinator : IDisposable

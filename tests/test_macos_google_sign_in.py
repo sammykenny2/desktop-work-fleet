@@ -11,7 +11,7 @@ import unittest
 class AppleGoogleSignInTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.temporary = tempfile.TemporaryDirectory(prefix="work-fleet-sign-in-")
+        cls.temporary = tempfile.TemporaryDirectory(prefix="pin-it-anywhere-sign-in-")
         cls.addClassCleanup(cls.temporary.cleanup)
         folder = Path(cls.temporary.name)
         root = Path(__file__).resolve().parents[1]
@@ -20,7 +20,7 @@ class AppleGoogleSignInTests(unittest.TestCase):
         commands = [
             common + ["-emit-library", "-emit-module", "-module-name", "AppKit", str(sources / "GoogleAppKitStub.swift"), "-o", str(folder / "libAppKit.dylib")],
             common + ["-emit-library", "-emit-module", "-module-name", "GoogleSignIn", str(sources / "GoogleSignInStub.swift"), "-lAppKit", "-o", str(folder / "libGoogleSignIn.dylib")],
-            common + [str(root / "src/native/apple/Shared/FleetProtocol.swift"), str(root / "src/native/apple/Shared/FleetGoogle.swift"),
+            common + [str(root / "src/native/apple/Shared/PinItAnywhereProtocol.swift"), str(root / "src/native/apple/Shared/PinItAnywhereGoogle.swift"),
                       str(sources / "GoogleSignInProbe.swift"), "-lAppKit", "-lGoogleSignIn", "-Xlinker", "-rpath", "-Xlinker", str(folder), "-o", str(folder / "GoogleSignInProbe")],
         ]
         for command in commands:

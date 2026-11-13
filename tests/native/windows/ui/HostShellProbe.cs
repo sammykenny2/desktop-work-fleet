@@ -3,8 +3,8 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
-using WorkFleet.Windows;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows;
+using PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// ADR-043 on a real window: startup settings and the version on the General page the gear opens, saved and restored
@@ -89,9 +89,9 @@ internal static class HostShellProbe
     using var other = await Task.Run(() => SingleInstance.Claim(Path.Combine(directory, "other-data")));
     if (other is null) throw new Exception("A different data directory reached the wrong instance.");
   }
-  private static FleetWindow Open(string directory)
+  private static PinItAnywhereWindow Open(string directory)
   {
-    var window = new FleetWindow(Program.English(directory), shell: new HostShell(directory, false, "debug")) { ShowActivated = false };
+    var window = new PinItAnywhereWindow(Program.English(directory), shell: new HostShell(directory, false, "debug")) { ShowActivated = false };
     window.Show(); return window;
   }
   private static SavedPlacement Default(PhysicalBounds area, int dpi)
@@ -112,7 +112,7 @@ internal static class HostShellProbe
     while (DateTime.UtcNow < until) { if (condition()) return; await Task.Delay(100); }
     throw new Exception($"Timed out: {description}; saved {WindowPlacement.Read(directoryForErrors ?? "")}");
   }
-  private static async Task<JsonElement> Eval(FleetWindow window, string source)
+  private static async Task<JsonElement> Eval(PinItAnywhereWindow window, string source)
   {
     var json = await window.WebView.CoreWebView2.ExecuteScriptAsync(source);
     using var value = JsonDocument.Parse(json); return value.RootElement.Clone();

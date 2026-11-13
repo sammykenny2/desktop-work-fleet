@@ -1,6 +1,6 @@
 import { PARALLEL_READS, visibleDatasetObjects } from '../sources/dataset-protocol.js';
 import { DELETE_BATCH_BYTES, deleteBatchIds, deleteBatchResult } from '../sources/drive-batch.js';
-import { FleetError, requireValue } from '../core/contracts.js';
+import { PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { NativeTransfers } from '../storage/native.js';
 import { driveFolder, googleDescriptor } from '../sources/google-drive.js';
 import { validateFile, verifyFile, validFileId } from '../sources/files.js';
@@ -22,9 +22,9 @@ export class NativeGoogleFileStore {
   }
   get sourceId() { return `google-drive:${this.#account}:appdata-v1`; }
   async #call(method, args, signal) {
-    if (signal?.aborted) throw new FleetError('stale-session', t('errors.storage.googleSessionEnded'));
+    if (signal?.aborted) throw new PinItAnywhereError('stale-session', t('errors.storage.googleSessionEnded'));
     const result = await this.#bridge.request(method, { accountId: this.#account, ...args });
-    if (signal?.aborted) throw new FleetError('stale-session', t('errors.storage.googleSessionEnded'));
+    if (signal?.aborted) throw new PinItAnywhereError('stale-session', t('errors.storage.googleSessionEnded'));
     return result;
   }
   async getStartCursor({ signal } = {}) { return cursor((await this.#call('google.cursor', {}, signal)).startPageToken); }
@@ -52,7 +52,7 @@ export class NativeGoogleFileStore {
     requireValue(result.incompleteSearch === undefined || typeof result.incompleteSearch === 'boolean', 'invalid-source-page', t('errors.storage.googleListingStateInvalid'));
     return { ids: page(result.files || []).map(file => { requireValue(validFileId(file?.id), 'invalid-source-page', t('errors.storage.googleFileIdInvalid')); return file.id; }),
       incomplete: result.incompleteSearch === true,
-      resetIds: (result.files || []).filter(file => file.appProperties?.wfKind === 'reset').map(file => file.id),
+      resetIds: (result.files || []).filter(file => file.appProperties?.piaKind === 'reset').map(file => file.id),
       nextPageToken: result.nextPageToken === undefined ? null : cursor(result.nextPageToken) };
   }
   async deleteFiles({ ids, signal }) {
@@ -108,14 +108,14 @@ export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
       if (['legacy', 'fences', 'reset-datasets'].includes(query.scope)) {
         requireValue(validFileId(file.id), 'invalid-source-page', t('errors.storage.googleFileIdInvalid'));
         requireValue(query.scope !== 'legacy' || typeof file.mimeType === 'string', 'invalid-source-page', t('errors.storage.googleListingStateInvalid'));
-        return { id: file.id, kind: file.appProperties?.wfKind ?? null,
-          ...(query.scope === 'legacy' ? { folder: file.mimeType === 'application/vnd.google-apps.folder', dataset: file.appProperties?.wfFormat === DATASET_FORMAT } : {}) };
+        return { id: file.id, kind: file.appProperties?.piaKind ?? null,
+          ...(query.scope === 'legacy' ? { folder: file.mimeType === 'application/vnd.google-apps.folder', dataset: file.appProperties?.piaFormat === DATASET_FORMAT } : {}) };
       }
       return googleDatasetDescriptor(file, { rootParentVerified: query.scope === 'roots' });
     }), incomplete: result.incompleteSearch === true, nextPageToken: result.nextPageToken === undefined ? null : cursor(result.nextPageToken) };
   }
   async #descriptor(metadata, signal) {
-    if (metadata.appProperties?.wfKind !== 'dataset-root' || metadata.parents?.[0] === 'appDataFolder') return googleDatasetDescriptor(metadata);
+    if (metadata.appProperties?.piaKind !== 'dataset-root' || metadata.parents?.[0] === 'appDataFolder') return googleDatasetDescriptor(metadata);
     const expected = googleDatasetDescriptor(metadata, { rootParentVerified: true });
     const files = await visibleDatasetObjects(this, { scope: 'roots', datasetId: expected.datasetId }, [expected.id], { signal, limit: 16 });
     requireValue(files.some(file => canonicalJson(file) === canonicalJson(expected)), 'invalid-dataset', t('errors.sources.datasetInvalid'));
@@ -152,11 +152,11 @@ export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
     const changes = await Promise.all(page(result.changes === undefined ? [] : result.changes).map(async change => {
       requireValue(validFileId(change?.fileId) && (change.removed === undefined || typeof change.removed === 'boolean'), 'invalid-source-page', t('errors.storage.googleChangeInvalid'));
       if (change.removed || change.file?.trashed) return { id: change.fileId, removed: true };
-      if (change.file?.appProperties?.wfFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false, legacyReset: change.file?.appProperties?.wfKind === 'reset',
-        legacyWrite: change.file?.appProperties?.wfKind !== 'reset' && change.file?.mimeType !== 'application/vnd.google-apps.folder' };
+      if (change.file?.appProperties?.piaFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false, legacyReset: change.file?.appProperties?.piaKind === 'reset',
+        legacyWrite: change.file?.appProperties?.piaKind !== 'reset' && change.file?.mimeType !== 'application/vnd.google-apps.folder' };
       const properties = change.file.appProperties;
-      const file = ['revision', 'attachment'].includes(properties.wfKind) && !change.file.parents?.length
-        ? googleDatasetOwned(change.file, { datasetId: properties.wfDataset, entities: [properties.wfEntity] })
+      const file = ['revision', 'attachment'].includes(properties.piaKind) && !change.file.parents?.length
+        ? googleDatasetOwned(change.file, { datasetId: properties.piaDataset, entities: [properties.piaEntity] })
         : await this.#descriptor(change.file, signal);
       requireValue(file.id === change.fileId, 'invalid-source-page', t('errors.storage.googleFileMismatch'));
       return { id: file.id, removed: false, file };

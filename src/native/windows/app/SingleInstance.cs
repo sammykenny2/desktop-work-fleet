@@ -6,10 +6,10 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>
-/// One Work Fleet per user and data directory. A second launch asks the running one to show its main window and exits,
+/// One Pin It Anywhere per user and data directory. A second launch asks the running one to show its main window and exits,
 /// instead of failing on the data owner lock. The MSIX and the ZIP use different data directories and do not collide.
 /// </summary>
 public sealed class SingleInstance : IDisposable
@@ -39,7 +39,7 @@ public sealed class SingleInstance : IDisposable
   {
     var owner = WindowsIdentity.GetCurrent().User?.Value ?? "";
     var digest = SHA256.HashData(Encoding.UTF8.GetBytes(owner + "\n" + Path.GetFullPath(directory).ToUpperInvariant()));
-    return "WorkFleet-" + Convert.ToHexString(digest)[..32];
+    return "PinItAnywhere-" + Convert.ToHexString(digest)[..32];
   }
   private static bool Forward(string name)
   {

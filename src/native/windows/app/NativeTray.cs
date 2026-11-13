@@ -7,9 +7,9 @@ using System.Windows.Interop;
 using System.Windows.Markup;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>
 /// Owned shell notification icon and its keyboard-accessible menu. No external process manipulation. The menu is a WPF
@@ -50,7 +50,7 @@ public sealed class NativeTray : IDisposable
     ownsIcon = Environment.ProcessPath is { } path && ExtractIconExW(path, 0, null, small, 1) > 0 && small[0] != IntPtr.Zero;
     icon = ownsIcon ? small[0] : LoadIconW(IntPtr.Zero, new IntPtr(32512));
     // A hidden top-level window receives TaskbarCreated broadcasts; message-only windows do not.
-    receiver = new HwndSource(new HwndSourceParameters("Work Fleet notification area") { Width = 0, Height = 0,
+    receiver = new HwndSource(new HwndSourceParameters("Pin It Anywhere notification area") { Width = 0, Height = 0,
       WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000080 });
     receiver.AddHook(Receive); retry.Tick += (_, _) => Retry(); Add();
     receiver.Dispatcher.BeginInvoke(new Action(Prepare), DispatcherPriority.ApplicationIdle);
@@ -107,7 +107,7 @@ public sealed class NativeTray : IDisposable
       if (GetMonitorInfoW(monitor, ref info)) (x, y) = TrayMenu.Anchor(x, y, info.Work.Left, info.Work.Top, info.Work.Right, info.Work.Bottom);
       var scale = GetDpiForMonitor(monitor, 0, out var dpi, out _) == 0 ? dpi / 96d : 1;
       next.HorizontalOffset = x / scale; next.VerticalOffset = y / scale;
-      // With Work Fleet in front, as the shell allows for the icon's owner, the opening menu takes the keyboard and closes
+      // With Pin It Anywhere in front, as the shell allows for the icon's owner, the opening menu takes the keyboard and closes
       // on a click anywhere else. Bringing the menu's own window forward after it opens moves WPF's focus and closes it.
       _ = SetForegroundWindow(receiver.Handle);
       menu = next; next.IsOpen = true;
@@ -137,12 +137,12 @@ public sealed class NativeTray : IDisposable
   }
   /// <summary>
   /// The first menu loads WPF's Fluent theme and templates, about a second; laying out one that never opens while Work
-  /// Fleet is idle keeps the first right-click quick.
+  /// PinItAnywhere is idle keeps the first right-click quick.
   /// </summary>
   private void Prepare()
   {
     if (disposed || opened > 0) return;
-    // A menu that cannot be prepared now is built when it opens; an idle failure must not end Work Fleet.
+    // A menu that cannot be prepared now is built when it opens; an idle failure must not end Pin It Anywhere.
     try { Build(0).Measure(new Size(double.PositiveInfinity, double.PositiveInfinity)); } catch (Exception) { }
   }
   private void Closed(int generation)
@@ -152,7 +152,7 @@ public sealed class NativeTray : IDisposable
     receiver.Dispatcher.BeginInvoke(new Action(() =>
     {
       if (disposed || generation != opened) return;
-      // The intent the action captures names the notification window. A click on the menu lets Work Fleet come to the
+      // The intent the action captures names the notification window. A click on the menu lets Pin It Anywhere come to the
       // front even when Windows refused it as the menu opened.
       if (chosen is { } action) { _ = SetForegroundWindow(receiver.Handle); Schedule(action); }
       // Esc, or any close that leaves the hidden notification window in front, returns the keyboard to the notification

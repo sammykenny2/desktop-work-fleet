@@ -10,7 +10,7 @@
             android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/export_paths" />
         </provider>
-        <activity android:name=".FleetActivity" android:exported="true" android:launchMode="singleTask"
+        <activity android:name=".PinItAnywhereActivity" android:exported="true" android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

@@ -7,8 +7,8 @@ from functools import wraps
 import datafailure
 import protocol as p
 
-FORMAT = "work-fleet-local-records"
-TRANSACTION = "work-fleet-record-transaction"
+FORMAT = "pin-it-anywhere-local-records"
+TRANSACTION = "pin-it-anywhere-record-transaction"
 COLLECTIONS = frozenset(("meta", "current", "history", "draft", "outbox", "control", "job"))
 MAX_ROWS = 512
 MAX_BYTES = 8 * 1024 * 1024

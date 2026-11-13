@@ -8,6 +8,6 @@ if [[ $# -ne 2 ]]; then usage >&2; exit 2; fi
 case "$1" in ios|macos|share) ;; *) usage >&2; exit 2 ;; esac
 project_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-node_command="${WORK_FLEET_NODE:-node}"
-command -v "$node_command" >/dev/null || { printf 'Node 22+ is required; install Node or configure WORK_FLEET_NODE in config/Local.xcconfig.\n' >&2; exit 1; }
+node_command="${PIN_IT_ANYWHERE_NODE:-node}"
+command -v "$node_command" >/dev/null || { printf 'Node 22+ is required; install Node or configure PIN_IT_ANYWHERE_NODE in config/Local.xcconfig.\n' >&2; exit 1; }
 "$node_command" "$project_root/scripts/prepare-apple-build.mjs" --platform "$1" --output "$2"

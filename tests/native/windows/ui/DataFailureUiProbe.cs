@@ -4,8 +4,8 @@ using System.Text.Json;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Threading;
-using WorkFleet.Windows;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows;
+using PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// SPEC-006 DO in the real window: a database that is not SQLite stops the start, before any main window exists, with the
@@ -16,7 +16,7 @@ using WorkFleet.Windows.Core;
 internal static class DataFailureUiProbe
 {
   private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
-  private static async Task<bool> Check(FleetWindow window, string script) => await window.WebView.CoreWebView2.ExecuteScriptAsync(script) == "true";
+  private static async Task<bool> Check(PinItAnywhereWindow window, string script) => await window.WebView.CoreWebView2.ExecuteScriptAsync(script) == "true";
   private static string[] SetAside(string directory) => Directory.EnumerateDirectories(directory, DataFailure.SetAsidePrefix + "*").ToArray();
   private static string Themed(DataFailureWindow window, string output)
   {
@@ -35,9 +35,9 @@ internal static class DataFailureUiProbe
     var start = Path.Combine(directory, "start"); Program.English(start);
     // As Program.Main does before any window: the explanation speaks the stored display language.
     HostText.Apply(HostPreferences.Read(start).Language);
-    File.WriteAllText(Path.Combine(start, "fleet.sqlite3"), "these bytes are not a SQLite database");
+    File.WriteAllText(Path.Combine(start, "pinitanywhere.sqlite3"), "these bytes are not a SQLite database");
     string? cause = null, asked = null, missing = null;
-    var reopened = WorkFleet.Windows.Program.OpenWindow(start, () => Program.Open(start), found =>
+    var reopened = PinItAnywhere.Windows.Program.OpenWindow(start, () => Program.Open(start), found =>
     {
       cause = found;
       var explanation = new DataFailureWindow(start, found, text => { asked = text; return true; });
@@ -47,8 +47,8 @@ internal static class DataFailureUiProbe
     Require(missing == "", $"The start-up explanation lacks {missing}.");
     Require(asked == HostText.Get("dataFailure.confirm") && reopened is not null, "The start-up explanation did not set the data aside after asking.");
     // A main window built over damaged data would stay registered with WPF and keep the app from ever shutting down.
-    Require(System.Windows.Application.Current.Windows.OfType<FleetWindow>().SequenceEqual([reopened!]), "A failed main window stayed registered.");
-    Require(SetAside(start) is [var folder] && File.Exists(Path.Combine(folder, "fleet.sqlite3")), "The damaged database is not in one set-aside folder.");
+    Require(System.Windows.Application.Current.Windows.OfType<PinItAnywhereWindow>().SequenceEqual([reopened!]), "A failed main window stayed registered.");
+    Require(SetAside(start) is [var folder] && File.Exists(Path.Combine(folder, "pinitanywhere.sqlite3")), "The damaged database is not in one set-aside folder.");
     await Program.Wait(reopened!, "document.body?.dataset.ready === 'true'", "empty data opens after the start-up set-aside");
     await Program.Close(reopened!);
     Console.WriteLine("PASS a damaged database explains itself at start in the Fluent theme and opens empty once set aside");
@@ -57,7 +57,7 @@ internal static class DataFailureUiProbe
     var first = Program.Open(page);
     await Program.Wait(first, "document.body?.dataset.ready === 'true'", "first open writes the workspace record");
     await Program.Close(first);
-    using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(page, "fleet.sqlite3"), Pooling = false }.ToString()))
+    using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(page, "pinitanywhere.sqlite3"), Pooling = false }.ToString()))
     {
       connection.Open(); using var command = connection.CreateCommand();
       command.CommandText = "UPDATE records SET data = randomblob(64) WHERE kind = 'workspace';";
@@ -76,7 +76,7 @@ internal static class DataFailureUiProbe
     Require(SetAside(page).Length == 0, "The data moved before the confirmation.");
     await second.WebView.CoreWebView2.ExecuteScriptAsync(last);
     await Program.Wait(second, "document.body?.dataset.ready === 'true'", "the host reopens the page on empty data");
-    Require(SetAside(page) is [var moved] && File.Exists(Path.Combine(moved, "fleet.sqlite3")), "The undecryptable database is not in one set-aside folder.");
+    Require(SetAside(page) is [var moved] && File.Exists(Path.Combine(moved, "pinitanywhere.sqlite3")), "The undecryptable database is not in one set-aside folder.");
     await Program.Close(second);
     Console.WriteLine("PASS notes the page cannot decrypt show their folder and open empty once set aside");
   }

@@ -12,16 +12,16 @@ import unittest
 class MacOSGoogleDriveTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.temporary = tempfile.TemporaryDirectory(prefix="work-fleet-drive-")
+        cls.temporary = tempfile.TemporaryDirectory(prefix="pin-it-anywhere-drive-")
         cls.addClassCleanup(cls.temporary.cleanup)
         folder = Path(cls.temporary.name)
         root = Path(__file__).resolve().parents[1]
         cls.executable = folder / "GoogleDriveProbe"
         result = subprocess.run([
             "swiftc", "-swift-version", "5", "-module-cache-path", str(folder / "module-cache"),
-            str(root / "src/native/apple/Shared/FleetProtocol.swift"),
-            str(root / "src/native/apple/Shared/FleetDataset.swift"),
-            str(root / "src/native/apple/Shared/FleetDrive.swift"),
+            str(root / "src/native/apple/Shared/PinItAnywhereProtocol.swift"),
+            str(root / "src/native/apple/Shared/PinItAnywhereDataset.swift"),
+            str(root / "src/native/apple/Shared/PinItAnywhereDrive.swift"),
             str(root / "tests/native/apple/GoogleDriveProbe.swift"),
             "-o", str(cls.executable),
         ], text=True, capture_output=True, timeout=240)

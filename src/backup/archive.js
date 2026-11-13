@@ -1,5 +1,5 @@
 import { Zip, ZipDeflate, ZipPassThrough } from 'fflate';
-import { FleetError, requireValue } from '../core/contracts.js';
+import { PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { t } from '../i18n/index.js';
 
 const MiB = 1024 * 1024;
@@ -23,7 +23,7 @@ export function entryLimit(name) {
   if (/^attachments\/[0-9a-f]{64}\.bin$/.test(name)) return BACKUP_LIMITS.attachmentBytes;
   if (name === 'encryption.json') return 4096;
   if (name === 'payload.bin') return BACKUP_LIMITS.zipBytes + 16;
-  throw new FleetError('invalid-backup-path', t('errors.backup.pathNotAllowed'));
+  throw new PinItAnywhereError('invalid-backup-path', t('errors.backup.pathNotAllowed'));
 }
 
 const crcTable = Uint32Array.from({ length: 256 }, (_, value) => {
@@ -138,7 +138,7 @@ export async function unpackZip(input, { signal, progress = () => {} } = {}) {
     else {
       let decompressor;
       try { decompressor = new DecompressionStream('deflate-raw'); }
-      catch { throw new FleetError('backup-runtime', t('errors.backup.deflateUnsupported')); }
+      catch { throw new PinItAnywhereError('backup-runtime', t('errors.backup.deflateUnsupported')); }
       let position = 0;
       const stream = new ReadableStream({ pull(controller) {
         checkCancelled(signal);
@@ -155,8 +155,8 @@ export async function unpackZip(input, { signal, progress = () => {} } = {}) {
         }
       } catch (error) {
         await reader.cancel().catch(() => {});
-        if (error instanceof FleetError) throw error;
-        throw new FleetError('invalid-backup-zip', t('errors.backup.compressedDataCorrupt'));
+        if (error instanceof PinItAnywhereError) throw error;
+        throw new PinItAnywhereError('invalid-backup-zip', t('errors.backup.compressedDataCorrupt'));
       } finally { reader.releaseLock(); }
     }
     invalid(written === entry.size && ((crc ^ 0xffffffff) >>> 0) === entry.crc);

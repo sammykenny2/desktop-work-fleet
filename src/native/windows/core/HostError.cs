@@ -1,4 +1,4 @@
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 public sealed class HostError(string code, string message) : Exception(message)
 {

@@ -114,7 +114,7 @@ this project.
 ## 2026-10-10 uninstall and Google overwrite policy
 
 The user confirmed that uninstalling the MSIX should clear all local data. Export a backup first, then sign in to
-Google, and you can explicitly choose to clear all Work Fleet data in Google first and then restore the backup.
+Google, and you can explicitly choose to clear all Pin It Anywhere data in Google first and then restore the backup.
 Updates keep the data; exported ZIPs and the Google cloud are not deleted by uninstalling. The old standalone folders of
 ZIP and Debug builds are not moved or deleted automatically.
 The new full overwrite does not change the history-preserving semantics of the existing import / merge / replace; it

@@ -76,9 +76,9 @@ class LinuxShortcutTests(unittest.TestCase):
         keybinder.handlers["<Control><Shift>d"]("<Control><Shift>d", None)
         self.assertEqual(actions, [("@toggle", 42)])
         shortcuts.suspend(True)
-        self.assertEqual(keybinder.handlers, {}, "a focused Work Fleet window releases the global chords")
+        self.assertEqual(keybinder.handlers, {}, "a focused Pin It Anywhere window releases the global chords")
 
-    def test_labwc_keys_are_available_once_written_even_while_work_fleet_has_the_focus(self):
+    def test_labwc_keys_are_available_once_written_even_while_pin_it_anywhere_has_the_focus(self):
         class Labwc:
             def __init__(self):
                 self.written = []

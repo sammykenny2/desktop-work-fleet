@@ -24,7 +24,7 @@ class LinuxArchiveTests(unittest.TestCase):
             version = checkout / "src/native/linux/VERSION"
             version.parent.mkdir(parents=True)
             version.write_text("9.8.7\n", encoding="utf-8")
-            bundle = checkout / "build/linux/work-fleet-9.8.7"
+            bundle = checkout / "build/linux/pin-it-anywhere-9.8.7"
             (bundle / "Native").mkdir(parents=True)
             (bundle / "Native/host.py").write_text("# Packaging fixture\n", encoding="utf-8")
             result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=10)
@@ -45,17 +45,17 @@ class LinuxArchiveTests(unittest.TestCase):
 )
 class LinuxPackageTests(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="work-fleet-package-test-")
+        temporary = tempfile.TemporaryDirectory(prefix="pin-it-anywhere-package-test-")
         self.addCleanup(temporary.cleanup)
         self.bundle = Path(temporary.name) / "source bundle"
         self.output = Path(temporary.name) / "output packages"
-        self.app_id = "app.workfleet.test"
+        self.app_id = "dev.sammykenny2.pinitanywhere.test"
         fixtures = {
             "Native/host.py": "print('Packaging fixture')\n",
-            "package.json": '{\n  "appId": "app.workfleet.test",\n  "version": "2.3.4",\n  "binariesBuilt": false\n}\n',
-            "run-work-fleet.sh": "#!/bin/bash\nexit 0\n",
+            "package.json": '{\n  "appId": "dev.sammykenny2.pinitanywhere.test",\n  "version": "2.3.4",\n  "binariesBuilt": false\n}\n',
+            "run-pin-it-anywhere.sh": "#!/bin/bash\nexit 0\n",
             f"Desktop/{self.app_id}.desktop": (
-                "[Desktop Entry]\nType=Application\nName=Pin It Anywhere\nExec=work-fleet\n"
+                "[Desktop Entry]\nType=Application\nName=Pin It Anywhere\nExec=pin-it-anywhere\n"
             ),
             f"Icons/{self.app_id}.png": "Packaging fixture\n",
             f"Icons/hicolor/256x256/apps/{self.app_id}.png": "Packaging fixture\n",
@@ -109,7 +109,7 @@ class LinuxPackageTests(unittest.TestCase):
                 self.assertEqual([p.name for p in packages], ["pin-it-anywhere_2.3.4_all.deb"])
                 self.assertEqual(self.field(packages[0], "Version"), "2.3.4")
                 self.assert_checksum(packages[0])
-                self.assertEqual(self.field(packages[0], "Package"), "work-fleet")
+                self.assertEqual(self.field(packages[0], "Package"), "pin-it-anywhere")
                 self.assertEqual(self.field(packages[0], "Architecture"), "all")
                 self.assertNotIn("gir1.2-secret-1", self.field(packages[0], "Depends"))
                 self.assertIn("gir1.2-secret-1", self.field(packages[0], "Recommends"))
@@ -118,7 +118,7 @@ class LinuxPackageTests(unittest.TestCase):
                 for icon in (f"256x256/apps/{self.app_id}.png", f"symbolic/apps/{self.app_id}-symbolic.svg"):
                     self.assertIn(f"./usr/share/icons/hicolor/{icon}", contents)
                 # ADR-044: the release's update manifest names exactly this DEB.
-                manifest = json.loads((self.output / "work-fleet-update-linux.json").read_text(encoding="utf-8"))
+                manifest = json.loads((self.output / "pin-it-anywhere-update-linux.json").read_text(encoding="utf-8"))
                 self.assertEqual(manifest, {"schemaVersion": 1, "platform": "linux", "version": "2.3.4", "tag": "v2.3.4", "summary": "",
                                             "assets": [{"arch": "all", "name": "pin-it-anywhere_2.3.4_all.deb", "size": packages[0].stat().st_size,
                                                         "sha256": hashlib.sha256(packages[0].read_bytes()).hexdigest()}]})
@@ -130,7 +130,7 @@ class LinuxPackageTests(unittest.TestCase):
                 self.assertEqual(marker.read_text(encoding="utf-8"), "existing output\n")
 
     def test_bundle_without_version_is_rejected(self):
-        (self.bundle / "package.json").write_text('{"appId": "app.workfleet.test"}\n', encoding="utf-8")
+        (self.bundle / "package.json").write_text('{"appId": "dev.sammykenny2.pinitanywhere.test"}\n', encoding="utf-8")
         result = self.package()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Bundle package.json has no x.y.z version.", result.stderr)
@@ -182,11 +182,11 @@ class LinuxPackageTests(unittest.TestCase):
         build.mkdir()
         marker = build / "keep.txt"
         marker.write_text("existing output\n", encoding="utf-8")
-        stale = build / "linux/work-fleet-9.8.7/Native/removed.py"
+        stale = build / "linux/pin-it-anywhere-9.8.7/Native/removed.py"
         stale.parent.mkdir(parents=True)
         stale.write_text("print('removed source')\n", encoding="utf-8")
         environment = {key: value for key, value in os.environ.items()
-                       if not key.startswith("WORK_FLEET_")}
+                       if not key.startswith("PIN_IT_ANYWHERE_")}
         environment["npm_config_cache"] = str(checkout / "npm-cache")
         result = subprocess.run(
             ["bash", str(checkout / "scripts/linux/build-native-app.sh"), "--deb"],
@@ -209,7 +209,7 @@ class LinuxPackageTests(unittest.TestCase):
         self.assertEqual(marker.read_text(encoding="utf-8"), "existing output\n")
         self.assertFalse(stale.exists())
         # The launcher prefers the distribution's interpreter over a PATH python3 such as a pyenv shim.
-        launcher = build / "linux/work-fleet-9.8.7/run-work-fleet.sh"
+        launcher = build / "linux/pin-it-anywhere-9.8.7/run-pin-it-anywhere.sh"
         self.assertIn("PYTHON=/usr/bin/python3", launcher.read_text(encoding="utf-8"))
         # The host's string table ships beside host.py, which imports it.
         self.assertTrue((launcher.parent / "Native/text.py").is_file())
@@ -225,19 +225,19 @@ class LinuxPackageTests(unittest.TestCase):
         fake = checkout / "fake-python"
         fake.write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > "{record}"\n', encoding="utf-8")
         fake.chmod(0o755)
-        run = subprocess.run(["bash", str(launcher), "--data", "/tmp/fleet"], env={**environment, "WORK_FLEET_PYTHON": str(fake)},
+        run = subprocess.run(["bash", str(launcher), "--data", "/tmp/pinitanywhere"], env={**environment, "PIN_IT_ANYWHERE_PYTHON": str(fake)},
                              capture_output=True, text=True, timeout=10)
         self.assertEqual(run.returncode, 0, run.stderr)
         arguments = record.read_text(encoding="utf-8").splitlines()
         self.assertEqual(arguments[0], str(launcher.parent / "Native/host.py"))
-        self.assertEqual(arguments[-2:], ["--data", "/tmp/fleet"])
+        self.assertEqual(arguments[-2:], ["--data", "/tmp/pinitanywhere"])
         # Release files sit directly in build/, at the same depth as every other platform's.
         self.assertEqual(
             sorted(p.name for p in build.iterdir() if p.is_file()),
             ["keep.txt", "pin-it-anywhere-9.8.7.tar.gz", "pin-it-anywhere-9.8.7.tar.gz.sha256",
-             "pin-it-anywhere_9.8.7_all.deb", "pin-it-anywhere_9.8.7_all.deb.sha256", "work-fleet-update-linux.json"],
+             "pin-it-anywhere_9.8.7_all.deb", "pin-it-anywhere_9.8.7_all.deb.sha256", "pin-it-anywhere-update-linux.json"],
         )
-        self.assertEqual([p.name for p in (build / "linux").iterdir()], ["work-fleet-9.8.7"])
+        self.assertEqual([p.name for p in (build / "linux").iterdir()], ["pin-it-anywhere-9.8.7"])
 
 
 if __name__ == "__main__":

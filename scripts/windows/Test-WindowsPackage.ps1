@@ -65,33 +65,33 @@ try {
     $ExpectedVersion = & node (Join-Path $ProjectRoot 'scripts/platform-version.mjs') --platform windows
     if ($LASTEXITCODE -ne 0 -or $Manifest.Package.Identity.Version -cne "$ExpectedVersion.0") { throw 'Package version differs from the Windows version record.' }
     # ADR-044: when the package has its update manifest beside it, the manifest must name exactly this file.
-    $UpdateManifest = Join-Path (Split-Path -Parent $Package) 'work-fleet-update-windows.json'
+    $UpdateManifest = Join-Path (Split-Path -Parent $Package) 'pin-it-anywhere-update-windows.json'
     if (Test-Path -LiteralPath $UpdateManifest) {
         $Update = Get-Content -LiteralPath $UpdateManifest -Raw | ConvertFrom-Json
         $Asset = @($Update.assets)
         if ($Update.schemaVersion -ne 1 -or $Update.platform -cne 'windows' -or $Update.version -cne $ExpectedVersion -or $Update.tag -cne "v$ExpectedVersion" -or
             $Asset.Count -ne 1 -or $Asset[0].arch -cne 'x64' -or $Asset[0].name -cne (Split-Path -Leaf $Package) -or $Asset[0].size -ne (Get-Item -LiteralPath $Package).Length -or
             $Asset[0].sha256 -cne (Get-FileHash -Algorithm SHA256 -LiteralPath $Package).Hash.ToLowerInvariant()) {
-            throw 'work-fleet-update-windows.json does not describe this package.'
+            throw 'pin-it-anywhere-update-windows.json does not describe this package.'
         }
         Write-Output 'PASS update manifest matches the package version, size and SHA-256'
     }
     # ADR-043: one sign-in StartupTask, disabled in the manifest and enabled by the app from its own preference.
     $Startup = @($Manifest.GetElementsByTagName('StartupTask', 'http://schemas.microsoft.com/appx/manifest/uap/windows10/5'))
-    if ($Startup.Count -ne 1 -or $Startup[0].TaskId -cne 'WorkFleetStartup' -or $Startup[0].Enabled -cne 'false' -or
-        $Startup[0].ParentNode.Category -cne 'windows.startupTask' -or $Startup[0].ParentNode.Executable -cne 'WorkFleet.exe') {
-        throw 'Expected one disabled WorkFleetStartup sign-in task for WorkFleet.exe.'
+    if ($Startup.Count -ne 1 -or $Startup[0].TaskId -cne 'PinItAnywhereStartup' -or $Startup[0].Enabled -cne 'false' -or
+        $Startup[0].ParentNode.Category -cne 'windows.startupTask' -or $Startup[0].ParentNode.Executable -cne 'PinItAnywhere.exe') {
+        throw 'Expected one disabled PinItAnywhereStartup sign-in task for PinItAnywhere.exe.'
     }
     foreach ($Entry in $Archive.Entries) {
         if ($Entry.Name -like '.env*' -or [IO.Path]::GetExtension($Entry.Name) -in @('.pfx', '.p12', '.pem', '.key', '.jks')) { throw 'Environment or private-key file in package.' }
     }
-    foreach ($RequiredFile in @('WorkFleet.runtimeconfig.json', 'WorkFleet.deps.json', 'hostfxr.dll', 'hostpolicy.dll',
+    foreach ($RequiredFile in @('PinItAnywhere.runtimeconfig.json', 'PinItAnywhere.deps.json', 'hostfxr.dll', 'hostpolicy.dll',
         'coreclr.dll', 'System.Private.CoreLib.dll', 'PresentationFramework.dll', 'PresentationCore.dll',
         'WindowsBase.dll', 'wpfgfx_cor3.dll', 'PresentationNative_cor3.dll')) {
         $BundledFile = $Archive.GetEntry($RequiredFile)
         if (-not $BundledFile -or $BundledFile.Length -eq 0) { throw "Missing bundled .NET/WPF file: $RequiredFile" }
     }
-    $Reader = [System.IO.StreamReader]::new($Archive.GetEntry('WorkFleet.runtimeconfig.json').Open())
+    $Reader = [System.IO.StreamReader]::new($Archive.GetEntry('PinItAnywhere.runtimeconfig.json').Open())
     try { $RuntimeOptions = ($Reader.ReadToEnd() | ConvertFrom-Json).runtimeOptions } finally { $Reader.Dispose() }
     if ($RuntimeOptions.tfm -cne 'net10.0' -or $RuntimeOptions.framework -or $RuntimeOptions.frameworks) {
         throw 'Expected self-contained .NET 10 runtime metadata without shared framework requirements.'
@@ -104,7 +104,7 @@ try {
             throw 'Expected bundled .NET 10 Core and Windows Desktop frameworks.'
         }
     }
-    $Reader = [System.IO.StreamReader]::new($Archive.GetEntry('WorkFleet.deps.json').Open())
+    $Reader = [System.IO.StreamReader]::new($Archive.GetEntry('PinItAnywhere.deps.json').Open())
     try { $RuntimeTarget = ($Reader.ReadToEnd() | ConvertFrom-Json).runtimeTarget.name } finally { $Reader.Dispose() }
     if ($RuntimeTarget -cne '.NETCoreApp,Version=v10.0/win-x64') { throw 'Expected self-contained win-x64 dependency target.' }
     foreach ($RuntimeNotice in @('Licenses/dotnet/LICENSE.TXT', 'Licenses/dotnet/THIRD-PARTY-NOTICES.TXT',

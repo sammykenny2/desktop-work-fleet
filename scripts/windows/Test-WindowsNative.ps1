@@ -24,25 +24,25 @@ param([switch]$SkipRestore)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Push-Location $ProjectRoot
-$PreviousNativeTest = $env:WORK_FLEET_NATIVE_TEST
-$PreviousDebugPort = $env:WORK_FLEET_WEBVIEW_DEBUG_PORT
+$PreviousNativeTest = $env:PIN_IT_ANYWHERE_NATIVE_TEST
+$PreviousDebugPort = $env:PIN_IT_ANYWHERE_WEBVIEW_DEBUG_PORT
 try {
     # Probes own the WebView debugging port; a shell value would open CDP in every probe.
-    Remove-Item Env:WORK_FLEET_WEBVIEW_DEBUG_PORT -ErrorAction SilentlyContinue
+    Remove-Item Env:PIN_IT_ANYWHERE_WEBVIEW_DEBUG_PORT -ErrorAction SilentlyContinue
     & "$PSScriptRoot/Build-WindowsApp.ps1" -Configuration Debug -IncludeTests -SkipRestore:$SkipRestore
     # Keep the Release package scan meaningful: the same UTF-16 search must find the Debug path.
-    $DebugAssembly = [IO.File]::ReadAllBytes((Join-Path $ProjectRoot 'src/native/windows/app/bin/Debug/net10.0-windows10.0.19041.0/WorkFleet.dll'))
+    $DebugAssembly = [IO.File]::ReadAllBytes((Join-Path $ProjectRoot 'src/native/windows/app/bin/Debug/net10.0-windows10.0.19041.0/PinItAnywhere.dll'))
     if (-not ([Text.Encoding]::Unicode.GetString($DebugAssembly).Contains('remote-debugging') -or
         [Text.Encoding]::Unicode.GetString($DebugAssembly, 1, $DebugAssembly.Length - 1).Contains('remote-debugging'))) {
-        throw 'Debug WorkFleet.dll lacks the WebView debugging string; the Release package scan would check nothing.'
+        throw 'Debug PinItAnywhere.dll lacks the WebView debugging string; the Release package scan would check nothing.'
     }
     $ProbeRoot = Join-Path $ProjectRoot ('build/native-checks-' + [guid]::NewGuid().ToString())
-    $UiProbe = Join-Path $ProjectRoot 'tests/native/windows/ui/bin/Debug/net10.0-windows10.0.19041.0/WorkFleet.Windows.Ui.Tests.exe'
+    $UiProbe = Join-Path $ProjectRoot 'tests/native/windows/ui/bin/Debug/net10.0-windows10.0.19041.0/PinItAnywhere.Windows.Ui.Tests.exe'
     & $UiProbe --shell-topology
     if ($LASTEXITCODE -ne 0) { throw 'Windows Explorer topology regression failed.' }
-    & dotnet tests/native/windows/core/bin/Debug/net10.0-windows/WorkFleet.Windows.Core.Tests.dll (Join-Path $ProbeRoot 'core')
+    & dotnet tests/native/windows/core/bin/Debug/net10.0-windows/PinItAnywhere.Windows.Core.Tests.dll (Join-Path $ProbeRoot 'core')
     if ($LASTEXITCODE -ne 0) { throw 'Windows native core probe failed.' }
-    $env:WORK_FLEET_NATIVE_TEST = '1'
+    $env:PIN_IT_ANYWHERE_NATIVE_TEST = '1'
     & node --test tests/native-storage.test.js
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript/native bridge tests failed.' }
     & $UiProbe (Join-Path $ProbeRoot 'ui')
@@ -81,7 +81,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows data that cannot be opened regression failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"
 } finally {
-    $env:WORK_FLEET_NATIVE_TEST = $PreviousNativeTest
-    $env:WORK_FLEET_WEBVIEW_DEBUG_PORT = $PreviousDebugPort
+    $env:PIN_IT_ANYWHERE_NATIVE_TEST = $PreviousNativeTest
+    $env:PIN_IT_ANYWHERE_WEBVIEW_DEBUG_PORT = $PreviousDebugPort
     Pop-Location
 }

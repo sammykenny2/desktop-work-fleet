@@ -77,7 +77,7 @@ test('native deletion uses the bounded transfer and discards it after validating
 
 test('both reset discovery adapters accept incompatible descriptor metadata while ordinary sync rejects it', async () => {
   const corrupt = { id: 'old-dataset', mimeType: 'application/octet-stream', appProperties: {
-    wfFormat: 'work-fleet-dataset', wfKind: 'dataset', wfSchema: 'unknown' } };
+    piaFormat: 'pin-it-anywhere-dataset', piaKind: 'dataset', piaSchema: 'unknown' } };
   for (const native of [false, true]) {
     const store = native ? new NativeGoogleDatasetStore({ request: async (method, args) => {
       assert.equal(method, 'google.dataset.list'); return { files: args.query.scope === 'fences' ? [] : [corrupt] };

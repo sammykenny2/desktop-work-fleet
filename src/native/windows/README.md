@@ -32,10 +32,10 @@ Explorer's desktop window keeps its DPI, and the attached scenes inside it take 
 
 ## Structure
 
-- `WorkFleet.sln`: the Windows solution, the counterpart of Apple's `WorkFleet.xcodeproj` and Android's Gradle root.
-- `app/`: `WorkFleet.Windows.csproj`, the WPF main program, desktop scenes, shortcuts, tray and Google sign-in.
-- `core/`: `WorkFleet.Windows.Core.csproj`, SQLite/DPAPI, the bridge, backup files and scene transport.
-- `app/WorkFleet.ico` and `package-assets/`: the app icon embedded in the executable (also used by its windows and the
+- `PinItAnywhere.sln`: the Windows solution, the counterpart of Apple's `PinItAnywhere.xcodeproj` and Android's Gradle root.
+- `app/`: `PinItAnywhere.Windows.csproj`, the WPF main program, desktop scenes, shortcuts, tray and Google sign-in.
+- `core/`: `PinItAnywhere.Windows.Core.csproj`, SQLite/DPAPI, the bridge, backup files and scene transport.
+- `app/PinItAnywhere.ico` and `package-assets/`: the app icon embedded in the executable (also used by its windows and the
   tray) and the MSIX tile images, written by `scripts/render-brand-assets.mjs --install`. The package has no
   `resources.pri`, so the manifest names unqualified scale-100 images and Windows scales them for other DPIs and the
   taskbar.
@@ -45,14 +45,14 @@ Explorer's desktop window keeps its DPI, and the attached scenes inside it take 
 
 - VS Code: open the repository root and install the recommended C# Dev Kit; `.vscode/settings.json` selects this
   solution.
-  F5 with "Windows: Work Fleet (Debug)" first runs `Build-WindowsApp.ps1 -Configuration Debug`, then starts
-  `WorkFleet.exe`.
+  F5 with "Windows: Pin It Anywhere (Debug)" first runs `Build-WindowsApp.ps1 -Configuration Debug`, then starts
+  `PinItAnywhere.exe`.
   "Debug + CDP 9339" also opens a loopback CDP port, see [ADR-032](../../../docs/decisions/032-windows-debug-webview-inspection.md).
-- Visual Studio 2022: open `WorkFleet.sln`. Before building directly, run `npm run build` in the root, otherwise the
+- Visual Studio 2022: open `PinItAnywhere.sln`. Before building directly, run `npm run build` in the root, otherwise the
   packaged assets are missing.
 
-The ZIP and the unpackaged Debug build use `%LOCALAPPDATA%\WorkFleet`; the MSIX uses the package's private
-`%LOCALAPPDATA%\Packages\<PackageFamilyName>\LocalCache\Local\WorkFleet`.
+The ZIP and the unpackaged Debug build use `%LOCALAPPDATA%\PinItAnywhere`; the MSIX uses the package's private
+`%LOCALAPPDATA%\Packages\<PackageFamilyName>\LocalCache\Local\PinItAnywhere`.
 Each data folder allows only one instance. MSIX updates keep the data; uninstalling removes the local and Google
 workspaces, settings, drafts, attachments, credentials and caches,
 so export a ZIP from Data and backup first. Exported files and Google cloud data are not affected.

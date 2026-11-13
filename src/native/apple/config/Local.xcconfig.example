@@ -1,8 +1,8 @@
 // Copy to Local.xcconfig for personal signing and app identity.
 // Register these public identifiers in your Apple team before signing.
-WORK_FLEET_APP_ID = dev.sammykenny2.pinitanywhere
-WORK_FLEET_APP_GROUP_ID = group.dev.sammykenny2.pinitanywhere
+PIN_IT_ANYWHERE_APP_ID = dev.sammykenny2.pinitanywhere
+PIN_IT_ANYWHERE_APP_GROUP_ID = group.dev.sammykenny2.pinitanywhere
 DEVELOPMENT_TEAM = ABCDE12345
 // Optional when Node/npm are not on Xcode's PATH:
-// WORK_FLEET_NODE = /opt/homebrew/bin/node
-// WORK_FLEET_NPM = /opt/homebrew/bin/npm
+// PIN_IT_ANYWHERE_NODE = /opt/homebrew/bin/node
+// PIN_IT_ANYWHERE_NPM = /opt/homebrew/bin/npm

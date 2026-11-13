@@ -29,7 +29,7 @@ try {
     const { AutomaticBackup } = await import('/backup/automatic.js');
     const { automaticBackupSection } = await import('/app/automatic-backup.js');
     const { sha256 } = await import('/sources/files.js');
-    const { FleetError } = await import('/core/contracts.js');
+    const { PinItAnywhereError } = await import('/core/contracts.js');
     const storage = await IndexedDbStorage.open(); const journal = await IndexedDbBackupJournal.open(); const profileId = crypto.randomUUID();
     const workspace = await Workspace.create({ profileId, deviceId: crypto.randomUUID(), area: { x: 0, y: 0, width: 1200, height: 800 },
       persist: (value, revision) => storage.save(value, revision) });
@@ -41,7 +41,7 @@ try {
       chooseDestination: async () => ({ destinationId: 'synthetic-files', destinationName: 'Synthetic test files' }), authorize: async () => {},
       read: async job => fixture.entries.get(key(job))?.slice() ?? null,
       create: async job => {
-        if (!fixture.permitted) throw new FleetError('backup-permission', 'Synthetic permission revoked');
+        if (!fixture.permitted) throw new PinItAnywhereError('backup-permission', 'Synthetic permission revoked');
         if (fixture.entries.has(key(job))) throw new Error('synthetic create-only collision');
         // One synchronous map insertion is the test host's atomic primitive. No OS file semantics are claimed.
         fixture.entries.set(key(job), job.bytes.slice()); fixture.count++;

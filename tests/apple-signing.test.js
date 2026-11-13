@@ -9,7 +9,7 @@ import path from 'node:path';
 import { appleExportOptions } from '../scripts/generate-apple-export-options.mjs';
 
 const execute = promisify(execFile);
-const config = { appId: 'app.workfleet.preview', appleTeamId: 'ABCDE12345' };
+const config = { appId: 'dev.sammykenny2.pinitanywhere', appleTeamId: 'ABCDE12345' };
 const manual = { platform: 'macos', method: 'developer-id', config,
   applicationIdentity: 'Developer ID Application: Example & Co (ABCDE12345)',
   provisioningProfile: '12345678-1234-1234-1234-123456789abc' };
@@ -18,7 +18,7 @@ test('manual Developer ID export selects the imported certificate and app profil
   const plist = appleExportOptions(manual);
   assert.match(plist, /<key>signingStyle<\/key><string>manual<\/string>/);
   assert.match(plist, /<key>signingCertificate<\/key><string>Developer ID Application: Example &amp; Co \(ABCDE12345\)<\/string>/);
-  assert.match(plist, /<key>provisioningProfiles<\/key><dict><key>app.workfleet.preview<\/key><string>12345678-1234-1234-1234-123456789abc<\/string><\/dict>/);
+  assert.match(plist, /<key>provisioningProfiles<\/key><dict><key>dev.sammykenny2.pinitanywhere<\/key><string>12345678-1234-1234-1234-123456789abc<\/string><\/dict>/);
   assert.match(plist, /<key>manageAppVersionAndBuildNumber<\/key><false\/>/);
 });
 
@@ -56,7 +56,7 @@ test('manual archive signing rejects incomplete or non-macOS Release requests be
 });
 
 test('notarized DMG and update ZIP need no Installer identity and publish only after all checks pass', { skip: process.platform !== 'darwin' }, async () => {
-  const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'work-fleet-signing-')));
+  const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'pin-it-anywhere-signing-')));
   try {
     for (const file of ['scripts/macos/package-native-app.sh', 'scripts/macos/write-update-feed.mjs',
       'scripts/testing/check_macos_runtime.py',
@@ -65,15 +65,15 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
       await mkdir(path.dirname(target), { recursive: true });
       await cp(new URL('../' + file, import.meta.url), target);
     }
-    await writeFile(path.join(directory, '.env'), 'WORK_FLEET_APP_ID=app.workfleet.preview\nWORK_FLEET_APPLE_TEAM_ID=ABCDE12345\n');
-    const archive = path.join(directory, 'build/apple/WorkFleetMac.xcarchive');
-    const app = path.join(archive, 'Products/Applications/WorkFleetMac.app');
+    await writeFile(path.join(directory, '.env'), 'PIN_IT_ANYWHERE_APP_ID=dev.sammykenny2.pinitanywhere\nPIN_IT_ANYWHERE_APPLE_TEAM_ID=ABCDE12345\n');
+    const archive = path.join(directory, 'build/apple/PinItAnywhereMac.xcarchive');
+    const app = path.join(archive, 'Products/Applications/PinItAnywhereMac.app');
     await mkdir(path.join(app, 'Contents/MacOS'), { recursive: true });
     await mkdir(path.join(app, 'Contents/Resources/Config'), { recursive: true });
     await writeFile(path.join(archive, 'Info.plist'), '<?xml version="1.0"?><plist version="1.0"><dict><key>ApplicationProperties</key><dict><key>CFBundleShortVersionString</key><string>0.2.0</string><key>CFBundleVersion</key><string>200</string></dict></dict></plist>');
-    await writeFile(path.join(app, 'Contents/Info.plist'), '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleExecutable</key><string>WorkFleetMac</string></dict></plist>');
-    await writeFile(path.join(app, 'Contents/MacOS/WorkFleetMac'), '#!/bin/bash\n[[ "$1" == --check-runtime ]] || exit 99\necho "PASS Work Fleet runtime load"\n');
-    await chmod(path.join(app, 'Contents/MacOS/WorkFleetMac'), 0o755);
+    await writeFile(path.join(app, 'Contents/Info.plist'), '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleExecutable</key><string>PinItAnywhereMac</string></dict></plist>');
+    await writeFile(path.join(app, 'Contents/MacOS/PinItAnywhereMac'), '#!/bin/bash\n[[ "$1" == --check-runtime ]] || exit 99\necho "PASS Pin It Anywhere runtime load"\n');
+    await chmod(path.join(app, 'Contents/MacOS/PinItAnywhereMac'), 0o755);
     const framework = path.join(app, 'Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle');
     await mkdir(path.dirname(framework), { recursive: true });
     await writeFile(framework, 'fixture');
@@ -81,9 +81,9 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     const tools = path.join(directory, 'tools');
     await mkdir(tools);
     const scripts = {
-      xcodebuild: 'while [[ $# -gt 0 ]]; do case "$1" in -archivePath) archive="$2"; shift 2;; -exportPath) output="$2"; shift 2;; *) shift;; esac; done\nmkdir -p "$output"\ncp -R "$archive/Products/Applications/WorkFleetMac.app" "$output/"',
+      xcodebuild: 'while [[ $# -gt 0 ]]; do case "$1" in -archivePath) archive="$2"; shift 2;; -exportPath) output="$2"; shift 2;; *) shift;; esac; done\nmkdir -p "$output"\ncp -R "$archive/Products/Applications/PinItAnywhereMac.app" "$output/"',
       lipo: 'echo "arm64 x86_64"',
-      otool: 'if [[ "$*" == *WorkFleetMac ]]; then\nif [[ "${FAIL_RUNTIME:-}" != 1 || "$2" != x86_64 ]]; then printf "Load command 0\\n cmd LC_RPATH\\n path @executable_path/../Frameworks (offset 12)\\n"; fi\nprintf "Load command 1\\n cmd LC_LOAD_DYLIB\\n name @rpath/Sparkle.framework/Versions/B/Sparkle (offset 24)\\n"\nfi',
+      otool: 'if [[ "$*" == *PinItAnywhereMac ]]; then\nif [[ "${FAIL_RUNTIME:-}" != 1 || "$2" != x86_64 ]]; then printf "Load command 0\\n cmd LC_RPATH\\n path @executable_path/../Frameworks (offset 12)\\n"; fi\nprintf "Load command 1\\n cmd LC_LOAD_DYLIB\\n name @rpath/Sparkle.framework/Versions/B/Sparkle (offset 24)\\n"\nfi',
       ditto: 'if [[ "$1" == -c ]]; then printf archive > "${@: -1}"; else cp -R "$1" "$2"; fi',
       hdiutil: 'printf image > "${@: -1}"',
       productbuild: '[[ "${ALLOW_PKG:-}" == 1 ]] || exit 99\nprintf package > "${@: -1}"',
@@ -103,7 +103,7 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     await writeFile(signer, '#!/bin/bash\nprintf \'sparkle:edSignature="' + 'A'.repeat(86) + '==" length="%s"\\n\' "$(wc -c < "${@: -1}" | tr -d \' \')"\n');
     await chmod(signer, 0o755);
     const env = { ...process.env, PATH: tools + path.delimiter + process.env.PATH, TOOL_LOG: path.join(directory, 'tools.log'),
-      WORK_FLEET_SIGNING_KEYCHAIN: path.join(directory, 'temporary.keychain-db'), WORK_FLEET_STAPLER_PAUSE: '0',
+      PIN_IT_ANYWHERE_SIGNING_KEYCHAIN: path.join(directory, 'temporary.keychain-db'), PIN_IT_ANYWHERE_STAPLER_PAUSE: '0',
       STAPLE_FAIL_ONCE: path.join(directory, 'staple-failed-once') };
     const args = [path.join(directory, 'scripts/macos/package-native-app.sh'), '--platform', 'macos', '--method', 'developer-id',
       '--application-identity', manual.applicationIdentity, '--provisioning-profile', manual.provisioningProfile,
@@ -111,13 +111,13 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     await execute('bash', args, { cwd: directory, env });
     const files = await readdir(path.join(directory, 'build'));
     for (const file of ['PinItAnywhere-0.2.0-macos-universal.dmg', 'PinItAnywhere-0.2.0-macos-universal.dmg.sha256',
-      'PinItAnywhere-0.2.0-macos-universal.zip', 'PinItAnywhere-0.2.0-macos-universal.zip.sha256', 'appcast.xml', 'work-fleet-update-macos.json']) assert.ok(files.includes(file));
+      'PinItAnywhere-0.2.0-macos-universal.zip', 'PinItAnywhere-0.2.0-macos-universal.zip.sha256', 'appcast.xml', 'pin-it-anywhere-update-macos.json']) assert.ok(files.includes(file));
     assert.equal(files.some(file => file.endsWith('.pkg')), false);
     const log = await readFile(env.TOOL_LOG, 'utf8');
     assert.equal(log.includes('/productbuild '), false);
-    assert.ok(log.includes('--keychain ' + env.WORK_FLEET_SIGNING_KEYCHAIN));
-    assert.match(log, /stapler validate .*WorkFleetMac\.app/);
-    assert.equal(log.match(/stapler staple .*WorkFleetMac\.app/g)?.length, 2, 'a dropped staple is retried');
+    assert.ok(log.includes('--keychain ' + env.PIN_IT_ANYWHERE_SIGNING_KEYCHAIN));
+    assert.match(log, /stapler validate .*PinItAnywhereMac\.app/);
+    assert.equal(log.match(/stapler staple .*PinItAnywhereMac\.app/g)?.length, 2, 'a dropped staple is retried');
     assert.match(log, /spctl --assess --type open/);
     // Notarization is optional for a local signed DMG. macOS Bash 3 must also handle the empty feed array.
     const notaryIndex = args.indexOf('--notary-profile');

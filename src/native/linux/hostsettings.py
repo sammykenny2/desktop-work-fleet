@@ -14,10 +14,10 @@ PLACEMENT = "window-placement.json"
 DEFAULTS = {"startAtLogin": True, "closeToTray": True, "openMainAtLogin": False}
 # The display-language preference (docs/i18n.md); text.PREFERENCES lists the same values.
 LANGUAGES = ("auto", "en", "zh-TW")
-AUTOSTART = "work-fleet.desktop"
-MARKER = "X-Work-Fleet-Managed=true"
+AUTOSTART = "pin-it-anywhere.desktop"
+MARKER = "X-Work-PinItAnywhere-Managed=true"
 LOGIN_ARGUMENT = "--launch-at-login"
-DEB_ROOT = Path("/usr/lib/work-fleet")
+DEB_ROOT = Path("/usr/lib/pin-it-anywhere")
 LOG = "host.log"
 # GApplication actions a compositor keybinding runs with `gapplication action <app id> <name>`, for desktops without a
 # GlobalShortcuts portal such as sway and wayfire. Each runs like the tray item with the same target; "quit" saves and
@@ -208,7 +208,7 @@ def distribution(assets):
     root = Path(assets).parent
     if root == DEB_ROOT:
         return "deb"
-    return "bundle" if (root / "run-work-fleet.sh").is_file() else "source"
+    return "bundle" if (root / "run-pin-it-anywhere.sh").is_file() else "source"
 
 
 def autostart_path(environ):
@@ -229,7 +229,7 @@ def launch_command(assets, data, default_data):
     kind = distribution(assets)
     if kind == "source":
         return None, "startup.sourceRun"
-    arguments = ["work-fleet"] if kind == "deb" else [str(Path(assets).parent / "run-work-fleet.sh")]
+    arguments = ["pin-it-anywhere"] if kind == "deb" else [str(Path(assets).parent / "run-pin-it-anywhere.sh")]
     if Path(data).absolute() != Path(default_data).absolute():
         arguments += ["--data", str(Path(data).absolute())]
     return " ".join(_quote(argument) for argument in arguments + [LOGIN_ARGUMENT]), None
@@ -260,12 +260,12 @@ def write_autostart(path, command, icon, comments=None):
 
 
 def remove_autostart(path):
-    """Removes only an entry Work Fleet wrote; any other file at that name stays and is reported."""
+    """Removes only an entry Pin It Anywhere wrote; any other file at that name stays and is reported."""
     path = Path(path)
     try:
         text = path.read_text("utf-8")
     except FileNotFoundError:
         return
     if MARKER not in [line.strip() for line in text.splitlines()]:
-        raise PermissionError("autostart entry not written by Work Fleet")
+        raise PermissionError("autostart entry not written by Pin It Anywhere")
     path.unlink()

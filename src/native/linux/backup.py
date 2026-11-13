@@ -82,7 +82,7 @@ class Backup:
         job = {key: value[key] for key in self.FIELDS}
         for field in ("id", "scheduleId", "policyId", "destinationId"):
             p.require(p.is_uuid(job[field]), "invalid-backup-job", "The backup job's IDs aren't valid.")
-        p.require(job["name"] == "work-fleet-auto-" + job["id"] + ".zip" and p.is_digest(job["sha256"]), "invalid-backup-job", "The backup file name or checksum isn't valid.")
+        p.require(job["name"] == "pin-it-anywhere-auto-" + job["id"] + ".zip" and p.is_digest(job["sha256"]), "invalid-backup-job", "The backup file name or checksum isn't valid.")
         p.number(job, "sourceRevision")
         p.number(job, "createdAt")
         p.boolean(job, "encrypted")
@@ -133,7 +133,7 @@ class Backup:
                 return {"destinationId": key, "destinationName": name}
             token = p.identifier()
             self.manual[token] = key
-            return {"destinationId": token, "name": "work-fleet-backup-" + token + ".zip"}
+            return {"destinationId": token, "name": "pin-it-anywhere-backup-" + token + ".zip"}
         if method == "backup.authorize":
             with self.directory(p.text(args, "destinationId")):
                 return None
@@ -143,7 +143,7 @@ class Backup:
             p.require(key is not None, "backup-permission", "Choose the backup location again.")
             data = upload(args, "backup")
             with self.directory(key) as directory:
-                self.create(directory, "work-fleet-backup-" + token + ".zip", data, lambda _: None)
+                self.create(directory, "pin-it-anywhere-backup-" + token + ".zip", data, lambda _: None)
             return {"saved": True, "receipt": p.identifier()}
         if method in ("backup.create", "backup.read", "backup.remove"):
             job = self.job(args)
@@ -189,7 +189,7 @@ class Backup:
             p.require(password is not None, "backup-key-unavailable", "The backup key doesn't exist, so nothing was saved unencrypted.")
             data = upload(args, "backup")
             salt, nonce = os.urandom(16), os.urandom(12)
-            header = {"cipher": "AES-256-GCM", "format": "work-fleet-encrypted-backup", "iterations": 600000, "kdf": "PBKDF2-HMAC-SHA256", "nonce": nonce.hex(), "salt": salt.hex(), "schemaVersion": 1, "tagBits": 128}
+            header = {"cipher": "AES-256-GCM", "format": "pin-it-anywhere-encrypted-backup", "iterations": 600000, "kdf": "PBKDF2-HMAC-SHA256", "nonce": nonce.hex(), "salt": salt.hex(), "schemaVersion": 1, "tagBits": 128}
             aad = p.encode(header)
             key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 600000, 32)
             payload = AESGCM(key).encrypt(nonce, data, aad)

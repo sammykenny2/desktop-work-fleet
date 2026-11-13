@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// ADR-045: launches, exits and fatal errors of the host for this data directory, so a failure at sign-in leaves evidence

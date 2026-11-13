@@ -1,7 +1,7 @@
 import Foundation
 
-// Only authorization and HTTP are replaced; FleetDrive and FleetProtocol are the production sources.
-actor FleetGoogle {
+// Only authorization and HTTP are replaced; PinItAnywhereDrive and PinItAnywhereProtocol are the production sources.
+actor PinItAnywhereGoogle {
     func token(_ expected: String) throws -> String {
         try GoogleDriveProbe.check(expected == "fixture-account", "Unexpected account")
         return "fixture-token"
@@ -49,7 +49,7 @@ actor ScriptedHTTP {
         if let body = step.body { try GoogleDriveProbe.check(request.httpBody == body, "Upload bytes changed") }
         if let range = step.range { try GoogleDriveProbe.check(request.value(forHTTPHeaderField: "Content-Range") == range, "Unexpected upload range") }
         if step.method == "POST" && request.url?.path != "/batch/drive/v3" {
-            let metadata = try FleetProtocol.json(request.httpBody ?? Data())
+            let metadata = try PinItAnywhereProtocol.json(request.httpBody ?? Data())
             try GoogleDriveProbe.check(metadata["id"] as? String == step.expectedFileId, "Reserved file ID changed")
             try GoogleDriveProbe.check(metadata["parents"] as? [String] == step.expectedParents, "Wrong Drive parent")
         }
@@ -57,7 +57,7 @@ actor ScriptedHTTP {
             let header = step.method == "POST" ? "X-Upload-Content-Type" : "Content-Type"
             try GoogleDriveProbe.check(request.value(forHTTPHeaderField: header) == mime, "Unexpected media Content-Type")
             if step.method == "POST" {
-                try GoogleDriveProbe.check(FleetProtocol.json(request.httpBody ?? Data())["mimeType"] as? String == mime, "Unexpected metadata MIME type")
+                try GoogleDriveProbe.check(PinItAnywhereProtocol.json(request.httpBody ?? Data())["mimeType"] as? String == mime, "Unexpected metadata MIME type")
             }
         }
         if step.fail { throw URLError(.networkConnectionLost) }
@@ -67,34 +67,34 @@ actor ScriptedHTTP {
 
 @main enum GoogleDriveProbe {
     static let base = "https://www.googleapis.com/upload/drive/v3/files"
-    static let start = base + "?uploadType=resumable&fields=" + FleetDataset.fields
+    static let start = base + "?uploadType=resumable&fields=" + PinItAnywhereDataset.fields
     static let location = start + "&upload_id=fixture-session&session_crd=fixture-crd"
     static let bytes = Data([0, 255, 1, 3])
-    static var file: [String: Any] { ["id": "fixture-file", "kind": "attachment", "sha256": FleetProtocol.digest(bytes), "size": bytes.count] }
+    static var file: [String: Any] { ["id": "fixture-file", "kind": "attachment", "sha256": PinItAnywhereProtocol.digest(bytes), "size": bytes.count] }
     static var arguments: [String: Any] { ["accountId": "fixture-account", "file": file] }
-    static func adapter() -> FleetDrive { FleetDrive(google: FleetGoogle(), profile: "google:fixture-account") }
+    static func adapter() -> PinItAnywhereDrive { PinItAnywhereDrive(google: PinItAnywhereGoogle(), profile: "google:fixture-account") }
     static func check(_ condition: Bool, _ message: String) throws {
-        if !condition { throw FleetFailure("drive-probe", message) }
+        if !condition { throw PinItAnywhereFailure("drive-probe", message) }
     }
     static func begin(_ location: String?) -> ScriptedHTTP.Step {
         ScriptedHTTP.Step(method: "POST", url: start, headers: location.map { ["Location": $0] } ?? [:])
     }
     static func upload(_ location: String, fail: Bool = false) throws -> ScriptedHTTP.Step {
         let metadata: [String: Any] = ["id": "fixture-file", "size": "4", "spaces": ["appDataFolder"],
-            "sha256Checksum": FleetProtocol.digest(bytes), "appProperties": ["wfFormat": "work-fleet-file", "wfSchema": "1",
-            "wfKind": "attachment", "wfSha256": FleetProtocol.digest(bytes)]]
-        return ScriptedHTTP.Step(method: "PUT", url: location, status: 201, response: try FleetProtocol.encode(metadata),
+            "sha256Checksum": PinItAnywhereProtocol.digest(bytes), "appProperties": ["piaFormat": "pin-it-anywhere-file", "piaSchema": "1",
+            "piaKind": "attachment", "piaSha256": PinItAnywhereProtocol.digest(bytes)]]
+        return ScriptedHTTP.Step(method: "PUT", url: location, status: 201, response: try PinItAnywhereProtocol.encode(metadata),
             body: bytes, range: "bytes 0-3/4", fail: fail)
     }
-    static func create(_ drive: FleetDrive) async throws {
+    static func create(_ drive: PinItAnywhereDrive) async throws {
         let value = try await drive.invoke("google.create", arguments, bytes: bytes) as? [String: Any]
         try check(value?["id"] as? String == "fixture-file", "Upload did not complete")
     }
-    static func reject(_ drive: FleetDrive, code: String) async throws {
+    static func reject(_ drive: PinItAnywhereDrive, code: String) async throws {
         do {
             try await create(drive)
-            throw FleetFailure("drive-probe", "Expected upload failure")
-        } catch let error as FleetFailure {
+            throw PinItAnywhereFailure("drive-probe", "Expected upload failure")
+        } catch let error as PinItAnywhereFailure {
             try check(error.code == code, "Unexpected error code: " + error.code)
             try check(!error.message.contains("fixture-") && !error.message.contains("https://"), "Error leaked a credential or upload URL")
         }
@@ -105,7 +105,7 @@ actor ScriptedHTTP {
             var components = URLComponents(string: "https://www.googleapis.com/drive/v3/changes")!
             components.queryItems = [URLQueryItem(name: "pageToken", value: "fixture-private-cursor"), URLQueryItem(name: "spaces", value: "appDataFolder"),
                 URLQueryItem(name: "pageSize", value: "100"), URLQueryItem(name: "includeRemoved", value: "true"),
-                URLQueryItem(name: "fields", value: "nextPageToken,newStartPageToken,changes(fileId,removed,file(\(FleetDataset.fields),mimeType))")]
+                URLQueryItem(name: "fields", value: "nextPageToken,newStartPageToken,changes(fileId,removed,file(\(PinItAnywhereDataset.fields),mimeType))")]
             let start = ScriptedHTTP.Step(method: "GET", url: "https://www.googleapis.com/drive/v3/changes/startPageToken?fields=startPageToken",
                                           response: Data("{\"startPageToken\":\"fixture-private-cursor\"}".utf8))
             let feed = ScriptedHTTP.Step(method: "GET", url: components.url!.absoluteString,
@@ -124,41 +124,41 @@ actor ScriptedHTTP {
                 try check(modes[0]["errorCode"] as? String == "network", "Network failure was hidden")
                 try check(modes[0]["requests"] as? Int == 2 && modes[0]["completedResponses"] as? Int == 1, "Failed request disappeared from the probe count")
             } else { try check(modes[0]["errorCode"] as? String == "invalid-source-page", "Invalid page was accepted as empty") }
-            let encoded = String(data: try FleetProtocol.encode(report), encoding: .utf8)!
+            let encoded = String(data: try PinItAnywhereProtocol.encode(report), encoding: .utf8)!
             try check(!encoded.contains("fixture-") && !encoded.contains("Bearer") && !encoded.contains("googleapis.com"), "Probe leaked private identifiers")
             await drive.close()
         case "delete-batch":
-            let ids = ["old-one", "old-two"], body = try FleetDataset.deleteBatch(ids)
+            let ids = ["old-one", "old-two"], body = try PinItAnywhereDataset.deleteBatch(ids)
             let reply = Data("--reply\r\nContent-Type: application/http\r\nContent-ID: response-wf-0\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n--reply--\r\n".utf8)
             try await ScriptedHTTP.shared.prepare([ScriptedHTTP.Step(method: "POST", url: "https://www.googleapis.com/batch/drive/v3", response: reply, body: body)])
             let result = try await adapter().invoke("google.deleteBatch", ["accountId": "fixture-account", "fileIds": ids]) as! Data
             try check(result == reply, "Batch response changed")
             var rejected = false
             do { _ = try await adapter().invoke("google.deleteBatch", ["accountId": "fixture-account", "fileIds": ["root"]]) }
-            catch let error as FleetFailure { rejected = error.code == "invalid-source-file" }
+            catch let error as PinItAnywhereFailure { rejected = error.code == "invalid-source-file" }
             try check(rejected, "Root deletion must fail before HTTP")
         case "dataset":
             let content = Data([0, 255, 1, 3])
             let file: [String: Any] = ["id": "fixture-file", "kind": "revision", "datasetId": "11111111-2222-3333-4444-555555555555",
-                "parentId": "note-folder", "entityId": "one", "revisionId": "r1", "shard": "a", "sha256": FleetProtocol.digest(content), "size": 4]
-            var metadata = try FleetDataset.metadata(file)
+                "parentId": "note-folder", "entityId": "one", "revisionId": "r1", "shard": "a", "sha256": PinItAnywhereProtocol.digest(content), "size": 4]
+            var metadata = try PinItAnywhereDataset.metadata(file)
             metadata["mimeType"] = "text/plain"
-            metadata["spaces"] = ["appDataFolder"]; metadata["size"] = "4"; metadata["sha256Checksum"] = FleetProtocol.digest(content)
+            metadata["spaces"] = ["appDataFolder"]; metadata["size"] = "4"; metadata["sha256Checksum"] = PinItAnywhereProtocol.digest(content)
             var startStep = begin(location); startStep.expectedParents = ["note-folder"]; startStep.expectedMime = "application/json"
-            let uploaded = ScriptedHTTP.Step(method: "PUT", url: location, status: 201, response: try FleetProtocol.encode(metadata), body: content, range: "bytes 0-3/4", expectedMime: "application/json")
+            let uploaded = ScriptedHTTP.Step(method: "PUT", url: location, status: 201, response: try PinItAnywhereProtocol.encode(metadata), body: content, range: "bytes 0-3/4", expectedMime: "application/json")
             let media = "https://www.googleapis.com/drive/v3/files/fixture-file"
             try await ScriptedHTTP.shared.prepare([startStep, uploaded,
-                ScriptedHTTP.Step(method: "GET", url: media + "?fields=" + FleetDataset.fields, response: try FleetProtocol.encode(metadata)),
+                ScriptedHTTP.Step(method: "GET", url: media + "?fields=" + PinItAnywhereDataset.fields, response: try PinItAnywhereProtocol.encode(metadata)),
                 ScriptedHTTP.Step(method: "GET", url: media + "?alt=media", response: content)])
             let drive = adapter(), args: [String: Any] = ["accountId": "fixture-account", "file": file]
             _ = try await drive.invoke("google.dataset.create", args, bytes: content)
             let received = try await drive.invoke("google.dataset.read", args) as! Data
             try check(received == content, "Dataset bytes changed")
             metadata["parents"] = ["another-note"]
-            try await ScriptedHTTP.shared.prepare([ScriptedHTTP.Step(method: "GET", url: media + "?fields=" + FleetDataset.fields, response: try FleetProtocol.encode(metadata))])
+            try await ScriptedHTTP.shared.prepare([ScriptedHTTP.Step(method: "GET", url: media + "?fields=" + PinItAnywhereDataset.fields, response: try PinItAnywhereProtocol.encode(metadata))])
             var rejected = false
             do { _ = try await drive.invoke("google.dataset.read", args) }
-            catch let error as FleetFailure { rejected = error.code == "dataset-response-parent" }
+            catch let error as PinItAnywhereFailure { rejected = error.code == "dataset-response-parent" }
             try check(rejected, "Cross-note dataset file was accepted")
         case "literal-fields", "encoded-fields":
             let target = name == "literal-fields" ? location : location.replacingOccurrences(of: ",", with: "%2C")
@@ -195,7 +195,7 @@ actor ScriptedHTTP {
                 try await ScriptedHTTP.shared.prepare([status, upload(location)])
                 try await create(drive)
             }
-        default: throw FleetFailure("drive-probe", "Unknown case")
+        default: throw PinItAnywhereFailure("drive-probe", "Unknown case")
         }
         try await ScriptedHTTP.shared.finished()
     }
@@ -205,7 +205,7 @@ actor ScriptedHTTP {
             try await fixture(name)
             print("PASS " + name)
         } catch {
-            fputs("FAIL \((error as? FleetFailure)?.message ?? String(describing: error))\n", stderr)
+            fputs("FAIL \((error as? PinItAnywhereFailure)?.message ?? String(describing: error))\n", stderr)
             exit(1)
         }
     }

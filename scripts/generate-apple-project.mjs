@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 export async function generateAppleProject(root = fileURLToPath(new URL('../', import.meta.url))) {
   const output = path.join(root, 'src', 'native', 'apple');
-  const project = path.join(output, 'WorkFleet.xcodeproj');
+  const project = path.join(output, 'PinItAnywhere.xcodeproj');
   await mkdir(path.join(project, 'xcshareddata', 'xcschemes'), { recursive: true });
   await mkdir(path.join(project, 'project.xcworkspace'), { recursive: true });
   await writeFile(path.join(project, 'project.xcworkspace', 'contents.xcworkspacedata'), '<?xml version="1.0" encoding="UTF-8"?>\n<Workspace version="1.0"><FileRef location="self:"/></Workspace>\n');
@@ -28,34 +28,34 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
     requirement: { kind: 'exactVersion', version: '2.10.0' } });
   const group = add({ isa: 'PBXGroup', children: [...shared, ...resources], sourceTree: '<group>' });
   const products = add({ isa: 'PBXGroup', children: [], name: 'Products', sourceTree: '<group>' }); objects[group].children.push(products);
-  const baseConfig = file(path.join(output, 'config', 'WorkFleet.xcconfig'), 'text.xcconfig'); objects[group].children.push(baseConfig);
+  const baseConfig = file(path.join(output, 'config', 'PinItAnywhere.xcconfig'), 'text.xcconfig'); objects[group].children.push(baseConfig);
   const settings = (platform, mode) => ({
     SWIFT_VERSION: '5.0', SWIFT_STRICT_CONCURRENCY: 'minimal', CLANG_ENABLE_MODULES: 'YES',
     SWIFT_OPTIMIZATION_LEVEL: mode === 'Release' ? '-O' : '-Onone', DEBUG_INFORMATION_FORMAT: 'dwarf-with-dsym',
     SWIFT_ACTIVE_COMPILATION_CONDITIONS: mode === 'Debug' ? '$(inherited) DEBUG' : '$(inherited)',
-    PRODUCT_NAME: '$(TARGET_NAME)', PRODUCT_BUNDLE_IDENTIFIER: '$(WORK_FLEET_APP_ID)', CODE_SIGN_STYLE: 'Automatic',
-    CODE_SIGN_ENTITLEMENTS: `$(SRCROOT)/${platform}/WorkFleet.entitlements`,
+    PRODUCT_NAME: '$(TARGET_NAME)', PRODUCT_BUNDLE_IDENTIFIER: '$(PIN_IT_ANYWHERE_APP_ID)', CODE_SIGN_STYLE: 'Automatic',
+    CODE_SIGN_ENTITLEMENTS: `$(SRCROOT)/${platform}/PinItAnywhere.entitlements`,
     INFOPLIST_FILE: '$(SRCROOT)/.generated/$(TARGET_NAME)/Info.plist', GENERATE_INFOPLIST_FILE: 'NO',
     OTHER_LDFLAGS: ['$(inherited)', '-lsqlite3'], ENABLE_USER_SCRIPT_SANDBOXING: 'NO', ASSETCATALOG_COMPILER_APPICON_NAME: 'AppIcon',
-    WORK_FLEET_ROOT: '$(SRCROOT)/../../..', WORK_FLEET_PACKAGES_DIR: '$(BUILD_DIR)/../../SourcePackages',
+    PIN_IT_ANYWHERE_ROOT: '$(SRCROOT)/../../..', PIN_IT_ANYWHERE_PACKAGES_DIR: '$(BUILD_DIR)/../../SourcePackages',
     ...(platform === 'macos' ? { SDKROOT: 'macosx', MACOSX_DEPLOYMENT_TARGET: '13.0', SUPPORTED_PLATFORMS: 'macosx', ENABLE_HARDENED_RUNTIME: 'YES',
       LD_RUNPATH_SEARCH_PATHS: ['$(inherited)', '@executable_path/../Frameworks'] }
       : { SDKROOT: 'iphoneos', IPHONEOS_DEPLOYMENT_TARGET: '16.0', TARGETED_DEVICE_FAMILY: '1,2', SUPPORTED_PLATFORMS: 'iphoneos iphonesimulator', SUPPORTS_MACCATALYST: 'NO' }),
-    ...(platform === 'macos' && mode === 'Release' ? { CODE_SIGN_STYLE: '$(WORK_FLEET_MACOS_SIGNING_STYLE)',
-      CODE_SIGN_IDENTITY: '$(WORK_FLEET_MACOS_SIGNING_IDENTITY)', PROVISIONING_PROFILE_SPECIFIER: '$(WORK_FLEET_MACOS_PROFILE)' } : {}),
+    ...(platform === 'macos' && mode === 'Release' ? { CODE_SIGN_STYLE: '$(PIN_IT_ANYWHERE_MACOS_SIGNING_STYLE)',
+      CODE_SIGN_IDENTITY: '$(PIN_IT_ANYWHERE_MACOS_SIGNING_IDENTITY)', PROVISIONING_PROFILE_SPECIFIER: '$(PIN_IT_ANYWHERE_MACOS_PROFILE)' } : {}),
   });
   const configs = fn => add({ isa: 'XCConfigurationList', buildConfigurations: ['Debug', 'Release'].map(name =>
     add({ isa: 'XCBuildConfiguration', name, baseConfigurationReference: baseConfig, buildSettings: fn(name) })), defaultConfigurationIsVisible: 0, defaultConfigurationName: 'Release' });
   const targets = [];
   const buildFiles = refs => refs.map(fileRef => add({ isa: 'PBXBuildFile', fileRef }));
   const preparePhase = (platform, name) => add({ isa: 'PBXShellScriptBuildPhase', name: 'Prepare local resources', buildActionMask: 2147483647,
-    files: [], alwaysOutOfDate: 1, inputPaths: ['$(WORK_FLEET_ROOT)/scripts/macos/prepare-apple-assets.sh', '$(WORK_FLEET_ROOT)/scripts/prepare-apple-build.mjs'],
+    files: [], alwaysOutOfDate: 1, inputPaths: ['$(PIN_IT_ANYWHERE_ROOT)/scripts/macos/prepare-apple-assets.sh', '$(PIN_IT_ANYWHERE_ROOT)/scripts/prepare-apple-build.mjs'],
     outputPaths: [`$(SRCROOT)/.generated/${name}/Info.plist`, ...(platform === 'share' ? [] : [`$(SRCROOT)/.generated/${name}/Assets`, `$(SRCROOT)/.generated/${name}/Config`])],
     runOnlyForDeploymentPostprocessing: 0, shellPath: '/bin/bash',
-    shellScript: `bash "$WORK_FLEET_ROOT/scripts/macos/prepare-apple-assets.sh" ${platform} "$SRCROOT/.generated/${name}"\n` });
+    shellScript: `bash "$PIN_IT_ANYWHERE_ROOT/scripts/macos/prepare-apple-assets.sh" ${platform} "$SRCROOT/.generated/${name}"\n` });
   let iosTarget;
   for (const platform of ['macos', 'ios']) {
-    const name = platform === 'macos' ? 'WorkFleetMac' : 'WorkFleetIOS';
+    const name = platform === 'macos' ? 'PinItAnywhereMac' : 'PinItAnywhereIOS';
     const folder = path.join(root, 'src', 'native', 'apple', platform);
     const sources = (await readdir(folder)).filter(name => name.endsWith('.swift')).sort().map(name => file(path.join(folder, name), 'sourcecode.swift'));
     objects[group].children.push(...sources);
@@ -71,30 +71,30 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
     const frameworkPhase = add({ isa: 'PBXFrameworksBuildPhase', buildActionMask: 2147483647,
       files: [google, ...(sparkle ? [sparkle] : [])].map(productRef => add({ isa: 'PBXBuildFile', productRef })), runOnlyForDeploymentPostprocessing: 0 });
     const licensePhase = add({ isa: 'PBXShellScriptBuildPhase', name: 'Copy native dependency notices', buildActionMask: 2147483647,
-      files: [], inputPaths: ['$(WORK_FLEET_ROOT)/scripts/macos/copy-native-notices.sh', '$(WORK_FLEET_PACKAGES_DIR)/checkouts'],
+      files: [], inputPaths: ['$(PIN_IT_ANYWHERE_ROOT)/scripts/macos/copy-native-notices.sh', '$(PIN_IT_ANYWHERE_PACKAGES_DIR)/checkouts'],
       outputPaths: ['$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses'], runOnlyForDeploymentPostprocessing: 0,
-      shellPath: '/bin/bash', shellScript: 'bash "$WORK_FLEET_ROOT/scripts/macos/copy-native-notices.sh" "$WORK_FLEET_PACKAGES_DIR/checkouts" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Licenses"\n' });
+      shellPath: '/bin/bash', shellScript: 'bash "$PIN_IT_ANYWHERE_ROOT/scripts/macos/copy-native-notices.sh" "$PIN_IT_ANYWHERE_PACKAGES_DIR/checkouts" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Licenses"\n' });
     const id = add({ isa: 'PBXNativeTarget', name, productName: name, productReference: product, productType: 'com.apple.product-type.application',
       buildConfigurationList: configs(mode => settings(platform, mode)), buildPhases: [preparePhase(platform, name), sourcePhase, frameworkPhase, resourcePhase, licensePhase],
       buildRules: [], dependencies: [], packageProductDependencies: [google, ...(sparkle ? [sparkle] : [])] }); targets.push(id);
     if (platform === 'ios') iosTarget = id;
-    const reference = `<BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="${id}" BuildableName="${name}.app" BlueprintName="${name}" ReferencedContainer="container:WorkFleet.xcodeproj"/>`;
+    const reference = `<BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="${id}" BuildableName="${name}.app" BlueprintName="${name}" ReferencedContainer="container:PinItAnywhere.xcodeproj"/>`;
     await writeFile(path.join(project, 'xcshareddata', 'xcschemes', `${name}.xcscheme`), `<?xml version="1.0" encoding="UTF-8"?>
 <Scheme LastUpgradeVersion="1600" version="1.3"><BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"><BuildActionEntries><BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">${reference}</BuildActionEntry></BuildActionEntries></BuildAction><LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" allowLocationSimulation="YES"><BuildableProductRunnable runnableDebuggingMode="0">${reference}</BuildableProductRunnable></LaunchAction><ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES"><BuildableProductRunnable runnableDebuggingMode="0">${reference}</BuildableProductRunnable></ProfileAction><AnalyzeAction buildConfiguration="Debug"/><ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/></Scheme>\n`);
   }
   const shareSource = file(path.join(root, 'src', 'native', 'apple', 'share', 'ShareViewController.swift'), 'sourcecode.swift'); objects[group].children.push(shareSource);
   // The Share Extension draws its sheet from the host string table in the app's display language.
-  const shareShared = shared.filter(ref => ['FleetProtocol.swift', 'FleetCaptureInbox.swift', 'FleetText.swift'].includes(path.basename(objects[ref].path)));
-  const shareProduct = add({ isa: 'PBXFileReference', explicitFileType: 'wrapper.app-extension', path: 'WorkFleetShare.appex', sourceTree: 'BUILT_PRODUCTS_DIR' }); objects[products].children.push(shareProduct);
-  const shareTarget = add({ isa: 'PBXNativeTarget', name: 'WorkFleetShare', productName: 'WorkFleetShare', productReference: shareProduct, productType: 'com.apple.product-type.app-extension',
-    buildConfigurationList: configs(mode => ({ ...settings('ios', mode), PRODUCT_BUNDLE_IDENTIFIER: '$(WORK_FLEET_APP_ID).share',
-      CODE_SIGN_ENTITLEMENTS: '$(SRCROOT)/share/WorkFleet.entitlements',
+  const shareShared = shared.filter(ref => ['PinItAnywhereProtocol.swift', 'PinItAnywhereCaptureInbox.swift', 'PinItAnywhereText.swift'].includes(path.basename(objects[ref].path)));
+  const shareProduct = add({ isa: 'PBXFileReference', explicitFileType: 'wrapper.app-extension', path: 'PinItAnywhereShare.appex', sourceTree: 'BUILT_PRODUCTS_DIR' }); objects[products].children.push(shareProduct);
+  const shareTarget = add({ isa: 'PBXNativeTarget', name: 'PinItAnywhereShare', productName: 'PinItAnywhereShare', productReference: shareProduct, productType: 'com.apple.product-type.app-extension',
+    buildConfigurationList: configs(mode => ({ ...settings('ios', mode), PRODUCT_BUNDLE_IDENTIFIER: '$(PIN_IT_ANYWHERE_APP_ID).share',
+      CODE_SIGN_ENTITLEMENTS: '$(SRCROOT)/share/PinItAnywhere.entitlements',
       APPLICATION_EXTENSION_API_ONLY: 'YES', SKIP_INSTALL: 'YES', ASSETCATALOG_COMPILER_APPICON_NAME: '', OTHER_LDFLAGS: ['$(inherited)'] })),
-    buildPhases: [preparePhase('share', 'WorkFleetShare'), add({ isa: 'PBXSourcesBuildPhase', buildActionMask: 2147483647, files: buildFiles([...shareShared, shareSource]), runOnlyForDeploymentPostprocessing: 0 }),
+    buildPhases: [preparePhase('share', 'PinItAnywhereShare'), add({ isa: 'PBXSourcesBuildPhase', buildActionMask: 2147483647, files: buildFiles([...shareShared, shareSource]), runOnlyForDeploymentPostprocessing: 0 }),
       add({ isa: 'PBXFrameworksBuildPhase', buildActionMask: 2147483647, files: [], runOnlyForDeploymentPostprocessing: 0 }),
       add({ isa: 'PBXResourcesBuildPhase', buildActionMask: 2147483647, files: buildFiles(resources), runOnlyForDeploymentPostprocessing: 0 })],
     buildRules: [], dependencies: [], packageProductDependencies: [] }); targets.push(shareTarget);
-  const proxy = add({ isa: 'PBXContainerItemProxy', containerPortal: projectId, proxyType: 1, remoteGlobalIDString: shareTarget, remoteInfo: 'WorkFleetShare' });
+  const proxy = add({ isa: 'PBXContainerItemProxy', containerPortal: projectId, proxyType: 1, remoteGlobalIDString: shareTarget, remoteInfo: 'PinItAnywhereShare' });
   objects[iosTarget].dependencies.push(add({ isa: 'PBXTargetDependency', target: shareTarget, targetProxy: proxy }));
   objects[iosTarget].buildPhases.push(add({ isa: 'PBXCopyFilesBuildPhase', name: 'Embed Share Extension', buildActionMask: 2147483647, dstPath: '', dstSubfolderSpec: 13,
     files: [add({ isa: 'PBXBuildFile', fileRef: shareProduct, settings: { ATTRIBUTES: ['CodeSignOnCopy', 'RemoveHeadersOnCopy'] } })], runOnlyForDeploymentPostprocessing: 0 }));
@@ -110,7 +110,7 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.includes('--help')) {
-    console.log('Usage: node scripts/generate-apple-project.mjs\nMaintains src/native/apple/WorkFleet.xcodeproj; it references the committed icon catalogs. Not required to open or build a checkout.');
+    console.log('Usage: node scripts/generate-apple-project.mjs\nMaintains src/native/apple/PinItAnywhere.xcodeproj; it references the committed icon catalogs. Not required to open or build a checkout.');
   } else {
     const { project } = await generateAppleProject();
     console.log(`Updated ${project} (portable macOS and iOS project).`);

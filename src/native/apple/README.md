@@ -14,16 +14,16 @@ Google timing on macOS or iOS.
 
 ## Open directly after cloning on a Mac
 
-`WorkFleet.xcodeproj`, the workspace, two shared schemes, the default xcconfig and the icon catalogs are all in Git.
+`PinItAnywhere.xcodeproj`, the workspace, two shared schemes, the default xcconfig and the icon catalogs are all in Git.
 All source and entitlements references use relative paths; there is no need to generate the project first, and nothing
 depends on another computer's `build/`.
 In the root of a full repository checkout, run:
 
 ```bash
-open src/native/apple/WorkFleet.xcodeproj
+open src/native/apple/PinItAnywhere.xcodeproj
 ```
 
-Choose `WorkFleetIOS` and an iPhone/iPad Simulator, then press Run; for macOS use `WorkFleetMac`.
+Choose `PinItAnywhereIOS` and an iPhone/iPad Simulator, then press Run; for macOS use `PinItAnywhereMac`.
 Node 22+ (with npm) must be installed. Xcode's Prepare local resources phase installs the lockfile dependencies and
 generates the shared UI, the public configuration and Info.plist automatically; the first run needs to download the
 npm/SPM dependencies, and there is no need to run `npm run build` first.
@@ -33,14 +33,14 @@ The default app ID is `dev.sammykenny2.pinitanywhere`, with extension ID
 `dev.sammykenny2.pinitanywhere.share` and App Group `group.dev.sammykenny2.pinitanywhere`.
 A local Debug preview builds without Google settings; real signing needs matching Apple registrations and profiles.
 For devices or the final identity, copy `config/Local.xcconfig.example` to the Git-ignored `config/Local.xcconfig`
-and fill in WORK_FLEET_APP_ID, WORK_FLEET_APP_GROUP_ID and DEVELOPMENT_TEAM; the main app and the extension use the same
+and fill in PIN_IT_ANYWHERE_APP_ID, PIN_IT_ANYWHERE_APP_GROUP_ID and DEVELOPMENT_TEAM; the main app and the extension use the same
 settings.
 The Signing Team can also be set in Xcode. Google clients and public store data are still read from `.env` at the
 repository root.
 For direct Xcode builds the app ID and App Group follow the Xcode build settings, so that signing, entitlements and the
 bundled configuration stay consistent.
 
-Local macOS trials also need a valid signature to use the Data Protection Keychain. In the WorkFleetMac target's
+Local macOS trials also need a valid signature to use the Data Protection Keychain. In the PinItAnywhereMac target's
 Signing & Capabilities, turn on Automatically manage signing, choose a Team, and complete Register Device.
 Xcode Accounts/Manage Certificates can create an Apple Development certificate; do not disable entitlements or reset the
 Keychain.
@@ -48,7 +48,7 @@ Apple Development is only for devices the profile allows; distribution to other 
 notarization.
 
 The Prepare phase adds `/opt/homebrew/bin` and `/usr/local/bin` to the tool search path;
-custom Node/npm paths can be set as WORK_FLEET_NODE/WORK_FLEET_NPM in Local.xcconfig.
+custom Node/npm paths can be set as PIN_IT_ANYWHERE_NODE/PIN_IT_ANYWHERE_NPM in Local.xcconfig.
 This phase needs to read the local configuration and download and install tool dependencies, so Xcode user-script
 sandboxing is off;
 the app's Sandbox, Keychain and entitlements settings keep their existing contract.
@@ -62,7 +62,7 @@ bash scripts/macos/build-native-app.sh --platform ios --simulator
 bash scripts/macos/build-native-app.sh --platform ios --release
 ```
 
-The scripts use the same committed `src/native/apple/WorkFleet.xcodeproj` and never regenerate or overwrite the IDE
+The scripts use the same committed `src/native/apple/PinItAnywhere.xcodeproj` and never regenerate or overwrite the IDE
 project.
 A non-empty app ID or team in `.env` becomes a command-line build setting; otherwise the xcconfig settings apply.
 DerivedData, archives and export intermediates are in the ignored `build/apple/`; the packaged PKG/DMG/ZIP/IPA files go
@@ -77,7 +77,7 @@ Release asset preparation checks for valid public settings before archiving; sig
 Xcode and the Keychain.
 `scripts/macos/package-native-app.sh` exports an existing archive; iOS can produce an IPA, and macOS a PKG and an
 optional DMG.
-The Apple version is recorded as `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` in `config/WorkFleet.xcconfig` and cannot
+The Apple version is recorded as `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` in `config/PinItAnywhere.xcconfig` and cannot
 be overridden in Local.xcconfig;
 macOS command-line builds always include arm64/x86_64, and the PKG/DMG file names are
 `PinItAnywhere-<version>-macos-universal`.
@@ -117,7 +117,7 @@ scheme.
 Apple signing certificates and the Keychain access group are required for sign-in and secure storage; an unsigned
 simulator build does not show that real sign-in works.
 
-SQLite is in the App Sandbox's Application Support/WorkFleet; content, attachments and native metadata are encrypted
+SQLite is in the App Sandbox's Application Support/PinItAnywhere; content, attachments and native metadata are encrypted
 with a Keychain AES-256-GCM key. The database's same-revision CAS and the attachment writes are one transaction, and
 flock keeps a single owner.
 In WKWebView only the packaged document in the main frame can call the bridge; desktop windows have no database, file or
@@ -145,9 +145,9 @@ The native three-layer check on a Mac is `bash scripts/macos/test-desktop-layers
 the Xcode CLI tools.
 Shortcuts are registered with Carbon RegisterEventHotKey, and the global keys are released while the app or the editor
 is in use; conflicts are shown in settings.
-The menu bar has "Open Work Fleet", "Quick capture", "Adjust all groups", "Show or hide desktop notes", "Check for
+The menu bar has "Open Pin It Anywhere", "Quick capture", "Adjust all groups", "Show or hide desktop notes", "Check for
 updates…" (only when in-app updates are available) and "Save and quit"; the application menu has "Save and quit Work
-Fleet". Left-click opens the main window; right-click or Control-click opens the menu. The menu stays separate from
+PinItAnywhere". Left-click opens the main window; right-click or Control-click opens the menu. The menu stays separate from
 NSStatusItem so AppKit does not consume primary clicks as menu requests. Display, Space and sleep
 notifications pause input,
 keep the editor surface, and apply the new topology after the owner saves the rescue position; background updates never
@@ -175,14 +175,14 @@ screen, so the drag events it converts keep one origin and the release is not lo
 Quick edit (SPEC-003, 2026-10-24) opens the paper in the screen's Top-layer scene; on the owner's `desktop.focusEditor`,
 shortly after a scene sent `card.edit`, that nonactivating panel becomes the key window without bringing the app to the
 front, and it resigns the keyboard when the frame no longer shows the editor there. Not tried on a real Mac yet.
-Data that can't be opened (SPEC-006 DO, 2026-10-23): `FleetDatabase` names a generic open failure from SQLite's last
-result code, and the macOS `FleetWebHost` shows an alert with the cause, the folder ("Show in Finder") and, for
-damaged data, the confirmed set-aside, which moves `fleet.sqlite3` and its journals into a dated set-aside folder; the
+Data that can't be opened (SPEC-006 DO, 2026-10-23): `PinItAnywhereDatabase` names a generic open failure from SQLite's last
+result code, and the macOS `PinItAnywhereWebHost` shows an alert with the cause, the folder ("Show in Finder") and, for
+damaged data, the confirmed set-aside, which moves `pinitanywhere.sqlite3` and its journals into a dated set-aside folder; the
 storage key stays in the Keychain, so the set-aside copy stays readable. A Keychain failure keeps its own message. The
 page's explanation uses `data.location`, `data.reveal` and `data.setAside`. None of this has been compiled or run on
 a Mac; iOS gets the named causes in its existing alert only.
 
-The iOS 27 SDK terminates apps that do not adopt the UIScene life cycle, so the iOS main app uses `FleetSceneDelegate`
+The iOS 27 SDK terminates apps that do not adopt the UIScene life cycle, so the iOS main app uses `PinItAnywhereSceneDelegate`
 to create the window and handle the Google callback and foreground/background events; the generated Info.plist contains a
 single-scene `UIApplicationSceneManifest`.
 On 2026-10-06 a development-signed Debug build made with Xcode 27.0 was installed on an iPhone with iOS 27.0.1, and the
@@ -204,9 +204,9 @@ The transfer reuses the owner staging with capacity and SHA-256 checks; share st
 is removed after completion or cancellation.
 A native dialog timeout or an account switch ends a pending iOS export. Sharing to another app does not mean the
 recipient received it.
-The committed Xcode project also builds and embeds WorkFleetShare.appex; the Share Extension receives text, URLs and
+The committed Xcode project also builds and embeds PinItAnywhereShare.appex; the Share Extension receives text, URLs and
 files.
-The App Group of the app and the extension is set by `WORK_FLEET_APP_GROUP_ID`, by default `group.<APP_ID>`;
+The App Group of the app and the extension is set by `PIN_IT_ANYWHERE_APP_GROUP_ID`, by default `group.<APP_ID>`;
 the App Group must be registered in the same Apple team and added to the signing profiles of the main app and
 `<APP_ID>.share`.
 The Share inbox uses the App Group shared container and a Keychain key for AES-GCM protection, flock exclusion and
@@ -229,7 +229,7 @@ Ordinary opening or building does not need it. The portable project decision is 
 ## Localization
 
 - The host's own text (menu bar and application menus, alerts, the Share Extension sheet and the reasons it returns for
-  the page) is in `Shared/FleetText.swift`, with an `i18n:en` and an `i18n:zh-TW` block.
+  the page) is in `Shared/PinItAnywhereText.swift`, with an `i18n:en` and an `i18n:zh-TW` block.
 - macOS keeps the Settings > General > Display language choice (`auto`, `en` or `zh-TW`) in the `language` field of
   `host-preferences.json` in the app's data directory, with the startup settings; the host applies it before it builds
   the menus. `host.language.set` saves it first (a failed write keeps the previous language), then re-resolves the

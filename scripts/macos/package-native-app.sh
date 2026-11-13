@@ -3,7 +3,7 @@
 # Names come from the archive's version; macOS requires a universal binary. Release files and their
 # .sha256 go directly in build/; build/apple/export-PLATFORM is replaced on every run.
 # A notarized Developer ID macOS export also writes the Sparkle update archive (the stapled app as a ZIP), its appcast.xml and
-# work-fleet-update-macos.json for the vVERSION release (ADR-044). sign_update reads the EdDSA private key from the login
+# pin-it-anywhere-update-macos.json for the vVERSION release (ADR-044). sign_update reads the EdDSA private key from the login
 # keychain, or from the file in SPARKLE_PRIVATE_KEY_FILE.
 # Usage: scripts/macos/package-native-app.sh --platform ios|macos --method METHOD [--archive PATH] [--application-identity NAME] [--provisioning-profile UUID] [--installer-identity NAME] [--notary-profile NAME] [--dmg] [--no-pkg] [--update-summary TEXT]
 set -euo pipefail
@@ -41,7 +41,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"; cd "$PROJECT_ROOT"
 DEVELOPER_PATH="$(node scripts/toolchain-env.mjs | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; process.stdout.write(JSON.parse(s).DEVELOPER_DIR);')"
 [[ -z "$DEVELOPER_PATH" ]] || export DEVELOPER_DIR="$DEVELOPER_PATH"
-SCHEME='WorkFleetMac'; [[ "$PLATFORM" == macos ]] || SCHEME='WorkFleetIOS'
+SCHEME='PinItAnywhereMac'; [[ "$PLATFORM" == macos ]] || SCHEME='PinItAnywhereIOS'
 [[ -n "$ARCHIVE" ]] || ARCHIVE="$PROJECT_ROOT/build/apple/$SCHEME.xcarchive"
 [[ -d "$ARCHIVE" ]] || { echo 'Build the native Release archive first.' >&2; exit 1; }
 OUTPUT="$PROJECT_ROOT/build/apple/export-$PLATFORM"
@@ -55,7 +55,7 @@ VERSION="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleShor
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Unexpected archive version: $VERSION" >&2; exit 1; }
 NAME="PinItAnywhere-$VERSION-ios"
 if [[ "$PLATFORM" == macos ]]; then
-    ARCHIVED="$ARCHIVE/Products/Applications/WorkFleetMac.app"
+    ARCHIVED="$ARCHIVE/Products/Applications/PinItAnywhereMac.app"
     EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$ARCHIVED/Contents/Info.plist")"
     ARCHITECTURES=" $(lipo -archs "$ARCHIVED/Contents/MacOS/$EXECUTABLE") "
     [[ "$ARCHITECTURES" == *' arm64 '* && "$ARCHITECTURES" == *' x86_64 '* ]] || {
@@ -64,13 +64,13 @@ if [[ "$PLATFORM" == macos ]]; then
 fi
 DELIVERED=(); FEED=()
 NOTARY_ARGS=(--keychain-profile "$NOTARY")
-[[ -z "${WORK_FLEET_SIGNING_KEYCHAIN:-}" ]] || NOTARY_ARGS+=(--keychain "$WORK_FLEET_SIGNING_KEYCHAIN")
+[[ -z "${PIN_IT_ANYWHERE_SIGNING_KEYCHAIN:-}" ]] || NOTARY_ARGS+=(--keychain "$PIN_IT_ANYWHERE_SIGNING_KEYCHAIN")
 deliver() { (cd "$OUTPUT"; shasum -a 256 "$1" > "$1.sha256"); DELIVERED+=("$1"); }
 # Stapling and validating ask Apple's ticket service over HTTP/3, which hosted CI runners drop ("The network connection
 # was lost", error 68; actions/runner-images#14924), so macos-package.yml sends it over TCP. A failed call is still
-# retried with growing pauses before the export fails. WORK_FLEET_STAPLER_PAUSE sets the first pause in seconds (tests use 0).
+# retried with growing pauses before the export fails. PIN_IT_ANYWHERE_STAPLER_PAUSE sets the first pause in seconds (tests use 0).
 stapler_retry() {
-    local attempt=1 pause="${WORK_FLEET_STAPLER_PAUSE:-60}"
+    local attempt=1 pause="${PIN_IT_ANYWHERE_STAPLER_PAUSE:-60}"
     until xcrun stapler "$@"; do
         [[ $attempt -lt 6 ]] || { echo "stapler $1 failed $attempt times; giving up." >&2; return 1; }
         echo "stapler $1 failed (attempt $attempt); retrying in $((attempt * pause)) seconds." >&2
@@ -87,7 +87,7 @@ if [[ "$PLATFORM" == ios ]]; then
 elif [[ "$METHOD" == app-store-connect ]]; then
     STORE_PACKAGE="$(exported pkg)"; mv "$STORE_PACKAGE" "$OUTPUT/$NAME-$METHOD.pkg"; deliver "$NAME-$METHOD.pkg"
 else
-    APP="$OUTPUT/products/WorkFleetMac.app"
+    APP="$OUTPUT/products/PinItAnywhereMac.app"
     [[ -d "$APP" ]] || { echo 'Exported macOS app was not found.' >&2; exit 1; }
     python3 scripts/testing/check_macos_runtime.py "$APP" --launch
     if [[ -n "$NOTARY" ]]; then
@@ -108,7 +108,7 @@ else
         REPOSITORY="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).update.repository);' "$APP/Contents/Resources/Config/public.json")"
         node scripts/macos/write-update-feed.mjs --archive "$OUTPUT/$NAME.zip" --signature "$SIGNATURE" --version "$VERSION" --build "$BUILD" \
             --repository "$REPOSITORY" --output "$OUTPUT" --summary "$SUMMARY"
-        deliver "$NAME.zip"; FEED=(appcast.xml work-fleet-update-macos.json)
+        deliver "$NAME.zip"; FEED=(appcast.xml pin-it-anywhere-update-macos.json)
     fi
     if [[ "$PKG" == 1 ]]; then
         PACKAGE="$OUTPUT/$NAME.pkg"; PACKAGE_ARGS=(--component "$APP" /Applications)

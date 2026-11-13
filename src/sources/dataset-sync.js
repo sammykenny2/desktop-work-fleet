@@ -1,4 +1,4 @@
-import { copy, FleetError, requireValue } from '../core/contracts.js';
+import { copy, PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { canonicalJson } from './json.js';
 import { DATASET_LIMITS, DATASET_SHARDS, requireCheckpointCapacity } from './dataset-codec.js';
 import { CurrentRevisions } from './current-revisions.js';
@@ -67,8 +67,8 @@ export class DatasetSync {
   /** `land` runs each local activation of pulled data, and never a provider request; the app uses it to take its action queue's turn (ADR-064). Nothing holding that turn may wait for a pass. */
   sync({ force = false, onActivity = () => {}, land = landDirectly } = {}) {
     if (this.#running) return this.#running;
-    if (this.#closed) return Promise.reject(new FleetError('stale-session', t('errors.sources.sessionEnded')));
-    if (!force && this.#now() < this.#status.nextAttemptAt) return Promise.reject(new FleetError('sync-backoff', t('errors.sources.backoff')));
+    if (this.#closed) return Promise.reject(new PinItAnywhereError('stale-session', t('errors.sources.sessionEnded')));
+    if (!force && this.#now() < this.#status.nextAttemptAt) return Promise.reject(new PinItAnywhereError('sync-backoff', t('errors.sources.backoff')));
     this.#activity = onActivity; this.#land = land;
     this.#running = this.#run().finally(() => { this.#running = null; this.#activity = () => {}; }); return this.#running;
   }

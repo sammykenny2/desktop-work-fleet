@@ -10,8 +10,8 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree as ElementTree
 
-BEGIN = "<!-- Work Fleet shortcuts: begin. Work Fleet rewrites this block from its shortcut settings. -->"
-END = "<!-- Work Fleet shortcuts: end -->"
+BEGIN = "<!-- Pin It Anywhere shortcuts: begin. Pin It Anywhere rewrites this block from its shortcut settings. -->"
+END = "<!-- Pin It Anywhere shortcuts: end -->"
 MINIMAL = '<?xml version="1.0"?>\n<labwc_config>\n  <keyboard>\n  </keyboard>\n</labwc_config>\n'
 MODIFIERS = {"Ctrl": "C", "Alt": "A", "Shift": "S", "Meta": "W"}
 APP_ID = re.compile(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+")
@@ -24,7 +24,7 @@ class ConfigError(Exception):
 
 
 def keybind(key):
-    """Work Fleet's Ctrl+Shift+D is labwc's C-S-d: labwc matches a letter by its unshifted keysym."""
+    """Pin It Anywhere's Ctrl+Shift+D is labwc's C-S-d: labwc matches a letter by its unshifted keysym."""
     *mods, name = key.split("+")
     return "-".join([MODIFIERS[value] for value in mods] + [name.lower() if len(name) == 1 else name])
 
@@ -142,7 +142,7 @@ class Config:
             raise ConfigError("rc.xml is not UTF-8") from None
         text = insert(original, self.app_id, keys)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        backup = self.path.with_name("rc.xml.work-fleet-backup")
+        backup = self.path.with_name("rc.xml.pin-it-anywhere-backup")
         if self.path.exists() and not backup.exists():
             shutil.copy2(self.path, backup)
         mode = self.path.stat().st_mode & 0o777 if self.path.exists() else 0o644

@@ -19,16 +19,16 @@ class MacOSProfileTests(unittest.TestCase):
             "ExpirationDate": datetime.datetime(2031, 9, 17),
             "TeamIdentifier": ["ABCDE12345"], "Platform": ["OSX"], "ProvisionsAllDevices": True,
             "DeveloperCertificates": [self.certificate],
-            "Entitlements": {"com.apple.application-identifier": "ABCDE12345.app.workfleet.preview",
+            "Entitlements": {"com.apple.application-identifier": "ABCDE12345.dev.sammykenny2.pinitanywhere",
                              "keychain-access-groups": ["ABCDE12345.*"]},
         }
 
     def validate(self, profile):
-        return module.validate_profile(profile, self.certificate, "ABCDE12345", "app.workfleet.preview", self.now)
+        return module.validate_profile(profile, self.certificate, "ABCDE12345", "dev.sammykenny2.pinitanywhere", self.now)
 
     def test_accepts_matching_distribution_profile(self):
         self.assertEqual(self.validate(self.profile), self.profile["UUID"])
-        self.profile["Entitlements"]["keychain-access-groups"] = ["ABCDE12345.app.workfleet.preview"]
+        self.profile["Entitlements"]["keychain-access-groups"] = ["ABCDE12345.dev.sammykenny2.pinitanywhere"]
         self.assertEqual(self.validate(self.profile), self.profile["UUID"])
 
     def test_rejects_invalid_distribution_metadata(self):

@@ -103,7 +103,7 @@ class Vault:
             self.service = Secret.Service.open_sync(Secret.Service.__gtype__, owner, Secret.ServiceFlags.NONE, self.cancellable)
             self.owner = owner
         # Locked collections hide the schema name; match the attributes, which stay searchable without unlocking.
-        self.schema = Secret.Schema.new("app.workfleet.native.v1", Secret.SchemaFlags.DONT_MATCH_NAME, {
+        self.schema = Secret.Schema.new("dev.sammykenny2.pinitanywhere.native.v1", Secret.SchemaFlags.DONT_MATCH_NAME, {
             "application": Secret.SchemaAttributeType.STRING,
             "kind": Secret.SchemaAttributeType.STRING,
             "id": Secret.SchemaAttributeType.STRING,
@@ -251,7 +251,7 @@ class Vault:
         from gi.repository import GLib
         self.service.ensure_session_sync(self.cancellable)
         encoded = self.service.encode_dbus_secret(secret)
-        attributes = {**self.attributes(kind, key), "xdg:schema": "app.workfleet.native.v1"}
+        attributes = {**self.attributes(kind, key), "xdg:schema": "dev.sammykenny2.pinitanywhere.native.v1"}
         properties = {"org.freedesktop.Secret.Item.Label": GLib.Variant("s", "Pin It Anywhere " + kind),
                       "org.freedesktop.Secret.Item.Attributes": GLib.Variant("a{ss}", attributes)}
         reply = self.call(collection.get_object_path(), "org.freedesktop.Secret.Collection", "CreateItem",
@@ -585,7 +585,7 @@ class Database(RecordStore):
                 fcntl.flock(self.owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
                 raise p.Failure("workspace-owned", "Pin It Anywhere is already open with this data; use that window.") from error
-            filename = self.directory / "fleet.sqlite3"
+            filename = self.directory / "pinitanywhere.sqlite3"
             existing = filename.exists()
             if existing:
                 info = filename.lstat()

@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 public sealed record PhysicalBounds(int X, int Y, int Width, int Height);
 public sealed record DisplayInfo(string Id, bool Primary, PhysicalBounds Bounds, PhysicalBounds WorkArea, uint Dpi);

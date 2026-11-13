@@ -1,7 +1,7 @@
 using Microsoft.Data.Sqlite;
 using System.Text;
 using System.Text.Json;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
 internal static class BackupCoordinatorProbe
 {
@@ -17,7 +17,7 @@ internal static class BackupCoordinatorProbe
     }
     void Sql(string sql)
     {
-      using var connection = new SqliteConnection($"Data Source={Path.Combine(root, "fleet.sqlite3")};Pooling=False"); connection.Open();
+      using var connection = new SqliteConnection($"Data Source={Path.Combine(root, "pinitanywhere.sqlite3")};Pooling=False"); connection.Open();
       using var command = connection.CreateCommand(); command.CommandText = sql; command.ExecuteNonQuery();
     }
     using (var db = new LocalDatabase(root, "local"))
@@ -25,7 +25,7 @@ internal static class BackupCoordinatorProbe
     {
       destinationId = JsonSerializer.SerializeToElement(files.Grant(target)).GetProperty("destinationId").GetString()!;
       var id = Guid.NewGuid().ToString(); var job = new BackupJob(id, Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), destinationId,
-        $"work-fleet-auto-{id}.zip", 0, 1800000000000, false, LocalDatabase.Digest(bytes), bytes.Length);
+        $"pin-it-anywhere-auto-{id}.zip", 0, 1800000000000, false, LocalDatabase.Digest(bytes), bytes.Length);
       var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
       var journal = JsonSerializer.SerializeToUtf8Bytes(new { profileId = "local", revision = 0, pending = job, inventory = Array.Empty<object>() }, options);
       db.CommitRecord("journal", db.Stage("journal", journal, LocalDatabase.Digest(journal)), null, []);

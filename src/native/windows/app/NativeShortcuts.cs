@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Interop;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 public sealed record ShortcutBinding(string Key, string Target);
 public sealed record ShortcutRegistration(string Key, string Target, string Status);
@@ -28,7 +28,7 @@ public sealed class NativeShortcuts : IDisposable
   public NativeShortcuts(Action<string> invoke)
   {
     this.invoke = invoke;
-    receiver = new HwndSource(new HwndSourceParameters("Work Fleet shortcuts") { ParentWindow = new IntPtr(-3), Width = 0, Height = 0 });
+    receiver = new HwndSource(new HwndSourceParameters("Pin It Anywhere shortcuts") { ParentWindow = new IntPtr(-3), Width = 0, Height = 0 });
     receiver.AddHook(Receive);
   }
 

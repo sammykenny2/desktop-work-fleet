@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 public sealed record UpdateRelease(string Repository, string Tag, Version Version, string PageUrl);
 /// <summary>One installer chosen from this platform's manifest in a release, downloaded from that same release.</summary>
@@ -11,13 +11,13 @@ public sealed record UpdatePackage(string Version, string Tag, string Summary, s
 
 /// <summary>
 /// ADR-044 feed rules shared with the Linux and macOS hosts (tests/fixtures/update-feed.json): a public GitHub Atom feed,
-/// one `vX.Y.Z` release for every platform, and this platform's manifest in it (work-fleet-update-windows.json). Every
+/// one `vX.Y.Z` release for every platform, and this platform's manifest in it (pin-it-anywhere-update-windows.json). Every
 /// refusal is metadata_invalid.
 /// </summary>
 public static partial class UpdateFeed
 {
   /// <summary>Each platform's manifest in the shared release; tests/fixtures/update-feed.json lists them.</summary>
-  public static string ManifestName(string platform) => $"work-fleet-update-{platform}.json";
+  public static string ManifestName(string platform) => $"pin-it-anywhere-update-{platform}.json";
   public const long MaxPackageBytes = 512L * 1024 * 1024;
   [GeneratedRegex(@"^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\z")] private static partial Regex VersionPattern();
   [GeneratedRegex(@"^[0-9a-f]{64}\z")] private static partial Regex DigestPattern();

@@ -27,15 +27,15 @@ $SavedSdkEnvironment = @{}
 Push-Location $ProjectRoot
 try {
     if ($Signed) { $Release = $true }
-    foreach ($Name in @('WORK_FLEET_REQUIRE_SIGNED_ANDROID', 'GRADLE_USER_HOME')) {
+    foreach ($Name in @('PIN_IT_ANYWHERE_REQUIRE_SIGNED_ANDROID', 'GRADLE_USER_HOME')) {
         $SavedSdkEnvironment[$Name] = [Environment]::GetEnvironmentVariable($Name, 'Process')
     }
     if (-not $env:GRADLE_USER_HOME) { $env:GRADLE_USER_HOME = Join-Path $ProjectRoot 'build/gradle-home' }
     if ($Signed) {
-        foreach ($Name in @('WORK_FLEET_ANDROID_KEYSTORE', 'WORK_FLEET_ANDROID_KEY_ALIAS', 'WORK_FLEET_ANDROID_STORE_PASSWORD', 'WORK_FLEET_ANDROID_KEY_PASSWORD')) {
+        foreach ($Name in @('PIN_IT_ANYWHERE_ANDROID_KEYSTORE', 'PIN_IT_ANYWHERE_ANDROID_KEY_ALIAS', 'PIN_IT_ANYWHERE_ANDROID_STORE_PASSWORD', 'PIN_IT_ANYWHERE_ANDROID_KEY_PASSWORD')) {
             if (-not [Environment]::GetEnvironmentVariable($Name, 'Process')) { throw "Signed release requires $Name in the process/CI environment; do not put passwords in .env." }
         }
-        $env:WORK_FLEET_REQUIRE_SIGNED_ANDROID = '1'
+        $env:PIN_IT_ANYWHERE_REQUIRE_SIGNED_ANDROID = '1'
     }
     $SdkSettings = (& node scripts/toolchain-env.mjs | ConvertFrom-Json)
     if ($LASTEXITCODE -ne 0) { throw 'Could not read SDK configuration.' }

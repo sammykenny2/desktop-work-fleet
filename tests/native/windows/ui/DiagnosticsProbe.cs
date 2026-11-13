@@ -6,8 +6,8 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text.Json;
-using WorkFleet.Windows;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows;
+using PinItAnywhere.Windows.Core;
 
 /// <summary>Debug WebView inspection: opt-in, loopback-only, validated before the owner lock.</summary>
 internal static class DiagnosticsProbe
@@ -24,7 +24,7 @@ internal static class DiagnosticsProbe
       foreach (var value in new[] { "80", "1023", "65536", "abc", "+9222", " 9222", "9222 " })
       {
         Environment.SetEnvironmentVariable(WebViewDiagnostics.PortVariable, value);
-        try { _ = new FleetWindow(directory); throw new Exception($"Invalid debug port accepted: '{value}'"); }
+        try { _ = new PinItAnywhereWindow(directory); throw new Exception($"Invalid debug port accepted: '{value}'"); }
         catch (HostError error) when (error.Code == "debug-port-invalid") { }
       }
       Console.WriteLine("PASS invalid WebView debug ports rejected before the owner lock");
@@ -43,7 +43,7 @@ internal static class DiagnosticsProbe
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         using var targets = JsonDocument.Parse(await http.GetStringAsync($"http://127.0.0.1:{port}/json/list"));
         var main = targets.RootElement.EnumerateArray().FirstOrDefault(t =>
-          t.GetProperty("url").GetString()?.StartsWith("https://work-fleet.invalid/app/index.html", StringComparison.Ordinal) == true);
+          t.GetProperty("url").GetString()?.StartsWith("https://pin-it-anywhere.invalid/app/index.html", StringComparison.Ordinal) == true);
         if (main.ValueKind != JsonValueKind.Object) throw new Exception($"Main document missing from CDP targets: {targets.RootElement}");
         var readiness = await Evaluate(main.GetProperty("webSocketDebuggerUrl").GetString()!, "document.body.dataset.ready");
         if (readiness != "true") throw new Exception($"CDP evaluated unexpected readiness: {readiness}");

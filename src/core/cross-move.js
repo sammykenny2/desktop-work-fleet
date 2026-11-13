@@ -1,4 +1,4 @@
-import { activeGroups, FleetError, requireValue, validateNewGroup } from './contracts.js';
+import { activeGroups, PinItAnywhereError, requireValue, validateNewGroup } from './contracts.js';
 import { resolveGroupId } from './groups.js';
 import { t } from '../i18n/index.js';
 
@@ -41,7 +41,7 @@ export class CrossMove {
     const source = this.#combined.ownerOfCard(cardId); const target = this.#combined.ownerOfGroup(targetGroupId);
     requireValue(source !== target, 'same-collection', t('errors.core.sameCollection'));
     const refusal = this.refusal(cardId);
-    if (refusal) throw new FleetError(`move-${refusal}`, t(`errors.core.move.${refusal}`));
+    if (refusal) throw new PinItAnywhereError(`move-${refusal}`, t(`errors.core.move.${refusal}`));
     target.workspace.requireGroup(targetGroupId);
     const card = source.workspace.cardValue(cardId);
     // Everything the move needs must be on this device before it is recorded.
@@ -59,11 +59,11 @@ export class CrossMove {
     await this.#step('journal');
     const moved = await this.#finishOrClear(source, target, job, bytes);
     const copyNow = target.workspace.cardValue(job.newCardId);
-    if (moved && (!copyNow || copyNow.deleted)) throw new FleetError('move-copy-gone', t('errors.core.move.copyGone'));
+    if (moved && (!copyNow || copyNow.deleted)) throw new PinItAnywhereError('move-copy-gone', t('errors.core.move.copyGone'));
     if (source.workspace.cardValue(cardId)?.movedTo?.id === job.newCardId) return moved;
     // Only an original still in Trash with this mark has moved. Otherwise it changed in time to stay, or its copy went first.
-    if (!moved) throw new FleetError('move-changed', t('errors.core.move.changed'));
-    throw new FleetError('move-both', t('errors.core.move.both', { group: this.#groupName(target, moved.groupId) }));
+    if (!moved) throw new PinItAnywhereError('move-changed', t('errors.core.move.changed'));
+    throw new PinItAnywhereError('move-both', t('errors.core.move.both', { group: this.#groupName(target, moved.groupId) }));
   }
 
   #groupName(profile, groupId) { return profile.workspace.state.groups.find(group => group.id === groupId)?.name ?? ''; }
@@ -74,7 +74,7 @@ export class CrossMove {
       const held = known.find(item => item.id === file.id);
       if (held) { result.push(held); continue; }
       const value = await source.storage.getAttachment(source.id, file.id).catch(() => null);
-      if (!value) throw new FleetError('move-attachment', t('errors.core.move.attachment', { name: file.name }));
+      if (!value) throw new PinItAnywhereError('move-attachment', t('errors.core.move.attachment', { name: file.name }));
       result.push({ id: file.id, bytes: new Uint8Array(await new Blob([value]).arrayBuffer()) });
     }
     return result;
@@ -98,7 +98,7 @@ export class CrossMove {
     catch (error) {
       const original = source.workspace.cardValue(job.cardId);
       const recovering = original?.deleted && original.movedTo?.id === job.newCardId;
-      const refused = error instanceof FleetError && ['move-attachment', 'conflict', 'missing-group', 'group-limit'].includes(error.code);
+      const refused = error instanceof PinItAnywhereError && ['move-attachment', 'conflict', 'missing-group', 'group-limit'].includes(error.code);
       // A storage failure may have committed without an acknowledgement, so memory alone cannot prove nothing moved.
       if (refused && !recovering && !target.workspace.cardValue(job.newCardId)) await source.storage.deleteJob(noteKey(job.cardId));
       throw error;

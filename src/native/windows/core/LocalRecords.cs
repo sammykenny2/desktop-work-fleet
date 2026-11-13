@@ -5,11 +5,11 @@ using System.Text.Json;
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 public sealed partial class LocalDatabase
 {
-  private const string RecordFormat = "work-fleet-local-records";
+  private const string RecordFormat = "pin-it-anywhere-local-records";
   private const int RecordBatchBytes = 8 * 1024 * 1024;
   private static readonly HashSet<string> RecordCollections = new(StringComparer.Ordinal)
     { "meta", "current", "history", "draft", "outbox", "control", "job" };
@@ -120,7 +120,7 @@ public sealed partial class LocalDatabase
         var attachmentDeletes = removedAttachments.ValueKind == JsonValueKind.Undefined ? Array.Empty<string>() : removedAttachments.EnumerateArray().Select(item => item.GetString()!).ToArray();
         RecordRequire(attachmentDeletes.All(id => id is not null && id.Length == 64 && System.Text.RegularExpressions.Regex.IsMatch(id, "^[0-9a-f]{64}$"))
           && attachmentDeletes.Distinct(StringComparer.Ordinal).Count() == attachmentDeletes.Length);
-        RecordRequire(JsonRules.Text(value, "format") == "work-fleet-record-transaction" && JsonRules.Integer(value, "schemaVersion") == 1
+        RecordRequire(JsonRules.Text(value, "format") == "pin-it-anywhere-record-transaction" && JsonRules.Integer(value, "schemaVersion") == 1
           && JsonRules.Text(value, "profileId") == ProfileId);
         var revision = JsonRules.Integer(value, "revision"); var commitId = JsonRules.Text(value, "commitId");
         RecordRequire(Guid.TryParseExact(commitId, "D", out _) && commitId == commitId.ToLowerInvariant());

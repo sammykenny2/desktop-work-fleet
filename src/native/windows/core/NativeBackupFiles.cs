@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 public sealed record BackupJob(string Id, string ScheduleId, string PolicyId, string DestinationId, string Name,
   long SourceRevision, long CreatedAt, bool Encrypted, string Sha256, int Size)
@@ -15,7 +15,7 @@ public sealed record BackupJob(string Id, string ScheduleId, string PolicyId, st
     var job = new BackupJob(Id("id"), Id("scheduleId"), Id("policyId"), Id("destinationId"), JsonRules.Text(value, "name"),
       JsonRules.Integer(value, "sourceRevision"), JsonRules.Integer(value, "createdAt"), value.GetProperty("encrypted").GetBoolean(),
       JsonRules.Text(value, "sha256"), checked((int)JsonRules.Integer(value, "size", WindowsBackupDirectory.MaxBackupBytes)));
-    HostError.Require(job.Size > 0 && job.Name == $"work-fleet-auto-{job.Id}.zip", "invalid-backup-job", "The backup job file name or size is invalid.");
+    HostError.Require(job.Size > 0 && job.Name == $"pin-it-anywhere-auto-{job.Id}.zip", "invalid-backup-job", "The backup job file name or size is invalid.");
     LocalDatabase.CheckDigest(job.Sha256); return job;
   }
 }

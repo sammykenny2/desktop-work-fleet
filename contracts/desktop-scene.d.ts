@@ -78,10 +78,10 @@ export interface DesktopSceneInfo {
 }
 export interface ShortcutRegistration {
   key: string; target: string;
-  /** Unwritten: on labwc the key is not yet in the keybinds Work Fleet writes to the user's rc.xml. */
+  /** Unwritten: on labwc the key is not yet in the keybinds Pin It Anywhere writes to the user's rc.xml. */
   status: 'available' | 'suspended' | 'conflict' | 'unavailable' | 'reserved' | 'editing' | 'typing' | 'invalid' | 'unwritten';
 }
-/** Linux on labwc only: whether the user's rc.xml holds the current keys in Work Fleet's block; null elsewhere. */
+/** Linux on labwc only: whether the user's rc.xml holds the current keys in Pin It Anywhere's block; null elsewhere. */
 export interface LabwcShortcuts { state: 'absent' | 'outdated' | 'current'; path: string }
 /** Main document only. Scene documents cannot invoke these methods. */
 export type DesktopOwnerCall =
@@ -100,7 +100,7 @@ export type DesktopOwnerCall =
   | { method: 'desktop.flush.release'; params: { id: string; viewId: string | null; draftId: string | null } }
   | { method: 'desktop.shortcuts.configure'; params: { bindings: { key: string; target: string }[] } }
   | { method: 'desktop.shortcuts.block'; params: { blocked: boolean } }
-  /** Writes the current keys into rc.xml's Work Fleet block and reloads labwc; returns registrations and LabwcShortcuts. */
+  /** Writes the current keys into rc.xml's Pin It Anywhere block and reloads labwc; returns registrations and LabwcShortcuts. */
   | { method: 'desktop.shortcuts.labwc'; params: Record<string, never> }
   | { method: 'desktop.focus'; params: { intent: string; sequence: number } }
   /** Gives the keyboard to the Top-layer view showing a quick edit once it has applied `sequence`; honoured only shortly

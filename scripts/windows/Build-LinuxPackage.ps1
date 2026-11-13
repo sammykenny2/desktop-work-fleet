@@ -30,11 +30,11 @@ try {
     $Version = & node scripts/platform-version.mjs --platform linux
     if ($LASTEXITCODE -ne 0) { throw 'Could not read src/native/linux/VERSION.' }
     $BuildOutput = Join-Path $ProjectRoot 'build'
-    $Bundle = Join-Path (Join-Path $BuildOutput 'linux') "work-fleet-$Version"
+    $Bundle = Join-Path (Join-Path $BuildOutput 'linux') "pin-it-anywhere-$Version"
     $Metadata = Get-Content -LiteralPath (Join-Path $Bundle 'package.json') -Raw | ConvertFrom-Json
     $PublicConfig = Get-Content -LiteralPath (Join-Path $Bundle 'Config/public.json') -Raw | ConvertFrom-Json
     $Script = Join-Path $ProjectRoot 'scripts/linux/package-deb.sh'
-    $Arguments = @('run', '--rm', '--network', 'none', '--mount', "type=bind,source=$BuildOutput,target=/workspace/build", '--mount', "type=bind,source=$Script,target=/workspace/scripts/package-deb.sh,readonly", $DockerImage, 'bash', '/workspace/scripts/package-deb.sh', '--source', "/workspace/build/linux/work-fleet-$Version", '--output', '/workspace/build', '--app-id', $Metadata.appId)
+    $Arguments = @('run', '--rm', '--network', 'none', '--mount', "type=bind,source=$BuildOutput,target=/workspace/build", '--mount', "type=bind,source=$Script,target=/workspace/scripts/package-deb.sh,readonly", $DockerImage, 'bash', '/workspace/scripts/package-deb.sh', '--source', "/workspace/build/linux/pin-it-anywhere-$Version", '--output', '/workspace/build', '--app-id', $Metadata.appId)
     if ($PublicConfig.release.supportEmail) { $Arguments += @('--maintainer-email', $PublicConfig.release.supportEmail) }
     if ($Release) { $Arguments += '--release' }
     & docker @Arguments

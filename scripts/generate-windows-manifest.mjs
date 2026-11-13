@@ -16,11 +16,11 @@ if (args.length === 1 && args[0] === '--help') {
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Stage must be under build/windows.');
   const config = await readBuildConfig(new URL('../', import.meta.url));
   // ADR-069: the Windows identity is set independently of the Apple/Android app ID and the eventual Certum publisher.
-  const name = config.windows.packageId || 'app.workfleet.preview';
-  if (!/^[a-zA-Z0-9.-]{3,50}$/.test(name)) throw new Error('Set WORK_FLEET_WINDOWS_PACKAGE_ID.');
+  const name = config.windows.packageId || 'dev.sammykenny2.pinitanywhere';
+  if (!/^[a-zA-Z0-9.-]{3,50}$/.test(name)) throw new Error('Set PIN_IT_ANYWHERE_WINDOWS_PACKAGE_ID.');
   const version = await readPlatformVersion('windows');
   const displayName = common['common.appName'];
-  const publisher = config.windows.publisher || 'CN=Work Fleet Preview', publisherName = config.windows.publisherDisplayName || displayName;
+  const publisher = config.windows.publisher || 'CN=Pin It Anywhere Preview', publisherName = config.windows.publisherDisplayName || displayName;
   // ADR-043: the app enables the sign-in StartupTask from its own preference, so the manifest leaves it disabled.
   // ADR-034: include early Windows 11 and exclude Windows 10 at installation; Explorer topology is discovered at runtime.
   const minimumWindows = '10.0.22000.0', testedWindows = '10.0.26200.0';
@@ -37,9 +37,9 @@ if (args.length === 1 && args[0] === '--help') {
   <Resources><Resource Language="zh-TW" /><Resource Language="en-US" /></Resources>
   <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="${minimumWindows}" MaxVersionTested="${testedWindows}" /></Dependencies>
   <Capabilities><Capability Name="internetClient" /><rescap:Capability Name="runFullTrust" /></Capabilities>
-  <Applications><Application Id="WorkFleet" Executable="WorkFleet.exe" uap10:RuntimeBehavior="packagedClassicApp" uap10:TrustLevel="mediumIL">
+  <Applications><Application Id="PinItAnywhere" Executable="PinItAnywhere.exe" uap10:RuntimeBehavior="packagedClassicApp" uap10:TrustLevel="mediumIL">
     <uap:VisualElements DisplayName="${escape(displayName)}" Description="Quick work notes" Square150x150Logo="PackageAssets\\Square150x150Logo.png" Square44x44Logo="PackageAssets\\Square44x44Logo.png" BackgroundColor="transparent" />
-    <Extensions><uap5:Extension Category="windows.startupTask" Executable="WorkFleet.exe" EntryPoint="Windows.FullTrustApplication"><uap5:StartupTask TaskId="WorkFleetStartup" Enabled="false" DisplayName="${escape(displayName)}" /></uap5:Extension></Extensions>
+    <Extensions><uap5:Extension Category="windows.startupTask" Executable="PinItAnywhere.exe" EntryPoint="Windows.FullTrustApplication"><uap5:StartupTask TaskId="PinItAnywhereStartup" Enabled="false" DisplayName="${escape(displayName)}" /></uap5:Extension></Extensions>
   </Application></Applications>
 </Package>\n`);
   console.log('Generated x64 MSIX manifest and copied its tile images.');

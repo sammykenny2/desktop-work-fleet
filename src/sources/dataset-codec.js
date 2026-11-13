@@ -5,7 +5,7 @@ import { CurrentRevisions } from './current-revisions.js';
 import { sha256, validDigest, validFileId } from './files.js';
 import { t } from '../i18n/index.js';
 
-export const DATASET_FORMAT = 'work-fleet-dataset';
+export const DATASET_FORMAT = 'pin-it-anywhere-dataset';
 export const DATASET_SHARDS = Object.freeze([...Array.from({ length: 16 }, (_, i) => i.toString(16)), 'groups']);
 export const DATASET_LIMITS = Object.freeze({ checkpointBytes: 8 * 1024 * 1024, tailSoft: 64, tailHard: 128,
   candidates: 8, writers: 8, inputs: 151, feedEvents: 1000, feedBytes: 8 * 1024 * 1024, queryEntities: 20 });
@@ -48,10 +48,10 @@ export function validateDatasetFile(input) {
 }
 
 function datasetProperties(file) {
-  return { wfFormat: DATASET_FORMAT, wfSchema: '1', wfDataset: file.datasetId, wfKind: file.kind,
-    ...(file.sha256 ? { wfSha256: file.sha256 } : {}), ...(file.role ? { wfRole: file.role } : {}),
-    ...(file.entityId ? { wfEntity: file.entityId } : {}), ...(file.revisionId ? { wfRevision: file.revisionId } : {}),
-    ...(file.shard ? { wfShard: file.shard } : {}) };
+  return { piaFormat: DATASET_FORMAT, piaSchema: '1', piaDataset: file.datasetId, piaKind: file.kind,
+    ...(file.sha256 ? { piaSha256: file.sha256 } : {}), ...(file.role ? { piaRole: file.role } : {}),
+    ...(file.entityId ? { piaEntity: file.entityId } : {}), ...(file.revisionId ? { piaRevision: file.revisionId } : {}),
+    ...(file.shard ? { piaShard: file.shard } : {}) };
 }
 
 // Drive media labels do not establish protocol identity; owned bytes still require size, digest and envelope validation.
@@ -74,19 +74,19 @@ export function googleDatasetDescriptor(metadata, { rootParentVerified = false }
   invalid(metadata && (metadata.trashed === undefined || metadata.trashed === false)
     && Array.isArray(metadata.spaces) && metadata.spaces.includes('appDataFolder')
     && Array.isArray(metadata.parents) && metadata.parents.length === 1
-    && properties?.wfFormat === DATASET_FORMAT && properties.wfSchema === '1');
-  const file = { id: metadata.id, parentId: metadata.parents[0], datasetId: properties.wfDataset, kind: properties.wfKind };
+    && properties?.piaFormat === DATASET_FORMAT && properties.piaSchema === '1');
+  const file = { id: metadata.id, parentId: metadata.parents[0], datasetId: properties.piaDataset, kind: properties.piaKind };
   if (file.kind === 'dataset-root') {
     // Drive can return the real app-data folder ID instead of its request alias. A scoped parent query proves it.
     invalid(file.parentId === 'appDataFolder' || rootParentVerified); file.parentId = 'appDataFolder';
   }
-  if (folders.has(file.kind)) file.role = properties.wfRole;
+  if (folders.has(file.kind)) file.role = properties.piaRole;
   else {
     invalid(typeof metadata.size === 'string' && /^(0|[1-9][0-9]*)$/.test(metadata.size));
-    file.size = Number(metadata.size); file.sha256 = properties.wfSha256;
+    file.size = Number(metadata.size); file.sha256 = properties.piaSha256;
     invalid(metadata.sha256Checksum === undefined || metadata.sha256Checksum === file.sha256);
   }
-  for (const [property, key] of [['wfEntity', 'entityId'], ['wfRevision', 'revisionId'], ['wfShard', 'shard']]) {
+  for (const [property, key] of [['piaEntity', 'entityId'], ['piaRevision', 'revisionId'], ['piaShard', 'shard']]) {
     if (properties[property] !== undefined) file[key] = properties[property];
   }
   validateDatasetFile(file);
@@ -98,14 +98,14 @@ export function googleDatasetDescriptor(metadata, { rootParentVerified = false }
 export function googleDatasetOwned(metadata, query) {
   const props = metadata?.appProperties;
   invalid(validFileId(metadata?.id) && Array.isArray(metadata.spaces) && metadata.spaces.includes('appDataFolder')
-    && (metadata.trashed === undefined || metadata.trashed === false) && props?.wfFormat === DATASET_FORMAT && props.wfSchema === '1'
-    && datasetId(props.wfDataset) && validId(props.wfEntity)
-    && props.wfDataset === query.datasetId && query.entities.includes(props.wfEntity)
-    && ['revision', 'attachment', 'folder'].includes(props.wfKind));
-  invalid(props.wfKind !== 'folder' || props.wfRole === 'note');
-  invalid(props.wfKind !== 'revision' || DATASET_SHARDS.filter(id => id !== 'groups').includes(props.wfShard));
+    && (metadata.trashed === undefined || metadata.trashed === false) && props?.piaFormat === DATASET_FORMAT && props.piaSchema === '1'
+    && datasetId(props.piaDataset) && validId(props.piaEntity)
+    && props.piaDataset === query.datasetId && query.entities.includes(props.piaEntity)
+    && ['revision', 'attachment', 'folder'].includes(props.piaKind));
+  invalid(props.piaKind !== 'folder' || props.piaRole === 'note');
+  invalid(props.piaKind !== 'revision' || DATASET_SHARDS.filter(id => id !== 'groups').includes(props.piaShard));
   invalid(metadata.parents === undefined || Array.isArray(metadata.parents) && metadata.parents.length <= 1 && metadata.parents.every(validFileId));
-  return { id: metadata.id, kind: props.wfKind, datasetId: props.wfDataset, entityId: props.wfEntity, parentId: metadata.parents?.[0] ?? null };
+  return { id: metadata.id, kind: props.piaKind, datasetId: props.piaDataset, entityId: props.piaEntity, parentId: metadata.parents?.[0] ?? null };
 }
 
 /** A typed selector, never caller-provided Drive query text. Values cannot contain query punctuation. */
@@ -113,27 +113,27 @@ export function datasetQuery(input) {
   const query = copy(input); invalid(query && typeof query.scope === 'string');
   const keys = ['scope']; const clauses = ['trashed = false'];
   const prop = (key, value) => `appProperties has { key='${key}' and value='${value}' }`;
-  if (query.scope === 'fences') clauses.push(prop('wfKind', 'reset'));
+  if (query.scope === 'fences') clauses.push(prop('piaKind', 'reset'));
   else if (query.scope !== 'legacy') {
-    clauses.push(prop('wfFormat', DATASET_FORMAT));
+    clauses.push(prop('piaFormat', DATASET_FORMAT));
     if (!['datasets', 'reset-datasets'].includes(query.scope)) {
-      keys.push('datasetId'); invalid(datasetId(query.datasetId)); clauses.push(prop('wfDataset', query.datasetId));
+      keys.push('datasetId'); invalid(datasetId(query.datasetId)); clauses.push(prop('piaDataset', query.datasetId));
     }
-    if (['datasets', 'reset-datasets'].includes(query.scope)) clauses.push(prop('wfKind', 'dataset'));
-    else if (query.scope === 'ready') clauses.push(prop('wfKind', 'ready'));
-    else if (query.scope === 'roots') { clauses.push(prop('wfKind', 'dataset-root')); clauses.push("'appDataFolder' in parents"); }
+    if (['datasets', 'reset-datasets'].includes(query.scope)) clauses.push(prop('piaKind', 'dataset'));
+    else if (query.scope === 'ready') clauses.push(prop('piaKind', 'ready'));
+    else if (query.scope === 'roots') { clauses.push(prop('piaKind', 'dataset-root')); clauses.push("'appDataFolder' in parents"); }
     else if (query.scope === 'current' || query.scope === 'current-all') {
-      if (query.scope === 'current') { keys.push('shard'); invalid(DATASET_SHARDS.includes(query.shard)); clauses.push(prop('wfShard', query.shard)); }
-      clauses.push(`(${prop('wfKind', 'checkpoint')} or ${prop('wfKind', 'change')})`);
+      if (query.scope === 'current') { keys.push('shard'); invalid(DATASET_SHARDS.includes(query.shard)); clauses.push(prop('piaShard', query.shard)); }
+      clauses.push(`(${prop('piaKind', 'checkpoint')} or ${prop('piaKind', 'change')})`);
     } else if (query.scope === 'history' || query.scope === 'children') {
       keys.push('parentId'); invalid(validFileId(query.parentId)); clauses.push(`'${query.parentId}' in parents`);
-      if (query.scope === 'history') clauses.push(prop('wfKind', 'revision'));
+      if (query.scope === 'history') clauses.push(prop('piaKind', 'revision'));
     } else if (['purges', 'entity-folders', 'entity-data'].includes(query.scope)) {
       keys.push('entities'); invalid(Array.isArray(query.entities) && query.entities.length > 0
         && query.entities.length <= DATASET_LIMITS.queryEntities && unique(query.entities) && query.entities.every(validId));
-      clauses.push(query.scope === 'entity-data' ? `(${['revision', 'attachment', 'folder'].map(kind => prop('wfKind', kind)).join(' or ')})`
-        : prop('wfKind', query.scope === 'purges' ? 'purge' : 'folder'));
-      clauses.push(`(${query.entities.map(id => prop('wfEntity', id)).join(' or ')})`);
+      clauses.push(query.scope === 'entity-data' ? `(${['revision', 'attachment', 'folder'].map(kind => prop('piaKind', kind)).join(' or ')})`
+        : prop('piaKind', query.scope === 'purges' ? 'purge' : 'folder'));
+      clauses.push(`(${query.entities.map(id => prop('piaEntity', id)).join(' or ')})`);
     } else invalid(false);
   }
   invalid(exact(query, keys)); return clauses.join(' and ');

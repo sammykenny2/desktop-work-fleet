@@ -1,4 +1,4 @@
-import { activeGroups, blankContent, copy, FleetError, groupKey, membershipKey, requireValue, safeKey, validateNewGroup } from './contracts.js';
+import { activeGroups, blankContent, copy, PinItAnywhereError, groupKey, membershipKey, requireValue, safeKey, validateNewGroup } from './contracts.js';
 import { createLayout, LayoutStore, recordTransferLayout, retireGroupLayout } from '../layout/store.js';
 import { planGroupMerge, resolveGroupId, validateGroupMerge } from './groups.js';
 import { canonicalJson } from '../sources/json.js';
@@ -15,7 +15,7 @@ import { encodeSourceRevision } from '../sources/source-revisions.js';
 import { initializationComplete, initializationId, validateInitialization } from '../sources/workspace-initialization.js';
 import { t } from '../i18n/index.js';
 
-export const CURRENT_WORKSPACE_FORMAT = 'work-fleet-workspace-current';
+export const CURRENT_WORKSPACE_FORMAT = 'pin-it-anywhere-workspace-current';
 
 function contentValue(content) {
   requireValue(content && typeof content.text === 'string' && typeof content.format === 'string',
@@ -1054,7 +1054,7 @@ export class Workspace {
         state.layout = copy(layout);
       }));
     } catch (error) {
-      if (error instanceof FleetError && error.code === 'conflict') {
+      if (error instanceof PinItAnywhereError && error.code === 'conflict') {
         await this.#commit(state => state.conflicts.push({ kind: 'transfer', cardId, groupId, expectedRevision }));
       }
       throw error;

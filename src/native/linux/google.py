@@ -328,7 +328,7 @@ class Google:
         if "datasetId" in file:
             return dataset.verify(value, file)
         properties = value.get("appProperties", {})
-        p.require(value.get("id") == file["id"] and str(value.get("size")) == str(file["size"]) and "appDataFolder" in value.get("spaces", []) and value.get("trashed", False) is False and properties.get("wfFormat") == "work-fleet-file" and properties.get("wfSchema") == "1" and properties.get("wfKind") == file["kind"] and properties.get("wfSha256") == file["sha256"] and value.get("sha256Checksum", file["sha256"]) == file["sha256"], "upload-mismatch", "The Google file's metadata doesn't match its content.")
+        p.require(value.get("id") == file["id"] and str(value.get("size")) == str(file["size"]) and "appDataFolder" in value.get("spaces", []) and value.get("trashed", False) is False and properties.get("piaFormat") == "pin-it-anywhere-file" and properties.get("piaSchema") == "1" and properties.get("piaKind") == file["kind"] and properties.get("piaSha256") == file["sha256"] and value.get("sha256Checksum", file["sha256"]) == file["sha256"], "upload-mismatch", "The Google file's metadata doesn't match its content.")
 
     def read_file(self, file):
         self.metadata(self.json(self.path("/drive/v3/files/" + file["id"], fields=FIELDS)), file)
@@ -353,7 +353,7 @@ class Google:
 
     def create_file(self, file, data):
         key, size = file["id"], file["size"]
-        metadata = p.encode(dataset.metadata(file) if "datasetId" in file else {"id": key, "name": f"work-fleet-v1-{file['kind']}-{file['sha256']}.bin", "mimeType": "application/octet-stream", "parents": ["appDataFolder"], "appProperties": {"wfFormat": "work-fleet-file", "wfSchema": "1", "wfKind": file["kind"], "wfSha256": file["sha256"]}})
+        metadata = p.encode(dataset.metadata(file) if "datasetId" in file else {"id": key, "name": f"pin-it-anywhere-v1-{file['kind']}-{file['sha256']}.bin", "mimeType": "application/octet-stream", "parents": ["appDataFolder"], "appProperties": {"piaFormat": "pin-it-anywhere-file", "piaSchema": "1", "piaKind": file["kind"], "piaSha256": file["sha256"]}})
         mime = "application/json" if "datasetId" in file and file["kind"] != "attachment" else "application/octet-stream"
         try:
             if not data:
@@ -451,7 +451,7 @@ class Google:
         if method == "google.deleteBatch":
             body = dataset.delete_batch(args.get("fileIds"))
             return self.request("/batch/drive/v3", method="POST", data=body,
-                                headers={"Content-Type": "multipart/mixed; boundary=work_fleet_delete"})[1]
+                                headers={"Content-Type": "multipart/mixed; boundary=pin_it_anywhere_delete"})[1]
         if method == "google.delete":
             # Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.
             file_id = p.text(args, "fileId", 256)

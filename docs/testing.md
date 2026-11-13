@@ -167,7 +167,7 @@ It reads a start token and 31 change pages per transport mode, with one second b
 pages: one cold check and 30 warm samples. The first mode reconstructs the prior
 per-request URLSession behavior; the second uses the production account session.
 It stops on failure, never retries a malformed response as empty, and writes
-`drive-read-probe.json` in the app's `Library/Application Support/WorkFleet` directory.
+`drive-read-probe.json` in the app's `Library/Application Support/PinItAnywhere` directory.
 The window stays blank during this deliberate diagnostic launch; quit and reopen without
 the argument to return to the app. Release builds ignore the argument.
 
@@ -235,7 +235,7 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
 Android's `StorageProbe` instrumentation exercises production SQLite, AES-GCM and CursorWindow with 3 MiB and
 25 MiB attachments before/after reopen. It uses a new cache directory and a synthetic key, never the account database
 or AndroidKeyStore. Build `:app:assembleDebug :app:assembleDebugAndroidTest`, install both APKs on a disposable emulator,
-then run `adb -s SERIAL shell am instrument -w app.workfleet.preview.test/app.workfleet.nativehost.StorageProbe`
+then run `adb -s SERIAL shell am instrument -w dev.sammykenny2.pinitanywhere.test/dev.sammykenny2.pinitanywhere.nativehost.StorageProbe`
 (replace the test package if the configured application ID differs). Require the explicit `PASS Android` result.
 This component check does not verify native sign-in, renderer transfers or real Drive sync.
 - Empty dataset tests assert exactly three remote objects across initialization, idle sync, reopen and a second
@@ -459,7 +459,7 @@ lost with a renderer. Add exact native commands only when their probes exist; un
   resting on the Top layer (not on the other layers or while adjusted), a merged group dropping it and the paper colour
   taking it as alpha; `tests/backup-payload.test.js` rejects an opacity for an unknown group or below 30%.
 - The native frame checks accept `opacity` only from 0.3 to 1 and below 1 only on the Top layer: the Windows core
-  probe, `tests/test_linux_scenes.py` and, unrun, the macOS FleetSceneProtocol.
+  probe, `tests/test_linux_scenes.py` and, unrun, the macOS PinItAnywhereSceneProtocol.
 - The Windows UI probe moves a group to the Top layer at 50% through Group settings and checks the paper's computed
   background in the topmost scene, then that it is opaque again on the Desktop layer. It checks styles, not the pixels
   the compositor draws; Linux and macOS have not been checked on a real desktop (2026-10-23).
@@ -481,7 +481,7 @@ lost with a renderer. Add exact native commands only when their probes exist; un
   dragged paper on the Top layer until the drop;
   `tests/backup-payload.test.js` rejects a non-boolean `quickMove`.
 - The native frame checks accept `quickMove` only as `meta`, `ctrl` or null: the Windows core probe (CI),
-  `tests/test_linux_scenes.py` and, in `SceneLayersProbe.swift`, the macOS FleetSceneProtocol.
+  `tests/test_linux_scenes.py` and, in `SceneLayersProbe.swift`, the macOS PinItAnywhereSceneProtocol.
 - `scene-probe` holds the platform key (⌘ on macOS, Ctrl elsewhere) and drags a resting paper's text: the owner receives
   `pointer.down` with `quick: true`, then moves and the release, and no text is selected; the same drag without the key
   selects text and sends nothing, a move answered `cancelled` ends the drag with no error and no release, a checkbox
@@ -607,7 +607,7 @@ Local checks do not establish a hosted build or real-device acceptance; signing 
   `python3 scripts/sign_ios_app.py --help` describes. The tool signs the nested code, the Share Extension and the main app and verifies them; finish with `bash scripts/macos/package-preview-app.sh --platform ios`.
   Installing, launching and Google sign-in on a real device are each accepted on their own; a codesign check does not replace them.
   On the maintainer's Mac, CoreSimulator reported an older service version than Xcode, so the iOS Simulator was not started; the iOS checks there were build-only (2026-10-17).
-- Real Android signing: set `WORK_FLEET_ANDROID_DEBUG_KEYSTORE` to the absolute path of the existing debug keystore,
+- Real Android signing: set `PIN_IT_ANYWHERE_ANDROID_DEBUG_KEYSTORE` to the absolute path of the existing debug keystore,
   run `testDebugUnitTest assembleDebug`, and check the APK with the SDK's `apksigner verify --verbose --print-certs`.
   The SHA-1 must match the installed build and the value registered for OAuth; the official release key does not use this debug setting.
 - Android delivery: configure the four release signing process variables and complete public settings from
@@ -627,7 +627,7 @@ It also verifies that success and failure both remove this run's staging and kee
 it rewrites `src/native/linux/VERSION` in an isolated checkout whose path contains spaces and runs the full `--deb` build,
 confirming that the DEB and tar.gz are written directly to the root of `build/`, that their file names follow that version, that each `.sha256` matches its file,
 that `build/` gets no other new files, and that rebuilding the bundle removes source files that no longer exist; that the launcher prefers `/usr/bin/python3`;
-and that an interpreter named by `WORK_FLEET_PYTHON` receives the host path and the original arguments.
+and that an interpreter named by `PIN_IT_ANYWHERE_PYTHON` receives the host path and the original arguments.
 In WSL, give this fixture a Linux esbuild binary of the same version (kept under the ignored `build/`); do not reuse the Windows `node_modules` esbuild binary (2026-10-17).
 In WSL the integrated `--deb` build test is skipped when WSL has no Node; the release workflow still builds it (2026-10-16).
 
@@ -684,7 +684,7 @@ The native macOS build, the preview package and the Release export all run `scri
 which checks the arm64 and x86_64 main program and its dynamic dependencies inside the bundle one by one, and accepts no framework from outside the bundle on the build machine.
 Before notarization the Release export adds `--launch`, which runs the app's `--check-runtime`: the real dyld loads the app and it exits at once,
 without creating NSApplication or opening the workspace, login items or Google. It proves only native loading on the build machine's architecture and cannot count as main-window or Google round-trip acceptance.
-After cloning on a Mac, open the committed `src/native/apple/WorkFleet.xcodeproj`; no project generation is needed first.
+After cloning on a Mac, open the committed `src/native/apple/PinItAnywhere.xcodeproj`; no project generation is needed first.
 Node 22+, npm and the signing settings are described in the [Apple README](../src/native/apple/README.md).
 
 The actual compile commands for the unsigned universal macOS preview follow; they do not change the system `xcode-select` setting.
@@ -692,14 +692,14 @@ A Debug preview does not replace official signing, Keychain and Google, or produ
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
-  -project src/native/apple/WorkFleet.xcodeproj -scheme WorkFleetMac \
+  -project src/native/apple/PinItAnywhere.xcodeproj -scheme PinItAnywhereMac \
   -configuration Debug -destination 'generic/platform=macOS' \
   -derivedDataPath build/apple/DerivedData \
   -clonedSourcePackagesDirPath build/apple/SourcePackages \
-  "WORK_FLEET_PACKAGES_DIR=$PWD/build/apple/SourcePackages" \
+  "PIN_IT_ANYWHERE_PACKAGES_DIR=$PWD/build/apple/SourcePackages" \
   'ARCHS=arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build
-lipo -archs build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app/Contents/MacOS/WorkFleetMac
-python3 scripts/testing/check_macos_runtime.py build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app
+lipo -archs build/apple/DerivedData/Build/Products/Debug/PinItAnywhereMac.app/Contents/MacOS/PinItAnywhereMac
+python3 scripts/testing/check_macos_runtime.py build/apple/DerivedData/Build/Products/Debug/PinItAnywhereMac.app
 ```
 
 `scripts/macos/build-native-app.sh --platform macos --unsigned` already uses the architecture settings above;
@@ -708,7 +708,7 @@ After packaging, check the actual app with `hdiutil verify` and a read-only moun
 The build and DMG checks above were verified on 2026-10-05, as were the Apple project tests after the licence-file regression was added.
 
 Testing the native Keychain, encrypted SQLite and main-window startup needs an Apple Development certificate and an existing provisioning profile that allows the local device and
-`app.workfleet.startupprobe.*`. First, in Xcode, open Signing & Capabilities for the WorkFleetMac target,
+`dev.sammykenny2.pinitanywhere.startupprobe.*`. First, in Xcode, open Signing & Capabilities for the PinItAnywhereMac target,
 enable Automatically manage signing, choose the Team and complete Register Device.
 A signed universal build uses the commands above without `CODE_SIGNING_ALLOWED=NO`; there is no need to change the system Keychain or delete app data.
 
@@ -717,8 +717,8 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   python3 scripts/testing/apple_startup_probe.py --team TEAM_ID
 ```
 
-This probe creates a source copy with a unique bundle ID in `build/apple/native-startup-<id>/` and uses the official FleetKeychain,
-FleetDatabase, FleetWebHost and FleetDesktop with the bundled renderer; the original Xcode project and the user's workspace are not changed.
+This probe creates a source copy with a unique bundle ID in `build/apple/native-startup-<id>/` and uses the official PinItAnywhereKeychain,
+PinItAnywhereDatabase, PinItAnywhereWebHost and PinItAnywhereDesktop with the bundled renderer; the original Xcode project and the user's workspace are not changed.
 The test creates, updates and reads the Keychain, reopens the encrypted SQLite and waits for the main window to finish native initialization.
 It then exercises AppKit's real deferred-termination run loop: unfinished composition returns a nonempty cancellation
 reason without stopping the host; a retry with an unsaved draft and idle Settings open stops the native host, unlocks
@@ -731,17 +731,17 @@ and the packaging fix are in [ADR-033](decisions/033-apple-local-script-bundles.
 It creates no certificates, registers no devices, and tests neither Google sign-in nor full desktop gestures; it is not Developer ID or notarization acceptance either.
 
 macOS login items (ADR-043): `python3 -B -m unittest discover -s tests -p 'test_macos_host_shell.py' -v`
-compiles the official `FleetHostShell` and `FleetProtocol` and, with an injected login service, verifies that a never-seen `notFound` can register and the setting stays operable,
+compiles the official `PinItAnywhereHostShell` and `PinItAnywhereProtocol` and, with an injected login service, verifies that a never-seen `notFound` can register and the setting stays operable,
 that the first launch applies the default, that an existing preference allows only a manual retry, that system approval is not overwritten, that cancel and reopen stay off, and that a failure is never reported as success.
 Platforms without Swift and AppKit skip it; by default it does not change system login items. The Mac release job runs it before importing secrets.
 To also verify the real ServiceManagement on a Mac, run:
 
 ```bash
-WORK_FLEET_TEST_LOGIN_ITEMS=1 python3 -B -m unittest discover -s tests -p 'test_macos_host_shell.py' -k real_sandboxed -v
+PIN_IT_ANYWHERE_TEST_LOGIN_ITEMS=1 python3 -B -m unittest discover -s tests -p 'test_macos_host_shell.py' -k real_sandboxed -v
 ```
 
-This creates an ad-hoc signed sandboxed app with a random `app.workfleet.loginprobe.*` ID, temporarily registers and then removes its own login item,
-and does not touch the installed Work Fleet or the user's workspace. The test proves only registration, the system status and removal; a real sign-out and sign-in still need manual acceptance.
+This creates an ad-hoc signed sandboxed app with a random `dev.sammykenny2.pinitanywhere.loginprobe.*` ID, temporarily registers and then removes its own login item,
+and does not touch the installed Pin It Anywhere or the user's workspace. The test proves only registration, the system status and removal; a real sign-out and sign-in still need manual acceptance.
 
 The desktop-layer contract for the three platforms is in [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md).
 `python3 -m unittest discover -s tests -p 'test_linux_scenes.py' -v` verifies, even without GI or a display,
@@ -761,7 +761,7 @@ It needs dbus-run-session, dbus-monitor, gnome-keyring-daemon and libsecret;
 it does not modify the desktop keyring and does not replace real sign-in and reboot acceptance:
 
 ```bash
-task_probe_dir=$(mktemp -d /tmp/work-fleet-storage-probe-XXXXXXXX)
+task_probe_dir=$(mktemp -d /tmp/pin-it-anywhere-storage-probe-XXXXXXXX)
 mkdir -m 700 "$task_probe_dir/data" "$task_probe_dir/runtime"
 XDG_DATA_HOME="$task_probe_dir/data" XDG_RUNTIME_DIR="$task_probe_dir/runtime" \
   timeout 30s dbus-run-session -- python3 -B tests/native/linux/storage_probe.py "$task_probe_dir"
@@ -792,7 +792,7 @@ Phone authorization also has the following author-run regressions, none of which
 
 - `node --test tests/google-vault-pause.test.js` also runs the real account-switch function and confirms that when native sign-in is cancelled or its configuration fails,
   editing, automatic backups and the original account's sync resume, and that a cancel does not use the error style.
-- `python3 -B -m unittest discover -s tests -p 'test_macos_google_sign_in.py' -v` compiles the official `FleetGoogle.swift`
+- `python3 -B -m unittest discover -s tests -p 'test_macos_google_sign_in.py' -v` compiles the official `PinItAnywhereGoogle.swift`
   and, with fake SDK, AppKit, Keychain and HTTP, verifies that cancel keeps the existing sign-in, that success opens once, insufficient Drive permission, late replies after close,
   rejection of a different sub, and classification of SDK and network errors. Deferred cold restoration models the
   SDK's single current-options callback: concurrent callers share one restore and verification, failures reach all
@@ -831,7 +831,7 @@ the Linux toolbar and hiding and restoring the main window are judged by real-ma
 `tests/test_linux_renderer.py` confirms with a fake file system that only a Raspberry Pi model or the V3D driver makes the DMA-BUF renderer default to shared-memory buffers,
 that nothing is overridden when the user sets any renderer variable, and that the host decides before importing WebKit; it does not mean the Pi or other GPUs have been accepted on real hardware.
 `tests/test_linux_shortcuts.py` confirms with a fake Keybinder that X11 turns off cooked matching before registering, that Ctrl+Shift combinations trigger actions, and that they are released while the main window has focus;
-in labwc mode it does not ask the portal, an unwritten combination is `unwritten`, and once written it is available even while Work Fleet has focus; it does not mean real key presses have been accepted.
+in labwc mode it does not ask the portal, an unwritten combination is `unwritten`, and once written it is available even while Pin It Anywhere has focus; it does not mean real key presses have been accepted.
 Remote desktop clients intercept Ctrl+Shift combinations. On the Raspberry Pi with labwc, send keys with `wtype` and watch `dbus-monitor` for `ActivateAction("shortcut", …)` (2026-10-14).
 The path from `Desktop.shortcut` to `desktop-action` has no automated test.
 `tests/test_linux_labwc.py` verifies with temporary files the labwc key syntax, replacing only the marked block while keeping other content and comments, finding or creating `<keyboard>`,
@@ -846,13 +846,13 @@ leaves the caller waiting only for the bounded time when Xwayland stalls, and di
 the old layout, until the grace ends; and that libxcb is not loaded without `DISPLAY` or retried once it is missing. A fake libxcb answers in place of XWayland;
 only the binding to the real libxcb with a display name it refuses is checked when libxcb is installed. `Desktop.read_displays` itself has no automated test.
 On the Raspberry Pi 5 with labwc and wf-panel-pi at the top, the bundle read `0, 36, 1920, 1044` and placed a new paper's top edge at y = 48 (2026-10-23).
-Multiple displays, output scales other than 1, compositors other than labwc, an Xwayland started on demand by the first read, and a panel moved or resized while Work Fleet runs are not verified on real machines.
+Multiple displays, output scales other than 1, compositors other than labwc, an Xwayland started on demand by the first read, and a panel moved or resized while Pin It Anywhere runs are not verified on real machines.
 In a real Mac graphical session, run `bash scripts/macos/test-desktop-layers.sh`, which compiles the AppKit
 scenes and coordinator directly and verifies native levels, the three-layer capability, position, click-through, the wallpaper refusing focus, that the scene WKWebView draws no opaque background
 (otherwise the whole scene would cover the wallpaper), and that during adjust mode the scene shows even without notes, the whole viewport receives input, and the keyboard and input panel are released on exit;
 it needs no Google SDK. For interactive papers it also confirms with `NSWindow.windowNumber(at:belowWindowWithWindowNumber:)`
 that WindowServer delivers real clicks to the input panel; synthetic events sent directly into the panel skip this hit test and cannot replace this check.
-Global shortcuts are released only while a Work Fleet window holds the keyboard; the probe checks with `FleetShortcuts.suspends` that a minimized main window and closing to the menu bar (the app still in front but with no key window)
+Global shortcuts are released only while a Pin It Anywhere window holds the keyboard; the probe checks with `PinItAnywhereShortcuts.suspends` that a minimized main window and closing to the menu bar (the app still in front but with no key window)
 keep the registration. Real key delivery needs testing on a physical keyboard; remote desktops do not always pass key combinations through.
 WindowServer applies window order and level asynchronously, so a window that was just shown first reports layer 0 and is not on screen; the probe flushes and waits until the window is on screen with the matching level
 (at most 2 seconds) before checking.
@@ -864,11 +864,11 @@ The Linux native scene tests use a separate headless labwc, GTK and WebKit and d
 npm run build
 mkdir -p build/linux-layer-checks
 node tests/native/desktop-scenarios.mjs build/linux-layer-checks/scenarios.json
-docker build -t work-fleet-linux-desktop-tests -f tests/native/linux/Dockerfile tests/native/linux
+docker build -t pin-it-anywhere-linux-desktop-tests -f tests/native/linux/Dockerfile tests/native/linux
 docker run --rm --network none \
   --mount "type=bind,source=$PWD,target=/workspace,readonly" \
   --mount "type=bind,source=$PWD/build/linux-layer-checks,target=/evidence" \
-  work-fleet-linux-desktop-tests dbus-run-session -- \
+  pin-it-anywhere-linux-desktop-tests dbus-run-session -- \
   bash /workspace/scripts/linux/test-desktop-layers.sh /evidence /evidence/scenarios.json
 ```
 
@@ -879,14 +879,14 @@ mkdir -p build/linux-host-checks
 docker run --rm --network none \
   --mount "type=bind,source=$PWD,target=/workspace,readonly" \
   --mount "type=bind,source=$PWD/build/linux-host-checks,target=/evidence" \
-  work-fleet-linux-desktop-tests dbus-run-session -- bash /workspace/scripts/linux/test-host-shell.sh /evidence
+  pin-it-anywhere-linux-desktop-tests dbus-run-session -- bash /workspace/scripts/linux/test-host-shell.sh /evidence
 ```
 
 Xvfb with openbox (X11) verifies the default size, `window-placement.json` after move, maximize, minimize and restore, reopening at the saved position, reset,
 the autostart entry for the bundle's launcher written on first launch and not re-created at later launches after it is turned off, and that with `--launch-at-login` the main window starts hidden,
 shows after a wait when there is no tray (the probe uses 3 seconds through the public `startup` setting), and that a second launch brings up the main window. The `hidden-tray` mode uses the direct Gio StatusNotifierItem
 and registers the StatusNotifierWatcher only after the app, verifying that a late tray keeps the main window hidden
-and that the window shows only when the tray disappears. D-Bus calls verify `Title=Work Fleet`, `ItemIsMenu=false`, primary
+and that the window shows only when the tray disappears. D-Bus calls verify `Title=Pin It Anywhere`, `ItemIsMenu=false`, primary
 activation opening the main window, exported menu layout/actions, language changes, and menu-open/close shortcut blocking.
 It confirms that `host.log` records this sign-in start and the tray coming and going. Real panel clicks, menu dismissal
 and focus policy on GNOME, KDE and Pi still need acceptance; macOS primary/context clicks are compiled but not exercised here.
@@ -914,7 +914,7 @@ reservation and ack faults, attachments, source immutability, revoked access and
 `tests/google-drive.test.js` uses scripted HTTP responses and verifies appDataFolder routing and metadata,
 resumable chunks and Range, reopening after a 4xx, the same file ID, read-back verification and Location boundaries; it uses no Google credentials.
 `python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v` compiles the official Apple
-`FleetDrive` and `FleetProtocol`, replacing only authorization and HTTP, and verifies the `fields` parameter that Google returns with raw commas or `%2C`,
+`PinItAnywhereDrive` and `PinItAnywhereProtocol`, replacing only authorization and HTTP, and verifies the `fields` parameter that Google returns with raw commas or `%2C`,
 that the upload bytes and URL are kept, resuming after a failure by querying progress, and opening a new session on the same file ID after the adapter is rebuilt.
 It also verifies that a missing or invalid Location, an external host, HTTP, a wrong port or path, credentials, a fragment, duplicate parameters and an overlong URL
 are rejected before any content is sent. Platforms without the Swift SDK skip it; the Mac release job runs it before importing secrets.
@@ -1117,7 +1117,7 @@ In a restricted agent sandbox, Python tests that open loopback sockets, Node sub
 rerun with normal local permissions rather than treating the denial as a product failure (2026-10-15 to 2026-10-17).
 
 `macos_probe.py` uses only a TemporaryDirectory SQLite and a one-time invite, really launches the signed app,
-keeps settings and caches in a separate `WorkFleet-Probe` subdirectory, and gives the web content a nonpersistent WKWebsiteDataStore.
+keeps settings and caches in a separate `PinItAnywhere-Probe` subdirectory, and gives the web content a nonpersistent WKWebsiteDataStore.
 It briefly shows and activates the editing window used for verification. The probe asserts each item, and any missing event or mismatch fails it.
 Do not run the focus probe while someone else is using the keyboard. Its diagnostic output contains no note text or credentials.
 
@@ -1133,9 +1133,9 @@ provides a regression case for menus owned by non-activating windows. In an isol
 an unfocusable avatar opened a native menu while an external application's window remained foreground. A real left-click
 on that same external window left the menu open: there was no foreground transition to trigger dismissal. Temporarily
 making the owner focusable and focusing it before opening the menu, then restoring it on close or cancellation, passed
-that fixture's native acceptance. This finding does not establish a defect or an acceptance pass in Work Fleet.
+that fixture's native acceptance. This finding does not establish a defect or an acceptance pass in Pin It Anywhere.
 
-Work Fleet uses different native menu paths: Windows already calls `SetForegroundWindow` on the notification owner
+Pin It Anywhere uses different native menu paths: Windows already calls `SetForegroundWindow` on the notification owner
 before opening its WPF `ContextMenu`; macOS explicitly opens a separate `NSMenu` for context clicks; Linux exports its
 flat menu over D-Bus, with GTK menus for native context requests and the X11 fallback. Keep those platform boundaries when investigating a failure. The Electron fix is
 reference evidence, not a patch to transplant into these hosts.
@@ -1146,20 +1146,20 @@ outside click dismisses it. Renderer/CDP clicks alone cannot establish that OS b
 
 For real-input acceptance, use an isolated profile and each platform's normal tray or menu-bar entry:
 
-1. Put an external application's window in the foreground, then open Work Fleet's menu. Observe the native menu and
+1. Put an external application's window in the foreground, then open Pin It Anywhere's menu. Observe the native menu and
    actual foreground/key-window state; a renderer screenshot alone is insufficient.
 2. Left-click that same external window, including a case where it remained foreground while the menu opened.
-   Confirm that the menu closes and no Work Fleet action runs. Once the external app has focus, menu cleanup must
+   Confirm that the menu closes and no Pin It Anywhere action runs. Once the external app has focus, menu cleanup must
    leave it there.
 3. Repeat with a different external window and empty desktop space. Check dismissal, then repeat after hiding and
-   showing Work Fleet's main window.
+   showing Pin It Anywhere's main window.
 4. Reopen and dismiss with Escape; reopen and choose an item. Escape runs no action, and a chosen action runs once
    after the menu closes. Verify that shortcut suspension is released and that reopening/cancelling repeatedly leaves
-   no stale menu or invisible input blocker. A chosen action may focus its intended Work Fleet view.
+   no stale menu or invisible input blocker. A chosen action may focus its intended Pin It Anywhere view.
 
 Record the OS/window-system version, native menu path, actual foreground/key-window observations, input method and
 result for each case. Linux X11 and native Wayland sessions need separate observations where supported. These steps
-are an acceptance procedure; no Work Fleet real-input Windows, macOS or Linux pass was performed for this feedback.
+are an acceptance procedure; no Pin It Anywhere real-input Windows, macOS or Linux pass was performed for this feedback.
 
 ## Windows native main window and storage
 
@@ -1173,12 +1173,12 @@ still exports a valid backup, while with the option the backup's layout applies.
 to verify the double gate of the safety save and the clear checkbox, the confirmation being invalidated when the file changes, that the preview pauses ordinary sync, and the full restore.
 It mounts only the backup panel and simulates neither native account switching nor resuming in the full main window; it is not real Google end to end.
 
-The unpackaged path probe `WorkFleet.Windows.Ui.Tests.exe --app-data OUTPUT_DIRECTORY` only resolves paths and writes no official ZIP or Debug data.
+The unpackaged path probe `PinItAnywhere.Windows.Ui.Tests.exe --app-data OUTPUT_DIRECTORY` only resolves paths and writes no official ZIP or Debug data.
 With an existing Release app, UI probe and package content, run
 `scripts/windows/Test-WindowsAppData.ps1 -CertificateThumbprint THUMBPRINT`:
-it uses an existing trusted local certificate to create a separate `app.workfleet.storageprobe.*` identity,
+it uses an existing trusted local certificate to create a separate `dev.sammykenny2.pinitanywhere.storageprobe.*` identity,
 really verifies the explicit private location, writes, deletion on uninstall and that an external export fixture survives, and finally removes only its own test package.
-The evidence stays in `build/storage-probe-*`; there is no new certificate, UAC, real Work Fleet install or uninstall, or Google operation.
+The evidence stays in `build/storage-probe-*`; there is no new certificate, UAC, real Pin It Anywhere install or uninstall, or Google operation.
 A real product update, export and import of the old external DB, and other Windows versions still need their own acceptance.
 
 Packaging check for a locally signed preview (it does not install the app or change certificate trust):
@@ -1231,7 +1231,7 @@ The Windows UI probe only checks that the scene DOM contains a card; it cannot t
 
 `DataFailureProbe` in the core probe opens a database that is not SQLite (it reports `data-damaged`), classifies the
 other SQLite, Win32 and DPAPI causes, puts back the moved database when a held `-wal` stops setting aside, and opens
-empty data after a set-aside. `WorkFleet.Windows.Ui.Tests.exe --data-failure DIR`, part of Test-WindowsNative, runs the
+empty data after a set-aside. `PinItAnywhere.Windows.Ui.Tests.exe --data-failure DIR`, part of Test-WindowsNative, runs the
 start-up window on a damaged database through its set-aside and a reopen, checks that it uses the Fluent theme with
 opening the folder as the accent action and saves it as `data-failure.png`, then damages the DPAPI workspace record of a
 real profile and drives the page's explanation, its folder and its set-aside through the host until the page opens
@@ -1249,7 +1249,7 @@ container loads no page. The macOS alert, set-aside and page methods have not be
 Measured on 2026-10-23 with WebView2 155: after the main window went to the tray, the page turned `hidden` and its own
 20-second interval kept its pace for one to two minutes, then ran only once a minute until the window showed again.
 The hosts therefore send `host-tick` every 20 seconds, and the hidden page syncs on it; showing the main window syncs
-at once. `WorkFleet.Windows.Ui.Tests.exe --hidden-sync DIR` (about five minutes, not part of Test-WindowsNative) hides
+at once. `PinItAnywhere.Windows.Ui.Tests.exe --hidden-sync DIR` (about five minutes, not part of Test-WindowsNative) hides
 the main window for 270 seconds, requires a tick at least every 25 seconds and prints the page's own interval beside it.
 macOS (WKWebView, App Nap) and Linux (WebKitGTK) send the same tick but have not been measured hidden; whether their
 hidden pages slow down, and whether the tick reaches a suspended macOS page on time, is unverified (2026-10-23).
@@ -1381,7 +1381,7 @@ WPF IsActive does not stand in for actual ownership through GetForegroundWindow,
 `tests/native-shortcuts.test.js` tests settings merge, retries and close isolation; `tests/shortcuts.test.js` tests the input priority of local keys.
 
 `npm test` explicitly skips 8 native integration tests that need the built Windows helper;
-they run only with `WORK_FLEET_NATIVE_TEST=1`, and then a missing helper fails instead of reporting success.
+they run only with `PIN_IT_ANYWHERE_NATIVE_TEST=1`, and then a missing helper fails instead of reporting success.
 To run them alone, first run `Build-WindowsApp.ps1 -Configuration Debug -IncludeTests`, then set the variable and run
 `node --test tests/native-storage.test.js`. The OS-independent bridge close and message-capacity tests run every time.
 
@@ -1389,8 +1389,8 @@ The same script then runs `--diagnostics OUTPUT_DIRECTORY` ([ADR-032](decisions/
 Without the variable no CDP option is created; an invalid port must be rejected with HostError before the owner lock, and the same directory can still be opened afterwards.
 It opens the Debug main window on a free port assigned by the OS and confirms that DevTools is enabled, that the listener binds only to loopback,
 and that `/json/list` has the main document, and it reads DOM state through a real CDP WebSocket. Release executables cannot run this probe.
-`Build-WindowsPackage.ps1` scans `WorkFleet.dll` after publish and stops packaging if it finds the `remote-debugging` string;
-`Test-WindowsNative.ps1` requires the same scan to hit the Debug `WorkFleet.dll`, so the check cannot silently stop working; the script also clears any port variable the shell already set.
+`Build-WindowsPackage.ps1` scans `PinItAnywhere.dll` after publish and stops packaging if it finds the `remote-debugging` string;
+`Test-WindowsNative.ps1` requires the same scan to hit the Debug `PinItAnywhere.dll`, so the check cannot silently stop working; the script also clears any port variable the shell already set.
 
 Next it runs `--host-shell OUTPUT_DIRECTORY` ([ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)):
 the main window briefly appears on the primary display without taking focus. It checks that the gear opens Settings > General with the version and the "Startup" section (Debug has no StartupTask, so the start-at-sign-in option is disabled with the reason shown),
@@ -1451,48 +1451,48 @@ Last, it runs `--reference-dpi OUTPUT_DIRECTORY` (ADR-018, ADR-020):
 - The real monitor's DPI cancels out of every ratio it checks. It does not cover a primary display at the origin, where papers keep their placements, or group regions.
   It cannot make the composition blank, so a real switch from a remote session to the local display awaits a real-machine check, as do a resolution switch and a
   DPI change of the primary display while other displays are attached.
-- Real machine, 2026-10-24 (ADR-020): a scaling change while Work Fleet runs leaves the attached scene windows at the DPI of Explorer's desktop window, 144 here,
+- Real machine, 2026-10-24 (ADR-020): a scaling change while Pin It Anywhere runs leaves the attached scene windows at the DPI of Explorer's desktop window, 144 here,
   whatever the display's. With a Debug build beside the installed 0.4.1 on a 3840x2160 display switched from 150% to 125%, the installed build drew each desktop
   paper at 125/150 of its size inside a white frame of the right size, while every scene of the Debug build reported a device pixel ratio of 1.25 and a 3072x1728 viewport.
   No probe can make Explorer's DPI differ from the display's.
 
 MSIX end to end: first run `Build-WindowsPackage.ps1 -LocalTestSign`, then `Test-WindowsRecovery.ps1`.
-- It installs the `app.workfleet.crashprobe.e2e` test identity and has it, as a sign-in start, throw the same error after the scenes enter Explorer.
+- It installs the `dev.sammykenny2.pinitanywhere.crashprobe.e2e` test identity and has it, as a sign-in start, throw the same error after the scenes enter Explorer.
 - It checks four things:
   - All scene windows leave Explorer before Windows writes its report.
   - Meanwhile `Progman` and `Shell_TrayWnd` keep responding, and there is no Explorer hang report.
   - No reopen: no new instance, no `restart.json`, and no reopen record in `host.log`.
   - At the end the test removes the test package and its dump; `host.log` stays in `build/windows/crash-probe/`.
-- It does not touch the installed Work Fleet.
+- It does not touch the installed Pin It Anywhere.
 - The reverse check, "without detaching, Explorer hangs", is not run, because it would freeze the user's Explorer.
 - A render-thread failure at a real sign-in can be observed only by installing the new version, rebooting and reading `host.log`.
 
 Display-switch end to end: first run `Build-WindowsPackage.ps1 -LocalTestSign`, then `Test-WindowsDisplaySwitch.ps1`.
 - It needs two displays; a laptop must have its lid open, because with the lid closed Windows does not let DisplaySwitch extend to the built-in display.
-- It first switches to "Extend", then installs and starts the `app.workfleet.displayprobe.e2e` test identity. After the scenes enter Explorer,
+- It first switches to "Extend", then installs and starts the `dev.sammykenny2.pinitanywhere.displayprobe.e2e` test identity. After the scenes enter Explorer,
   it alternates between "Second screen only" and "Extend", 3 rounds by default.
 - `-SwitchAfter N`: switch N seconds after start, without waiting for the scenes to settle. `-Lid`: the user closes the lid to trigger one switch instead.
 - Pass conditions:
   - The test package has no fatal error.
   - Explorer is never unresponsive for 5 seconds in a row and has no hang report.
 - It changes the display configuration of the current sign-in session, and other windows move with it; at the end it switches back to `-Final`, which is second screen only by default.
-- It refuses to run while another Work Fleet is running, because the same display change would affect it.
+- It refuses to run while another Pin It Anywhere is running, because the same display change would affect it.
 - At the end it removes the test package and its dump; `host.log` stays in `build/windows/display-probe/`.
 - The script cannot produce the sign-in state "lid closed but built-in display still active"; that can be observed only by rebooting and reading the display records in `host.log`.
 
 To investigate sign-in crashes, you can turn on full Windows Error Reporting dumps locally (this needs an administrator; the app never sets it up itself):
 
 ```powershell
-$k = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\WorkFleet.exe'
+$k = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\PinItAnywhere.exe'
 New-Item -Path $k -Force | Out-Null
 New-ItemProperty -Path $k -Name DumpFolder -PropertyType ExpandString -Value '%LOCALAPPDATA%\CrashDumps' -Force | Out-Null
 New-ItemProperty -Path $k -Name DumpType -PropertyType DWord -Value 2 -Force | Out-Null
 New-ItemProperty -Path $k -Name DumpCount -PropertyType DWord -Value 5 -Force | Out-Null
 ```
 
-- Dumps are written to `%LOCALAPPDATA%\CrashDumps\WorkFleet.exe.<PID>.dmp`, about 1 GB each, and at most 5 are kept.
-- When they are no longer needed, delete the `LocalDumps\WorkFleet.exe` key.
-- The installed build's log is at `%LOCALAPPDATA%\Packages\app.workfleet.preview_<id>\LocalCache\Local\WorkFleet\host.log`.
+- Dumps are written to `%LOCALAPPDATA%\CrashDumps\PinItAnywhere.exe.<PID>.dmp`, about 1 GB each, and at most 5 are kept.
+- When they are no longer needed, delete the `LocalDumps\PinItAnywhere.exe` key.
+- The installed build's log is at `%LOCALAPPDATA%\Packages\dev.sammykenny2.pinitanywhere_<id>\LocalCache\Local\PinItAnywhere\host.log`.
 
 Google sign-in callback (ADR-021): the core probe verifies `LoopbackCallback` with real loopback sockets.
 - It first opens a connection that sends nothing, then sends the real redirect: the code must arrive within the single connection's 5-second deadline, and the empty connection closes with the listener.
@@ -1515,22 +1515,24 @@ On Unix hosts it also runs the production release-notes shell with the publishin
 Android installation instructions are present only when selected, and backup/new-project/manual-transition guidance
 precedes installation instructions for both release selections.
 The inventory and rendered installation instructions require the `PinItAnywhere` download names (`pin-it-anywhere` for Linux).
-The shared feed fixture retains historical filenames and adds a renamed asset to exercise the existing native parsers;
-manifest lookup names remain stable. `tests/test_linux_package.py` also checks the tar.gz filename, root directory and
+The shared feed fixture and native parsers use the new product's manifest and asset names together (ADR-071).
+`tests/product-identity.test.js` checks current tracked/new filenames, text and binary assets for the retired identity;
+only documentary history is excluded. Earlier installed clients need the documented manual transition.
+`tests/test_linux_package.py` also checks the tar.gz filename, root directory and
 checksum without requiring Debian tools; its DEB integration checks still require `dpkg-deb`.
 `tests/release-versions.test.js` checks that `scripts/platform-version.mjs --release` refuses version records that differ.
 None of this runs the release workflow itself; the first `preview-release.yml` run is its end-to-end check.
-`Test-WindowsUpdate.ps1` runs after `Build-WindowsPackage.ps1 -LocalTestSign`: it turns the MSIX into two versions of `app.workfleet.updateprobe.e2e`,
+`Test-WindowsUpdate.ps1` runs after `Build-WindowsPackage.ps1 -LocalTestSign`: it turns the MSIX into two versions of `dev.sammykenny2.pinitanywhere.updateprobe.e2e`,
 signs both with the same local certificate, installs the old version and gives it a local test source, and confirms that it downloads, verifies and saves the update itself and that, after it closes, Windows replaces it with the new version; finally it removes the test package.
-It does not touch the installed Work Fleet; during the run the test identity's main window and an empty desktop scene appear briefly; the local feed also uses Atom.
+It does not touch the installed Pin It Anywhere; during the run the test identity's main window and an empty desktop scene appear briefly; the local feed also uses Atom.
 The public feed and manifest can be verified read-only against existing releases, with no need to publish or modify a release.
 The Linux updater is verified by `tests/test_linux_updater.py` with the same fixture, and with fake HTTP and commands it verifies the redirect allowlist, size and SHA-256, the `dpkg-deb` fields,
 cancelling pkexec and changes after download; it also verifies that queries do not touch the REST API, the classification of ordinary 403 and of 429 or 403 with Retry-After, that the feed does not redirect, and that file names cannot traverse.
 Its timing test (install callback and worker end) can time out on its 10-second wait when the full JS suite or a build runs at the same time; it passes when run alone or rerun once the load is gone (2026-10-15 to 2026-10-17).
 The updater itself was not changed for this.
 `test-host-shell.sh` confirms that running from outside a DEB reports unsupported. A real pkexec and polkit install needs a real test with the DEB on Debian or the Pi.
-macOS: `tests/update-feed-writer.test.js` verifies the appcast and `work-fleet-update-macos.json` that `write-update-feed.mjs` produces; the Swift code is compiled by the manual Apple build workflow.
-`python3 -B -m unittest discover -s tests -p 'test_macos_release_feed.py' -v` compiles the official `FleetReleaseFeed` with the shared fixture on a Mac,
+macOS: `tests/update-feed-writer.test.js` verifies the appcast and `pin-it-anywhere-update-macos.json` that `write-update-feed.mjs` produces; the Swift code is compiled by the manual Apple build workflow.
+`python3 -B -m unittest discover -s tests -p 'test_macos_release_feed.py' -v` compiles the official `PinItAnywhereReleaseFeed` with the shared fixture on a Mac,
 and verifies version selection that ignores older per-platform tags, no downgrade from a newer local version, the appcast location, a feed without any `vX.Y.Z` release, an empty feed, a DTD, a wrong namespace, an unknown channel, a different repo, and strict version numbers;
 platforms without the Swift SDK skip it. The Mac job of `macos-package.yml` runs it before signing; it does not go online or use the real app or user data.
 Sparkle's sandboxed install, `feedURLString` and EdDSA key can be verified only on a Mac, by updating a Developer ID notarized old version to a new one.
@@ -1551,13 +1553,13 @@ Inspecting the Debug app with CDP during development (it uses the official data 
 
 ```powershell
 .\scripts\windows\Build-WindowsApp.ps1 -Configuration Debug
-$env:WORK_FLEET_WEBVIEW_DEBUG_PORT = '9339'
-& .\src\native\windows\app\bin\Debug\net10.0-windows10.0.19041.0\WorkFleet.exe
-Remove-Item Env:WORK_FLEET_WEBVIEW_DEBUG_PORT
+$env:PIN_IT_ANYWHERE_WEBVIEW_DEBUG_PORT = '9339'
+& .\src\native\windows\app\bin\Debug\net10.0-windows10.0.19041.0\PinItAnywhere.exe
+Remove-Item Env:PIN_IT_ANYWHERE_WEBVIEW_DEBUG_PORT
 # http://127.0.0.1:9339/json/list lists the main window and desktop scene targets
 ```
 
-The VS Code launch configuration "Windows: Work Fleet (Debug + CDP 9339)" is equivalent to the steps above; the "windows: native tests" task runs the full native regression.
+The VS Code launch configuration "Windows: Pin It Anywhere (Debug + CDP 9339)" is equivalent to the steps above; the "windows: native tests" task runs the full native regression.
 
 Set the variable only in the current shell's process environment; do not use setx or the registry. CDP does not start when the port is already in use.
 
@@ -1576,9 +1578,9 @@ The steps and untested states for real desktop and Finder marquee selection and 
 ## Artifact checks
 
 ```bash
-codesign --verify --strict 'build/Work Fleet.app'
-codesign -d --entitlements - 'build/Work Fleet.app'
-otool -L 'build/Work Fleet.app/Contents/MacOS/WorkFleet'
+codesign --verify --strict 'build/Pin It Anywhere.app'
+codesign -d --entitlements - 'build/Pin It Anywhere.app'
+otool -L 'build/Pin It Anywhere.app/Contents/MacOS/PinItAnywhere'
 ```
 
 The final staged export rebuilt successfully in a clean directory with an empty module cache; the 13 HTTP/SQLite tests, the 8 JS tests and the document checks also passed.

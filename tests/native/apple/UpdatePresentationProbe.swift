@@ -24,26 +24,26 @@ import AppKit
         let alert = NSRect(x: 0, y: 0, width: 520, height: 310)
         let areas = [primary, left, above]
         for area in areas {
-            let frame = FleetUpdatePresentation.position(alert, preferred: area, center: nil, areas: areas)
+            let frame = PinItAnywhereUpdatePresentation.position(alert, preferred: area, center: nil, areas: areas)
             try require(frame.midX == area.midX && frame.midY == area.midY, "Center on the invoking display, including negative origins")
             try require(area.contains(frame), "The alert must stay outside the menu bar and Dock")
         }
         let moved = NSPoint(x: -400, y: 700)
-        let progress = FleetUpdatePresentation.position(NSRect(x: 0, y: 0, width: 400, height: 130), preferred: primary, center: moved, areas: areas)
+        let progress = PinItAnywhereUpdatePresentation.position(NSRect(x: 0, y: 0, width: 400, height: 130), preferred: primary, center: moved, areas: areas)
         try require(progress.midX == moved.x && progress.midY == moved.y, "A later stage preserves the center after a user moves the offer")
-        let edge = FleetUpdatePresentation.position(alert, preferred: left, center: NSPoint(x: -1900, y: 1050), areas: areas)
+        let edge = PinItAnywhereUpdatePresentation.position(alert, preferred: left, center: NSPoint(x: -1900, y: 1050), areas: areas)
         try require(left.contains(edge), "Clamp all edges to the chosen work area")
-        let unplugged = FleetUpdatePresentation.position(alert, preferred: left, center: moved, areas: [primary])
+        let unplugged = PinItAnywhereUpdatePresentation.position(alert, preferred: left, center: moved, areas: [primary])
         try require(primary.contains(unplugged), "Unplugging the invoking display cannot strand the dialog")
-        let unchanged = FleetUpdatePresentation.position(alert, preferred: nil, center: nil, areas: [])
+        let unchanged = PinItAnywhereUpdatePresentation.position(alert, preferred: nil, center: nil, areas: [])
         try require(unchanged == alert, "No display must not invent coordinates")
-        let oversized = FleetUpdatePresentation.position(NSRect(x: 0, y: 0, width: 2000, height: 1500), preferred: primary, center: nil, areas: [primary])
+        let oversized = PinItAnywhereUpdatePresentation.position(NSRect(x: 0, y: 0, width: 2000, height: 1500), preferred: primary, center: nil, areas: [primary])
         try require(oversized.minX == primary.minX && oversized.maxY == primary.maxY, "Oversized native alerts keep their title bar reachable")
     }
 
     static func activation() async throws {
         var events: [String] = []
-        let immediate = FleetUpdateActivation()
+        let immediate = PinItAnywhereUpdateActivation()
         let ready = await immediate.wait { focused in
             events.append("create"); focused(); events.append("requested")
             return { events.append("destroy") }
@@ -52,7 +52,7 @@ import AppKit
         try require(ready && events == ["create", "requested", "destroy", "dialog"], "Even synchronous focus releases the helper before the alert")
 
         events = []
-        let delayed = FleetUpdateActivation()
+        let delayed = PinItAnywhereUpdateActivation()
         let activated = await delayed.wait(nanoseconds: 500_000_000) { focused in
             events.append("create")
             Task { try? await Task.sleep(nanoseconds: 5_000_000); events.append("focus"); focused() }
@@ -62,19 +62,19 @@ import AppKit
         try require(activated && events == ["create", "focus", "destroy", "dialog"], "The dialog must wait for activation")
 
         var released = 0
-        let timeout = FleetUpdateActivation()
+        let timeout = PinItAnywhereUpdateActivation()
         let timedOut = await timeout.wait(nanoseconds: 1_000_000) { _ in { released += 1 } }
         try require(!timedOut && released == 1, "Activation timeout must release its window and permit a fallback")
         timeout.finish(true)
         try require(released == 1, "A late focus cannot resume a completed request twice")
 
-        let cancelled = FleetUpdateActivation()
+        let cancelled = PinItAnywhereUpdateActivation()
         let cancelledResult = await cancelled.wait { focused in
             Task { cancelled.finish(false); focused() }
             return { released += 1 }
         }
         try require(!cancelledResult && released == 2, "Quitting cancels activation and cleans up once")
-        let alreadyCancelled = FleetUpdateActivation(); alreadyCancelled.finish(false)
+        let alreadyCancelled = PinItAnywhereUpdateActivation(); alreadyCancelled.finish(false)
         let neverStarted = await alreadyCancelled.wait { _ in fatalError("A cancelled request created a window") }
         try require(!neverStarted, "Cancellation before activation cannot open a helper")
     }
@@ -85,7 +85,7 @@ import AppKit
         let notifications = NotificationCenter()
         var active = true
         var areas = [NSRect(x: 0, y: 40, width: 1200, height: 760)]
-        let presenter = FleetUpdatePresentation(notifications: notifications, isActive: { active }, areas: { areas })
+        let presenter = PinItAnywhereUpdatePresentation(notifications: notifications, isActive: { active }, areas: { areas })
         let main = NSWindow(contentRect: NSRect(x: 23, y: 81, width: 900, height: 600), styleMask: .titled, backing: .buffered, defer: false)
         let mainFrame = main.frame
         let offer = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 300), styleMask: .titled, backing: .buffered, defer: false)

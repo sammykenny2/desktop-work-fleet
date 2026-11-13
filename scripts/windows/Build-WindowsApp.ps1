@@ -39,10 +39,10 @@ try {
     # Config/public.json beside the app also carries the Windows Desktop client secret when .env has one.
     & node scripts/build-web.mjs --platform windows
     if ($LASTEXITCODE -ne 0) { throw 'Web asset build failed.' }
-    $Projects = @('src/native/windows/app/WorkFleet.Windows.csproj')
+    $Projects = @('src/native/windows/app/PinItAnywhere.Windows.csproj')
     if ($IncludeTests) {
-        $Projects += 'tests/native/windows/core/WorkFleet.Windows.Core.Tests.csproj'
-        $Projects += 'tests/native/windows/ui/WorkFleet.Windows.Ui.Tests.csproj'
+        $Projects += 'tests/native/windows/core/PinItAnywhere.Windows.Core.Tests.csproj'
+        $Projects += 'tests/native/windows/ui/PinItAnywhere.Windows.Ui.Tests.csproj'
     }
     foreach ($Project in $Projects) {
         $RuntimeArguments = @()
@@ -57,7 +57,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Native build failed: $Project" }
     }
     $RuntimeDirectory = if ($SelfContained) { 'win-x64/' } else { '' }
-    Write-Output "Windows app: src/native/windows/app/bin/$Configuration/net10.0-windows10.0.19041.0/${RuntimeDirectory}WorkFleet.exe"
+    Write-Output "Windows app: src/native/windows/app/bin/$Configuration/net10.0-windows10.0.19041.0/${RuntimeDirectory}PinItAnywhere.exe"
 } finally {
     Pop-Location
     foreach ($Name in $SavedEnvironment.Keys) {

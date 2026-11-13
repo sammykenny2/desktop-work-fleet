@@ -11,14 +11,14 @@ import unittest
 class MacOSReleaseFeedTests(unittest.TestCase):
     def test_public_feed_selection_and_refusals(self):
         root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory(prefix="work-fleet-release-feed-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="pin-it-anywhere-release-feed-") as temporary:
             folder = Path(temporary)
             executable = folder / "ReleaseFeedProbe"
             build = subprocess.run([
                 "swiftc", "-module-cache-path", str(folder / "module-cache"),
-                str(root / "src/native/apple/Shared/FleetProtocol.swift"),
-                str(root / "src/native/apple/Shared/FleetText.swift"),
-                str(root / "src/native/apple/macos/FleetReleaseFeed.swift"),
+                str(root / "src/native/apple/Shared/PinItAnywhereProtocol.swift"),
+                str(root / "src/native/apple/Shared/PinItAnywhereText.swift"),
+                str(root / "src/native/apple/macos/PinItAnywhereReleaseFeed.swift"),
                 str(root / "tests/native/apple/ReleaseFeedProbe.swift"), "-o", str(executable),
             ], capture_output=True, text=True, timeout=120)
             self.assertEqual(build.returncode, 0, build.stdout + build.stderr)

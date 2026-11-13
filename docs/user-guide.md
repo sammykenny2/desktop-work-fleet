@@ -383,7 +383,7 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
   "Replace current notes" keeps history and moves extra notes to Trash.
 - "Replace current notes" needs a successfully saved safety backup of the current data first ("Back up current data
   first"). Browsers that only download, and cannot confirm that the file was saved, disable this step.
-- In the native apps, a manual export uses the system folder picker, creates a new `work-fleet-backup-UUID.zip` file
+- In the native apps, a manual export uses the system folder picker, creates a new `pin-it-anywhere-backup-UUID.zip` file
   each time and reads it back to verify it. Reading a portable backup can still use the normal file picker.
 - Local and Google backups have the same format. A Google export syncs first; if the sync fails you must explicitly
   choose a current-only export if sync fails. The coverage selector defaults to "Complete retained history" and also
@@ -534,8 +534,8 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
 ### Windows
 
 - Without a Google ID you can still record offline. Content, attachments, unsaved changes, layout and the backup
-  journal are stored in `%LOCALAPPDATA%\WorkFleet\fleet.sqlite3` for the ZIP and Debug builds, or in
-  `LocalCache\Local\WorkFleet\fleet.sqlite3` in the MSIX package's private data area. The payload is protected with
+  journal are stored in `%LOCALAPPDATA%\PinItAnywhere\pinitanywhere.sqlite3` for the ZIP and Debug builds, or in
+  `LocalCache\Local\PinItAnywhere\pinitanywhere.sqlite3` in the MSIX package's private data area. The payload is protected with
   DPAPI for the current Windows user.
 - An MSIX update keeps the data. Uninstalling removes all local and Google account data, settings, credentials and
   cache in the package. Export a ZIP before reinstalling; exported files and Google cloud data are not affected.
@@ -564,7 +564,7 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
 - GNOME Wayland (for example the Ubuntu 22.04 default) has no layer-shell, so desktop notes have to go through
   XWayland. On first start the app asks "Use XWayland to show desktop notes?" ("Restart with XWayland" or "Keep the
   current mode"); later you can switch with "Show desktop notes through XWayland" in Settings > Desktop notes
-  ([ADR-040](decisions/040-gnome-wayland-xwayland-choice.md)), or start it directly with `GDK_BACKEND=x11 work-fleet`.
+  ([ADR-040](decisions/040-gnome-wayland-xwayland-choice.md)), or start it directly with `GDK_BACKEND=x11 pin-it-anywhere`.
   Through XWayland, groups stay resident only on the Wallpaper layer
   ([ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)).
 - On layer-shell desktops such as Raspberry Pi OS (labwc), the resident layers are not limited by the overlay (the
@@ -576,8 +576,8 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
   that region steps on, as its key does), `show-main` and `quit` (save and quit, as in the tray). For example, in
   sway's config: `bindsym Ctrl+Shift+n exec gapplication action <app id> quick-capture`; in wayfire.ini, under
   `[command]`: `binding_capture = <ctrl> <shift> KEY_N` and `command_capture = gapplication action <app id> quick-capture`.
-  `<app id>` is Pin It Anywhere's application ID, the name of its icon in `/usr/lib/work-fleet/Icons` without `.png`
-  (`app.workfleet.preview` for builds without their own); `gapplication` comes with the GLib tools (`libglib2.0-bin`).
+  `<app id>` is Pin It Anywhere's application ID, the name of its icon in `/usr/lib/pin-it-anywhere/Icons` without `.png`
+  (`dev.sammykenny2.pinitanywhere` for builds without their own); `gapplication` comes with the GLib tools (`libglib2.0-bin`).
   Without an activation token from the compositor, the main window may come to the front without taking the focus.
   Hyprland's own portal offers global shortcuts, so there Settings > Shortcuts registers them as on GNOME or KDE
   (not checked on Hyprland). On labwc, keep using the keybinds Settings writes into rc.xml.

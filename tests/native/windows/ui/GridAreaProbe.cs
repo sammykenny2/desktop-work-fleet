@@ -1,8 +1,8 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using WorkFleet.Windows;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows;
+using PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// SPEC-003 D on a real window: group regions laid while the primary work area was small follow it once it is larger.
@@ -19,7 +19,7 @@ internal static class GridAreaProbe
     var small = work with { Width = work.Width / 2, Height = work.Height / 2 };
     async Task Check(PhysicalBounds area, string name)
     {
-      var window = new FleetWindow(data, desktopDisplays: [display with { WorkArea = area }]) { ShowActivated = false };
+      var window = new PinItAnywhereWindow(data, desktopDisplays: [display with { WorkArea = area }]) { ShowActivated = false };
       window.Show();
       try
       {

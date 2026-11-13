@@ -5,7 +5,7 @@ using System.Text;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 internal static class WallpaperProbe
 {

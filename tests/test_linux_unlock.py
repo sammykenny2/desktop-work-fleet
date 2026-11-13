@@ -18,7 +18,7 @@ class ManualUnlockTests(unittest.TestCase):
             gi.require_version("Secret", "1")
         except (ImportError, ValueError):
             self.skipTest("requires Secret GI")
-        with tempfile.TemporaryDirectory(prefix="work-fleet-unlock-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="pin-it-anywhere-unlock-") as temporary:
             root = Path(temporary)
             (root / "data").mkdir(mode=0o700)
             (root / "runtime").mkdir(mode=0o700)

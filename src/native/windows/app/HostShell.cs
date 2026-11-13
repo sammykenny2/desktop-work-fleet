@@ -1,15 +1,15 @@
 using System.IO;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>
 /// ADR-043 host behaviour around the main window: startup preferences, sign-in launch and the MSIX StartupTask.
-/// Probes construct FleetWindow without a shell and keep the earlier fixed behaviour.
+/// Probes construct PinItAnywhereWindow without a shell and keep the earlier fixed behaviour.
 /// </summary>
 public sealed class HostShell(string directory, bool launchedAtLogin, string distribution)
 {
-  private const string TaskId = "WorkFleetStartup";
+  private const string TaskId = "PinItAnywhereStartup";
   public string Directory { get; } = Path.GetFullPath(directory);
   public bool LaunchedAtLogin { get; } = launchedAtLogin;
   public HostIdentity Identity { get; } = new(HostIdentity.BuildVersion(), distribution, true);

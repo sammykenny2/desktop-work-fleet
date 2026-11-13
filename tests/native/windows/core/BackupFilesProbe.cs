@@ -1,5 +1,5 @@
 using System.Text;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
 internal static class BackupFilesProbe
 {
@@ -22,7 +22,7 @@ internal static class BackupFilesProbe
       catch (Exception error) { if (code is not null && !(error is HostError host && host.Code == code)) throw; return; }
       throw new Exception("Expected native file operation to fail");
     }
-    string Name() => $"work-fleet-auto-{Guid.NewGuid()}.zip";
+    string Name() => $"pin-it-anywhere-auto-{Guid.NewGuid()}.zip";
     // Escaped CJK characters: backup bytes are copied exactly, multi-byte UTF-8 included.
     var bytes = Encoding.UTF8.GetBytes("complete synthetic backup bytes-\u4E2D\u6587");
     var target = Within(Path.Combine(root, "backups")); Directory.CreateDirectory(target);
@@ -82,7 +82,7 @@ internal static class BackupFilesProbe
       });
       Test("child path traversal and streams cannot reach filesystem", () =>
       {
-        foreach (var name in new[] { "../outside.zip", "work-fleet-auto-test.zip:stream", @"sub\work-fleet-auto-test.zip", @"C:\outside.zip" })
+        foreach (var name in new[] { "../outside.zip", "pin-it-anywhere-auto-test.zip:stream", @"sub\pin-it-anywhere-auto-test.zip", @"C:\outside.zip" })
           Fails(() => directory.Create(name, bytes, _ => {}), "backup-name");
       });
       Test("latest backup remains locked throughout old-file deletion", () =>

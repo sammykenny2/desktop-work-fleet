@@ -8,14 +8,14 @@ const $ = id => document.getElementById(id);
 const input = (id, value) => { $(id).value = value; $(id).dispatchEvent(new Event('input', { bubbles: true })); };
 const clickText = (root, text) => [...root.querySelectorAll('button')].find(b => b.textContent === text).click();
 const savedDrafts = () => Object.keys(localStorage).filter(k => k.startsWith('wf.v1.draft.')).map(k => JSON.parse(localStorage.getItem(k)));
-const nativeToken = window.workFleetNative.token;
+const nativeToken = window.pinItAnywhereNative.token;
 const originalFetch = window.fetch.bind(window);
 const api = async (path, body, token = nativeToken) => {
   const response = await originalFetch(path, { method: body ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
   if (!response.ok) throw new Error('Peer HTTP ' + response.status);
   return response.json();
 };
-await wait(() => typeof window.workFleetFlushDraft === 'function' && !$('save').disabled, 'paired editor');
+await wait(() => typeof window.pinItAnywhereFlushDraft === 'function' && !$('save').disabled, 'paired editor');
 if (phase === 2) {
   assert(savedDrafts().some(d => d.text === 'Unsent draft before reload'), 'draft survives actual WebView reload');
   const row = [...$('drafts').children].find(row => row.textContent.includes('Unsent draft before reload'));

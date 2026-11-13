@@ -32,7 +32,7 @@ async function release(folder, version) {
 test('one vX.Y.Z release carries every platform, and each manifest and the appcast point into it', async () => {
   const fixture = JSON.parse(await readFile(new URL('./fixtures/update-feed.json', import.meta.url), 'utf8'));
   assert.deepEqual(manifestNames, fixture.manifestNames);
-  const folder = await mkdtemp(path.join(os.tmpdir(), 'work-fleet-release-'));
+  const folder = await mkdtemp(path.join(os.tmpdir(), 'pin-it-anywhere-release-'));
   try {
     await release(folder, '0.3.7');
     const files = await validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' });
@@ -42,14 +42,14 @@ test('one vX.Y.Z release carries every platform, and each manifest and the appca
       'PinItAnywhere-0.3.7-macos-universal.dmg', 'PinItAnywhere-0.3.7-macos-universal.dmg.sha256',
       'PinItAnywhere-0.3.7-macos-universal.zip', 'PinItAnywhere-0.3.7-macos-universal.zip.sha256',
       'PinItAnywhere-0.3.7-android-release.apk', 'PinItAnywhere-0.3.7-android-release.apk.sha256',
-      'appcast.xml', 'work-fleet-update-windows.json', 'work-fleet-update-linux.json', 'work-fleet-update-macos.json',
+      'appcast.xml', 'pin-it-anywhere-update-windows.json', 'pin-it-anywhere-update-linux.json', 'pin-it-anywhere-update-macos.json',
     ].sort());
     await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'another/repo' }), /appcast\.xml does not point/);
     await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.8', repository: 'o/r' }), /missing PinItAnywhere-0\.3\.8-x64\.msix/);
 
     const windows = path.join(folder, manifestNames.windows); const original = await readFile(windows, 'utf8');
     await writeFile(windows, original.replace('"v0.3.7"', '"windows-v0.3.7"'));
-    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /work-fleet-update-windows\.json does not describe windows v0\.3\.7/);
+    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /pin-it-anywhere-update-windows\.json does not describe windows v0\.3\.7/);
     const entry = JSON.parse(original).assets[0];
     await writeFile(windows, original.replace(`"size": ${entry.size}`, `"size": ${entry.size + 1}`));
     await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /wrong size or SHA-256 for PinItAnywhere-0\.3\.7-x64\.msix/);
@@ -71,10 +71,10 @@ test('one vX.Y.Z release carries every platform, and each manifest and the appca
     await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /pin-it-anywhere_0\.3\.7_all\.deb\.sha256 does not match/);
     await writeFile(path.join(folder, 'pin-it-anywhere_0.3.7_all.deb'), 'deb');
 
-    // Every platform must be there, and nothing else: a shared name such as the old work-fleet-update.json is refused.
-    await writeFile(path.join(folder, 'work-fleet-update.json'), '{}');
-    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /unexpected work-fleet-update\.json/);
-    await unlink(path.join(folder, 'work-fleet-update.json'));
+    // Every platform must be there, and nothing else: a shared name such as the old pin-it-anywhere-update.json is refused.
+    await writeFile(path.join(folder, 'pin-it-anywhere-update.json'), '{}');
+    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /unexpected pin-it-anywhere-update\.json/);
+    await unlink(path.join(folder, 'pin-it-anywhere-update.json'));
     await writeFile(path.join(folder, 'PinItAnywhere-0.3.7-android-debug.apk'), 'debug');
     await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /unexpected PinItAnywhere-0\.3\.7-android-debug\.apk/);
     await unlink(path.join(folder, 'PinItAnywhere-0.3.7-android-debug.apk'));
@@ -84,7 +84,7 @@ test('one vX.Y.Z release carries every platform, and each manifest and the appca
 });
 
 test('desktop-only releases require every desktop asset and reject Android assets, through the API and CLI', async () => {
-  const folder = await mkdtemp(path.join(os.tmpdir(), 'work-fleet-desktop-release-'));
+  const folder = await mkdtemp(path.join(os.tmpdir(), 'pin-it-anywhere-desktop-release-'));
   const version = '0.6.3'; const options = { dir: folder, version, repository: 'o/r', includeAndroid: false };
   try {
     await release(folder, version);
@@ -97,8 +97,8 @@ test('desktop-only releases require every desktop asset and reject Android asset
     const { stdout } = await execute(process.execPath, [new URL('../scripts/validate-release-assets.mjs', import.meta.url).pathname,
       '--dir', folder, '--version', version, '--repository', 'o/r', '--desktop-only']);
     assert.match(stdout, /13 files checked/);
-    await unlink(path.join(folder, 'work-fleet-update-linux.json'));
-    await assert.rejects(validateReleaseAssets(options), /missing work-fleet-update-linux\.json/);
+    await unlink(path.join(folder, 'pin-it-anywhere-update-linux.json'));
+    await assert.rejects(validateReleaseAssets(options), /missing pin-it-anywhere-update-linux\.json/);
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
@@ -147,7 +147,7 @@ test('the release notes shell includes Android installation steps only when sele
   const start = lines.indexOf('        run: |', step);
   assert.ok(step >= 0 && start > step);
   const script = lines.slice(start + 1).map(line => line.slice(10)).join('\n');
-  const folder = await mkdtemp(path.join(os.tmpdir(), 'work-fleet-release-notes-'));
+  const folder = await mkdtemp(path.join(os.tmpdir(), 'pin-it-anywhere-release-notes-'));
   try {
     for (const includeAndroid of [true, false]) {
       // Run the production shell with only the final publishing command replaced; no GitHub request is made.
@@ -169,7 +169,7 @@ test('the release notes shell includes Android installation steps only when sele
       if (includeAndroid) assert.match(notes, /^## Android$/m);
       else assert.doesNotMatch(notes, /Android|android-release\.apk/);
       if (includeAndroid) assert.match(notes, /PinItAnywhere-0\.6\.3-android-release\.apk/);
-      assert.doesNotMatch(notes, /WorkFleet-|work-fleet_/);
+      assert.doesNotMatch(notes, new RegExp(['work', 'fleet'].join('[\\s_-]*'), 'i'));
       assert.doesNotMatch(notes, /android-debug\.apk|fixed test key/);
     }
   } finally { await rm(folder, { recursive: true, force: true }); }
@@ -179,9 +179,9 @@ test('Android delivery uses release signing and inspects the actual package befo
   const source = await readFile(new URL('../.github/workflows/android-apk.yml', import.meta.url), 'utf8');
   assert.match(source, /build-android-app\.sh --signed --apk/);
   assert.match(source, /check_android_package\.py --apk/);
-  assert.match(source, /--sha1 "\$WORK_FLEET_ANDROID_RELEASE_SHA1"/);
+  assert.match(source, /--sha1 "\$PIN_IT_ANYWHERE_ANDROID_RELEASE_SHA1"/);
   assert.ok(source.indexOf('check_android_package.py') < source.indexOf('- name: Save APK and checksum'));
-  assert.doesNotMatch(source, /ANDROID_DEBUG_KEYSTORE_BASE64|WORK_FLEET_ANDROID_DEBUG_SHA1|android-debug\.apk/);
+  assert.doesNotMatch(source, /ANDROID_DEBUG_KEYSTORE_BASE64|PIN_IT_ANYWHERE_ANDROID_DEBUG_SHA1|android-debug\.apk/);
   for (const name of ['KEYSTORE_BASE64', 'KEY_ALIAS', 'STORE_PASSWORD', 'KEY_PASSWORD']) {
     assert.ok(source.includes(`secrets.ANDROID_RELEASE_${name}`));
   }
@@ -191,7 +191,7 @@ test('Windows and Linux preview packages receive the configured public support m
   for (const file of ['windows-package.yml', 'linux-package.yml']) {
     const source = await readFile(new URL('../.github/workflows/' + file, import.meta.url), 'utf8');
     const build = source.slice(source.indexOf('      - name: Build the'), source.indexOf('      - uses: actions/upload-artifact'));
-    for (const field of ['WORK_FLEET_PRIVACY_URL', 'WORK_FLEET_SUPPORT_URL', 'WORK_FLEET_SUPPORT_EMAIL']) {
+    for (const field of ['PIN_IT_ANYWHERE_PRIVACY_URL', 'PIN_IT_ANYWHERE_SUPPORT_URL', 'PIN_IT_ANYWHERE_SUPPORT_EMAIL']) {
       assert.ok(build.includes(field + ': ${{ vars.' + field + ' }}'), file + ' forwards ' + field + ' to its package build');
     }
   }

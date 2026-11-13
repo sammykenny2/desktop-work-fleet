@@ -49,21 +49,21 @@ def main():
         shutil.copy2(root / relative, target)
     (fixture / "node_modules").symlink_to(root / "node_modules", target_is_directory=True)
     shutil.copy2(root / "tests/native/apple/StartupProbe.swift", fixture / "src/native/apple/macos/Main.swift")
-    identity = "app.workfleet.startupprobe.p" + uuid.uuid4().hex
+    identity = "dev.sammykenny2.pinitanywhere.startupprobe.p" + uuid.uuid4().hex
     environment = os.environ.copy()
-    environment["WORK_FLEET_APP_ID"] = identity
+    environment["PIN_IT_ANYWHERE_APP_ID"] = identity
     derived = output / "DerivedData"
-    command = ["xcodebuild", "-project", str(fixture / "src/native/apple/WorkFleet.xcodeproj"),
-               "-scheme", "WorkFleetMac", "-configuration", "Debug", "-destination", "generic/platform=macOS",
+    command = ["xcodebuild", "-project", str(fixture / "src/native/apple/PinItAnywhere.xcodeproj"),
+               "-scheme", "PinItAnywhereMac", "-configuration", "Debug", "-destination", "generic/platform=macOS",
                "-derivedDataPath", str(derived), "-clonedSourcePackagesDirPath", str(packages),
-               "WORK_FLEET_PACKAGES_DIR=" + str(packages), "WORK_FLEET_APP_ID=" + identity,
+               "PIN_IT_ANYWHERE_PACKAGES_DIR=" + str(packages), "PIN_IT_ANYWHERE_APP_ID=" + identity,
                "DEVELOPMENT_TEAM=" + args.team, "CODE_SIGN_IDENTITY=" + args.identity,
                "CODE_SIGN_STYLE=Automatic", "ARCHS=" + platform.machine(), "ONLY_ACTIVE_ARCH=NO", "build"]
     print("Startup evidence:", output, flush=True)
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=fixture, env=environment, stdout=log, stderr=subprocess.STDOUT, check=True)
-    app = derived / "Build/Products/Debug/WorkFleetMac.app"
-    executable = app / "Contents/MacOS/WorkFleetMac"
+    app = derived / "Build/Products/Debug/PinItAnywhereMac.app"
+    executable = app / "Contents/MacOS/PinItAnywhereMac"
     with (output / "signature.log").open("w") as log:
         subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)],
                        stdout=log, stderr=subprocess.STDOUT, check=True)

@@ -8,7 +8,7 @@ using System.Windows.Interop;
 using System.Windows.Input;
 using System.Diagnostics;
 using System.Reflection;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 internal static class CompositionProbe
 {

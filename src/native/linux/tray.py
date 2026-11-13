@@ -80,7 +80,7 @@ class Tray:
         was, self.available = self.available, connected
         if connected != was and self.changed is not None:
             self.changed(connected)
-        # Only a tray that was there and went away strands a hidden window. At sign-in the panel may start after Work Fleet,
+        # Only a tray that was there and went away strands a hidden window. At sign-in the panel may start after Pin It Anywhere,
         # and the indicator reports the missing watcher at once; the host's bounded wait covers that (ADR-043).
         if connected:
             self.ever_connected = True

@@ -1,7 +1,7 @@
 """ADR-044 Linux updater: GitHub Releases of the configured public repository and a DEB installed through pkexec.
 
 The feed rules match the Windows host (tests/fixtures/update-feed.json): one vX.Y.Z release carries every platform, and
-this platform's manifest in it is work-fleet-update-linux.json. HTTPS only, no credentials, a fixed host allowlist
+this platform's manifest in it is pin-it-anywhere-update-linux.json. HTTPS only, no credentials, a fixed host allowlist
 with at most three redirects, size limits and a streamed SHA-256. No GTK here: the owner passes callbacks that run on its
 main loop. Installing replaces the files of the running app, so the owner restarts right after a successful install."""
 import hashlib
@@ -21,8 +21,8 @@ from text import t
 
 PLATFORM = "linux"
 ARCHITECTURE = "all"
-PACKAGE = "work-fleet"
-MANIFEST = f"work-fleet-update-{PLATFORM}.json"
+PACKAGE = "pin-it-anywhere"
+MANIFEST = f"pin-it-anywhere-update-{PLATFORM}.json"
 MAX_FEED = 2 * 1024 * 1024
 MAX_MANIFEST = 64 * 1024
 MAX_PACKAGE = 512 * 1024 * 1024
@@ -221,7 +221,7 @@ class Updater:
         self.folder = Path(directory) / "updates"
         self.current_text, self.current = version, parse_version(version) or (0, 0, 0)
         self.publish, self.record_check, self.run = publish, record_check, run
-        self.fetcher = fetcher or Fetcher(f"WorkFleet/{version}")
+        self.fetcher = fetcher or Fetcher(f"PinItAnywhere/{version}")
         tools = which("pkexec") and which("dpkg-deb")
         # A text.py key, looked up in snapshot() so the reason follows the display language.
         self.reason = ("update.debOnly" if distribution != "deb" else "update.noSource" if not self.repository
@@ -274,7 +274,7 @@ class Updater:
                 finally:
                     if done:
                         done()
-            self.worker = threading.Thread(target=body, name="fleet-updater", daemon=True)
+            self.worker = threading.Thread(target=body, name="pinitanywhere-updater", daemon=True)
             self.worker.start()
             return True
 
@@ -351,7 +351,7 @@ class Updater:
         def install():
             path = self.ready()
             self.set("installing")
-            # apt-get resolves new dependencies from the distribution; a local path keeps it from downloading Work Fleet itself.
+            # apt-get resolves new dependencies from the distribution; a local path keeps it from downloading Pin It Anywhere itself.
             command = ["pkexec", "apt-get", "install", "-y", str(path.resolve())] if shutil.which("apt-get") else ["pkexec", "dpkg", "-i", str(path.resolve())]
             try:
                 result = self.run(command, capture_output=True, text=True, timeout=1800)

@@ -1,4 +1,4 @@
-import { activeGroups, containsRect, copy, FleetError, gridRegions, inScope,
+import { activeGroups, containsRect, copy, PinItAnywhereError, gridRegions, inScope,
   membershipKey, requireValue, stableCards, validRect, eligible } from '../core/contracts.js';
 import { t } from '../i18n/index.js';
 
@@ -134,7 +134,7 @@ export function planFormation({ snapshot, layout, scope, mode, grid = layout.gri
         || packAcross(members, layout.placements, available, mode, gap, summaryBands);
     }
     if (!packed || Object.values(packed).some(rect => !workAreas.some(area => containsRect(area, rect)))) {
-      throw new FleetError('capacity', t('errors.core.formationCapacity'), { groupId: region.groupId, cardIds: members.map(card => card.id) });
+      throw new PinItAnywhereError('capacity', t('errors.core.formationCapacity'), { groupId: region.groupId, cardIds: members.map(card => card.id) });
     }
     const orders = members.map(card => layout.placements[card.id].order).sort((a, b) => a - b);
     members.forEach((card, index) => {

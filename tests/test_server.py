@@ -13,13 +13,13 @@ from urllib.request import Request, urlopen
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "server"))
-from work_fleet import Store, make_server
+from pin_it_anywhere import Store, make_server
 
 
 class SyncTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="work-fleet-test-")
-        self.store = Store(Path(self.temp.name) / "fleet.sqlite3")
+        self.temp = tempfile.TemporaryDirectory(prefix="pin-it-anywhere-test-")
+        self.store = Store(Path(self.temp.name) / "pinitanywhere.sqlite3")
         self.owner = self.store.bootstrap().read_text()
         self.server = make_server(self.store, port=0)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -178,7 +178,7 @@ class SyncTests(unittest.TestCase):
         self.store.backup(backup)
         original = backup.read_bytes()
         destination = Path(self.temp.name) / "not-published.sqlite3"
-        with patch("work_fleet.os.fsync", side_effect=OSError("injected flush failure")):
+        with patch("pin_it_anywhere.os.fsync", side_effect=OSError("injected flush failure")):
             with self.assertRaisesRegex(OSError, "injected flush failure"):
                 Store.restore(backup, destination)
         self.assertFalse(destination.exists())

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import { activeGroups, FleetError } from '../src/core/contracts.js';
+import { activeGroups, PinItAnywhereError } from '../src/core/contracts.js';
 import { Workspace } from '../src/core/workspace.js';
 import { FileSync } from '../src/sources/file-sync.js';
 import { INITIAL_GROUP_NAME } from '../src/sources/initial-group.js';
@@ -21,7 +21,7 @@ async function fixture(profileId, groups = []) {
   for (const group of groups) await workspace.createGroup(group.name);
   const capture = workspace.ensureCaptureGroup.bind(workspace);
   workspace.ensureCaptureGroup = async () => { const group = await capture(); calls.push(group.name); return group; };
-  const context = vm.createContext({ profileId, activeGroups, FleetError, t, activeGroupId: null, shownGroups: () => activeGroups(context.workspace.snapshot),
+  const context = vm.createContext({ profileId, activeGroups, PinItAnywhereError, t, activeGroupId: null, shownGroups: () => activeGroups(context.workspace.snapshot),
     rememberedGroup: () => mainGroup(context.workspace.layout?.state ?? {}, context.shownGroups()),
     workspace, render: () => calls.push('render') });
   vm.runInContext(guard, context);
@@ -58,7 +58,7 @@ test('a persisted initial group stays usable offline when its first upload fails
   const workspace = await Workspace.create({ profileId: 'google:account', deviceId: 'device', bootstrapGroup: false,
     area: { x: 0, y: 0, width: 1400, height: 900 }, persist: async () => {} });
   const store = new MemoryFileStore();
-  store.hooks.createFile = ({ file }) => { if (file.kind === 'revision') throw new FleetError('network', 'offline'); };
+  store.hooks.createFile = ({ file }) => { if (file.kind === 'revision') throw new PinItAnywhereError('network', 'offline'); };
   const sync = new FileSync({ workspace, storage: new MemoryAttachmentStorage(), fileStore: store, bootstrapGroup: true });
   await assert.rejects(sync.sync(), error => error.code === 'network');
   const f = await fixture('google:account'); f.context.workspace = workspace;

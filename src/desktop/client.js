@@ -1,4 +1,4 @@
-import { copy, FleetError, requireValue } from '../core/contracts.js';
+import { copy, PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { encode, upload, MAX_COMMAND } from './transport.js';
 import { t } from '../i18n/index.js';
 
@@ -10,7 +10,7 @@ export class DesktopClient {
       const pending = this.#pending.get(message.commandId); if (!pending) return;
       clearTimeout(pending.timer); this.#pending.delete(message.commandId);
       if (message.ok) pending.resolve(message.result);
-      else pending.reject(new FleetError(message.error?.code || 'desktop-command', message.error?.message || t('errors.desktop.commandFailed')));
+      else pending.reject(new PinItAnywhereError(message.error?.code || 'desktop-command', message.error?.message || t('errors.desktop.commandFailed')));
     });
   }
   command(method, args = {}, intent = null) {
@@ -21,7 +21,7 @@ export class DesktopClient {
     return new Promise((resolve, reject) => {
       const id = crypto.randomUUID();
       const timer = setTimeout(() => {
-        this.#pending.delete(id); reject(new FleetError('desktop-unknown', t('errors.desktop.saveUnconfirmed')));
+        this.#pending.delete(id); reject(new PinItAnywhereError('desktop-unknown', t('errors.desktop.saveUnconfirmed')));
       }, 120_000);
       this.#pending.set(id, { resolve, reject, timer, draft });
       this.#sending = this.#sending.then(async () => {
@@ -44,7 +44,7 @@ export class DesktopClient {
   }
   close() {
     this.#unsubscribe();
-    for (const pending of this.#pending.values()) { clearTimeout(pending.timer); pending.reject(new FleetError('desktop-closed', t('errors.desktop.viewClosed'))); }
+    for (const pending of this.#pending.values()) { clearTimeout(pending.timer); pending.reject(new PinItAnywhereError('desktop-closed', t('errors.desktop.viewClosed'))); }
     this.#pending.clear();
   }
 }
@@ -63,7 +63,7 @@ export class DesktopDraft {
       while (this.dirty) {
         this.#flight ||= { draftId: this.draftId, sequence: this.sequence + 1, text: this.text };
         const result = await this.#client.command('editor.change', { ...this.#flight });
-        if (result.sequence !== this.#flight.sequence) throw new FleetError('desktop-edit-order', t('errors.desktop.draftReplyOrder'));
+        if (result.sequence !== this.#flight.sequence) throw new PinItAnywhereError('desktop-edit-order', t('errors.desktop.draftReplyOrder'));
         this.sequence = result.sequence; this.saved = this.#flight.text; this.#flight = null;
       }
     })().finally(() => { this.#pending = null; });

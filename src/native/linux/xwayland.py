@@ -6,19 +6,19 @@ import tempfile
 
 PREFERENCE = "display-backend.txt"
 CHOICES = ("x11", "wayland")
-# Marks a GDK_BACKEND that Work Fleet set itself, so a restart can drop it again; any other GDK_BACKEND is the user's.
-OWN = "WORK_FLEET_GDK_BACKEND"
+# Marks a GDK_BACKEND that Pin It Anywhere set itself, so a restart can drop it again; any other GDK_BACKEND is the user's.
+OWN = "PIN_IT_ANYWHERE_GDK_BACKEND"
 
 
 def data_directory(argv, environ):
-    """The --data directory, or GLib's user data directory plus WorkFleet, resolved without GLib."""
+    """The --data directory, or GLib's user data directory plus PinItAnywhere, resolved without GLib."""
     for index, value in enumerate(argv):
         if value == "--data" and index + 1 < len(argv):
             return Path(argv[index + 1]).expanduser().absolute()
         if value.startswith("--data="):
             return Path(value[len("--data="):]).expanduser().absolute()
     base = environ.get("XDG_DATA_HOME", "")
-    return (Path(base) if base and Path(base).is_absolute() else Path.home() / ".local/share") / "WorkFleet"
+    return (Path(base) if base and Path(base).is_absolute() else Path.home() / ".local/share") / "PinItAnywhere"
 
 
 def gnome_wayland(environ):
@@ -28,7 +28,7 @@ def gnome_wayland(environ):
 
 
 def user_backend(environ):
-    """True when GDK_BACKEND comes from the user rather than from Work Fleet; the user's setting always wins."""
+    """True when GDK_BACKEND comes from the user rather than from Pin It Anywhere; the user's setting always wins."""
     return "GDK_BACKEND" in environ and environ.get(OWN) != environ["GDK_BACKEND"]
 
 
@@ -58,7 +58,7 @@ def write_preference(directory, value):
 
 
 def configure(environ, directory):
-    """Applies the saved choice to environ before GTK starts. A restart first drops the GDK_BACKEND Work Fleet set."""
+    """Applies the saved choice to environ before GTK starts. A restart first drops the GDK_BACKEND Pin It Anywhere set."""
     if OWN in environ:
         if environ.get("GDK_BACKEND") == environ[OWN]:
             environ.pop("GDK_BACKEND", None)

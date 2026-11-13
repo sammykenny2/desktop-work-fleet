@@ -1,4 +1,4 @@
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>One tray menu row: an action and its HostText key, or a separator when Action is empty.</summary>
 /// <param name="Default">The item the icon's own click runs, drawn bold.</param>
@@ -10,7 +10,7 @@ public sealed record TrayEntry(string Action, string Text, bool Default = false,
 }
 
 /// <summary>
-/// ADR-019: the tray menu for the state it opens in, grouped the way Windows menus are. Opening Work Fleet comes first and
+/// ADR-019: the tray menu for the state it opens in, grouped the way Windows menus are. Opening Pin It Anywhere comes first and
 /// bold, as the icon's click does it; hiding follows only while the main window shows. Then the desktop actions, offering
 /// either adjusting all notes or finishing an adjustment, then checking for updates, and exiting last.
 /// </summary>

@@ -47,7 +47,7 @@ test('legacy reset captures metadata before publication and clears exact capture
   assert.deepEqual((await new DatasetLifecycle(provider, storage).inspect()).binding, complete.binding);
   const marker = JSON.parse(new TextDecoder().decode(provider.files.get(complete.marker.id).bytes));
   assert.deepEqual(Object.keys(marker).sort(), ['format', 'initialization', 'resetAt', 'schema']);
-  assert.equal(marker.format, 'work-fleet-reset'); assert.equal(marker.schema, 1); assert.equal(marker.initialization, 'workspace-init-v1');
+  assert.equal(marker.format, 'pin-it-anywhere-reset'); assert.equal(marker.schema, 1); assert.equal(marker.initialization, 'workspace-init-v1');
 });
 
 test('reset resumes exact capture pages, uncertain fence creation and lost deletion replies after reopen', async () => {

@@ -317,7 +317,7 @@ try {
   // Keep the workspace store busy to prove that changes still being written warn before navigation.
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
   await page.evaluate(() => new Promise((resolve, reject) => {
-    const open = indexedDB.open('work-fleet-records-v1'); open.onerror = () => reject(open.error);
+    const open = indexedDB.open('pin-it-anywhere-records-v1'); open.onerror = () => reject(open.error);
     open.onsuccess = () => {
       const db = open.result; const tx = db.transaction('entries', 'readwrite');
       let hold = true; window.releaseProbeWrite = () => { hold = false; };
@@ -367,7 +367,7 @@ try {
   const storageResult = await page.evaluate(async () => {
     const { IndexedDbStorage } = await import('../storage/indexed-db.js');
     const { Workspace } = await import('../core/workspace.js');
-    const name = `work-fleet-storage-probe-${crypto.randomUUID()}`;
+    const name = `pin-it-anywhere-storage-probe-${crypto.randomUUID()}`;
     let db = await IndexedDbStorage.open(name);
     const initial = await Workspace.create({ profileId: 'first', deviceId: 'test', area: { x: 0, y: 0, width: 1000, height: 800 },
       persist: (state, revision) => db.save(state, revision) });

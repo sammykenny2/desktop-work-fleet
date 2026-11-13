@@ -8,7 +8,7 @@ import { writeUpdateFeed } from '../scripts/macos/write-update-feed.mjs';
 
 // ADR-044: the vX.Y.Z release carries a Sparkle appcast for the macOS archive and the macOS update manifest.
 test('macOS release feed names the archive in the vX.Y.Z release with the sign_update signature', async () => {
-  const folder = await mkdtemp(path.join(os.tmpdir(), 'work-fleet-feed-'));
+  const folder = await mkdtemp(path.join(os.tmpdir(), 'pin-it-anywhere-feed-'));
   try {
     const archive = path.join(folder, 'PinItAnywhere-0.2.0-macos-universal.zip'); const bytes = Buffer.from('signed app archive');
     await writeFile(archive, bytes);

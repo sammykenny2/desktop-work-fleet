@@ -67,9 +67,9 @@ individual changes; the following anchors identify where to investigate, not pro
 |---|---|---|
 | Continue blocked by open Settings; durable progress/error reporting | `a5d1d3b` | `src/main.js`, reset UI and renderer probes; isolated-provider evidence |
 | Metadata-only clearing before empty initialization; captured IDs and batched deletion | `4609d16` | [DatasetReset](../../src/sources/dataset-reset.js), [SPEC-010](../specs/010-dataset-checkpoints-and-deletable-history.md) |
-| Apple cold authorization loses a continuation | `6c5a32d` | [FleetGoogle](../../src/native/apple/Shared/FleetGoogle.swift); installed-app log evidence plus deferred SDK fixture |
+| Apple cold authorization loses a continuation | `6c5a32d` | [FleetGoogle](../../src/native/apple/Shared/PinItAnywhereGoogle.swift); installed-app log evidence plus deferred SDK fixture |
 | Real multipart batch response framing | `e21d2c3` | [Batch research](../research/2026-11-03-drive-batch-response-framing.md), [captured fixture](../../tests/fixtures/dataset/drive-batch-response.json) |
-| Empty initialization and field-specific Apple diagnostics | `5922423` | [Lifecycle](../../src/sources/dataset-lifecycle.js), [lazy folders](../../src/sources/dataset-folders.js), [empty-dataset tests](../../tests/dataset-empty.test.js), [FleetDataset](../../src/native/apple/Shared/FleetDataset.swift) |
+| Empty initialization and field-specific Apple diagnostics | `5922423` | [Lifecycle](../../src/sources/dataset-lifecycle.js), [lazy folders](../../src/sources/dataset-folders.js), [empty-dataset tests](../../tests/dataset-empty.test.js), [FleetDataset](../../src/native/apple/Shared/PinItAnywhereDataset.swift) |
 | Ordinary MIME classification and consistent upload media types | `1244384` | [MIME research](../research/2026-11-03-drive-dataset-media-types.md), [codec](../../src/sources/dataset-codec.js), platform adapters below |
 
 Other earlier review fixes are already in the baseline: transaction staging and separated draft baselines
@@ -165,12 +165,12 @@ the type, or that 0.5.8 fixes this particular account without observing it. The 
 also rejects parameters such as `application/json; charset=utf-8`; no such Drive metadata was observed.
 
 Platform entry points are [JavaScript Drive](../../src/sources/google-drive.js),
-[Apple Drive](../../src/native/apple/Shared/FleetDrive.swift),
+[Apple Drive](../../src/native/apple/Shared/PinItAnywhereDrive.swift),
 [Windows metadata](../../src/native/windows/core/DatasetFiles.cs) and
 [transport](../../src/native/windows/app/NativeGoogle.cs),
 [Linux metadata](../../src/native/linux/dataset.py) and [transport](../../src/native/linux/google.py), and
-[Android metadata](../../src/native/android/app/src/main/java/app/workfleet/nativehost/DatasetFiles.java) and
-[transport](../../src/native/android/app/src/main/java/app/workfleet/nativehost/GoogleFiles.java).
+[Android metadata](../../src/native/android/app/src/main/java/dev/sammykenny2/pinitanywhere/nativehost/DatasetFiles.java) and
+[transport](../../src/native/android/app/src/main/java/dev/sammykenny2/pinitanywhere/nativehost/GoogleFiles.java).
 Shared cases are in [native-wire.json](../../tests/fixtures/dataset/native-wire.json).
 
 ## Verification evidence and a correction to the prior check report
@@ -213,7 +213,7 @@ Only read-only source discovery had started when the maintainer requested this h
 probe exists from that investigation, no OAuth session was obtained for it, and no real account data was
 read or deleted by it.
 
-[FleetGoogle](../../src/native/apple/Shared/FleetGoogle.swift) uses the configured Apple client ID,
+[FleetGoogle](../../src/native/apple/Shared/PinItAnywhereGoogle.swift) uses the configured Apple client ID,
 `drive.appdata`, the Google Sign-In SDK session and application Keychain account metadata. Interactive sign-in
 needs a native presenter. Token preparation restores/refreshes through the SDK and checks the account identity;
 it is not a documented token-export API. A new standalone process is not established to inherit the installed

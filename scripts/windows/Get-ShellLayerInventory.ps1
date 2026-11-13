@@ -18,7 +18,7 @@ Add-Type -TypeDefinition @'
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
-public static class FleetShellInventory {
+public static class PinItAnywhereShellInventory {
  public delegate bool EnumProc(IntPtr h, IntPtr p);
  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc p, IntPtr l);
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr p,IntPtr after,string c,string title);
@@ -30,4 +30,4 @@ public static class FleetShellInventory {
  public static string Read() { var s=new StringBuilder(); EnumWindows((h,p)=>{var c=new StringBuilder(128); GetClassName(h,c,c.Capacity); if(c.ToString()=="Progman"||c.ToString()=="WorkerW"){s.AppendLine(Describe(h)); foreach(var childClass in new[]{"SHELLDLL_DefView","WorkerW"}) { var child=IntPtr.Zero; while((child=FindWindowEx(h,child,childClass,null))!=IntPtr.Zero) s.AppendLine("  child "+Describe(child)); }}return true;},IntPtr.Zero); return s.ToString(); }
 }
 '@
-[FleetShellInventory]::Read()
+[PinItAnywhereShellInventory]::Read()

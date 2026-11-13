@@ -21,7 +21,7 @@ export function appleInfoPlist(platform, config, { version, build }) {
   const shared = localizations + '<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string><key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>' +
     `<key>CFBundleName</key><string>${escape(common['common.appName'])}</string><key>CFBundleDisplayName</key><string>${escape(common['common.appName'])}</string>` +
     `<key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${build}</string>`;
-  const group = `<key>FleetCaptureAppGroup</key><string>${escape(config.appleAppGroupId)}</string>`;
+  const group = `<key>PinItAnywhereCaptureAppGroup</key><string>${escape(config.appleAppGroupId)}</string>`;
   let content;
   if (platform === 'share') {
     content = shared + '<key>CFBundlePackageType</key><string>XPC!</string>' + group + '<key>NSExtension</key><dict><key>NSExtensionPointIdentifier</key><string>com.apple.share-services</string><key>NSExtensionPrincipalClass</key><string>$(PRODUCT_MODULE_NAME).ShareViewController</string><key>NSExtensionAttributes</key><dict><key>NSExtensionActivationRule</key><dict><key>NSExtensionActivationSupportsText</key><true/><key>NSExtensionActivationSupportsWebURLWithMaxCount</key><integer>16</integer><key>NSExtensionActivationSupportsFileWithMaxCount</key><integer>16</integer><key>NSExtensionActivationSupportsImageWithMaxCount</key><integer>16</integer><key>NSExtensionActivationSupportsMovieWithMaxCount</key><integer>16</integer></dict></dict></dict>';
@@ -31,7 +31,7 @@ export function appleInfoPlist(platform, config, { version, build }) {
     content = shared + '<key>CFBundlePackageType</key><string>APPL</string>' + `<key>GIDClientID</key><string>${escape(client)}</string>`;
     if (scheme) content += `<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>${escape(scheme)}</string></array></dict></array>`;
     content += platform === 'ios'
-      ? group + '<key>LSRequiresIPhoneOS</key><true/><key>UILaunchScreen</key><dict/><key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/><key>UISceneConfigurations</key><dict><key>UIWindowSceneSessionRoleApplication</key><array><dict><key>UISceneConfigurationName</key><string>Default Configuration</string><key>UISceneDelegateClassName</key><string>$(PRODUCT_MODULE_NAME).FleetSceneDelegate</string></dict></array></dict></dict><key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>'
+      ? group + '<key>LSRequiresIPhoneOS</key><true/><key>UILaunchScreen</key><dict/><key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/><key>UISceneConfigurations</key><dict><key>UIWindowSceneSessionRoleApplication</key><array><dict><key>UISceneConfigurationName</key><string>Default Configuration</string><key>UISceneDelegateClassName</key><string>$(PRODUCT_MODULE_NAME).PinItAnywhereSceneDelegate</string></dict></array></dict></dict><key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>'
       : '<key>NSPrincipalClass</key><string>NSApplication</string><key>LSMinimumSystemVersion</key><string>13.0</string>'
         + '<key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>'
         // ADR-044 Sparkle: checks only when the user asks; the sandboxed app installs through Sparkle's launcher service.
@@ -44,7 +44,7 @@ export function appleInfoPlist(platform, config, { version, build }) {
 export async function ensureWebDependencies(root, environment) {
   const lock = await readFile(path.join(root, 'package-lock.json'));
   const hash = createHash('sha256').update(lock).digest('hex');
-  const stamp = path.join(root, 'node_modules', '.work-fleet-apple-lock');
+  const stamp = path.join(root, 'node_modules', '.pin-it-anywhere-apple-lock');
   const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   try {
     if ((await readFile(stamp, 'utf8')).trim() === hash) {
@@ -58,7 +58,7 @@ export async function ensureWebDependencies(root, environment) {
   } catch (error) {
     if (!['ENOENT', undefined].includes(error.code)) throw error;
   }
-  const npm = environment.WORK_FLEET_NPM || 'npm';
+  const npm = environment.PIN_IT_ANYWHERE_NPM || 'npm';
   const args = ['ci', '--ignore-scripts', '--no-audit', '--no-fund'];
   // npm's `#!/usr/bin/env node` must find the node running this script; Xcode's PATH may not include it.
   const search = process.platform === 'win32' ? {} : { PATH: [path.dirname(process.execPath), environment.PATH].filter(Boolean).join(path.delimiter) };
@@ -74,7 +74,7 @@ export async function prepareAppleBuild({ platform, output, root = repositoryRoo
   if (!['ios', 'macos', 'share'].includes(platform) || !output) throw new Error('Specify --platform ios|macos|share and --output DIR.');
   if (Number(process.versions.node.split('.')[0]) < 22) throw new Error('Apple asset preparation requires Node 22+.');
   const effective = { ...environment };
-  if (Object.hasOwn(effective, 'DEVELOPMENT_TEAM')) effective.WORK_FLEET_APPLE_TEAM_ID = effective.DEVELOPMENT_TEAM;
+  if (Object.hasOwn(effective, 'DEVELOPMENT_TEAM')) effective.PIN_IT_ANYWHERE_APPLE_TEAM_ID = effective.DEVELOPMENT_TEAM;
   const config = await readBuildConfig(pathToFileURL(root + path.sep), effective);
   if (effective.CONFIGURATION === 'Release') {
     const missing = missingReleaseConfig(config, platform === 'share' ? 'ios' : platform);

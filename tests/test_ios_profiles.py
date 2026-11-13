@@ -19,9 +19,9 @@ class IOSProfileTests(unittest.TestCase):
             "ExpirationDate": datetime.datetime(2030, 10, 17),
             "TeamIdentifier": ["ABCDE12345"], "Platform": ["iOS"],
             "DeveloperCertificates": [self.certificate], "ProvisionedDevices": ["device-one", "device-two"],
-            "Entitlements": {"application-identifier": "ABCDE12345.app.workfleet.preview",
+            "Entitlements": {"application-identifier": "ABCDE12345.dev.sammykenny2.pinitanywhere",
                              "com.apple.developer.team-identifier": "ABCDE12345", "get-task-allow": True,
-                             "com.apple.security.application-groups": ["group.app.workfleet.preview"],
+                             "com.apple.security.application-groups": ["group.dev.sammykenny2.pinitanywhere"],
                              "keychain-access-groups": ["ABCDE12345.*"]},
         }
         self.share = copy.deepcopy(self.app)
@@ -31,7 +31,7 @@ class IOSProfileTests(unittest.TestCase):
 
     def validate(self):
         return module.validate_profiles(self.app, self.share, self.certificate, "ABCDE12345",
-                                        "app.workfleet.preview", "group.app.workfleet.preview", self.now)
+                                        "dev.sammykenny2.pinitanywhere", "group.dev.sammykenny2.pinitanywhere", self.now)
 
     def test_accepts_valid_pair_without_exposing_device_identifiers(self):
         self.share["ProvisionedDevices"].reverse()
@@ -40,7 +40,7 @@ class IOSProfileTests(unittest.TestCase):
         self.assertEqual(result["share_profile"], self.share["UUID"])
         self.assertEqual(result["device_count"], 2)
         self.assertNotIn("device-one", str(result))
-        self.app["Entitlements"]["keychain-access-groups"] = ["ABCDE12345.app.workfleet.preview"]
+        self.app["Entitlements"]["keychain-access-groups"] = ["ABCDE12345.dev.sammykenny2.pinitanywhere"]
         self.validate()
 
     def test_rejects_expired_or_wrong_team_platform_and_certificate(self):

@@ -1,4 +1,4 @@
-import { activeGroups, containsPoint, copy, eligible, FleetError, gridRegions, inScope,
+import { activeGroups, containsPoint, copy, eligible, PinItAnywhereError, gridRegions, inScope,
   requireValue, stableCards } from '../core/contracts.js';
 import { groupLayer } from '../layout/stages.js';
 import { reachable, rescueRect } from '../layout/store.js';
@@ -106,7 +106,7 @@ export class InteractionController {
     if (scope.kind === 'group') requireValue(activeGroups(this.#getSnapshot()).some(group => group.id === scope.groupId),
       'missing-group', t('errors.common.groupMissing'));
     if (scope.kind !== 'none' && !this.#participating(scope.kind === 'group' ? scope.groupId : undefined).length) {
-      throw new FleetError('empty-scope', t('errors.core.scopeNoDesktopNotes'));
+      throw new PinItAnywhereError('empty-scope', t('errors.core.scopeNoDesktopNotes'));
     }
     this.#busy = true;
     try {

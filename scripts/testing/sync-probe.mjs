@@ -18,7 +18,7 @@ try {
     const { Workspace } = await import('/core/workspace.js');
     const { FileSync } = await import('/sources/file-sync.js');
     const { sha256 } = await import('/sources/files.js');
-    const { FleetError } = await import('/core/contracts.js');
+    const { PinItAnywhereError } = await import('/core/contracts.js');
     const assert = (condition, message) => { if (!condition) throw new Error(message); };
     const storage = await IndexedDbStorage.open(); const profiles = [crypto.randomUUID(), crypto.randomUUID()];
     const area = { x: 0, y: 0, width: 1200, height: 800 }; let sequence = 0; let loseResponse = true;
@@ -32,9 +32,9 @@ try {
       readFile: async ({ file }) => files.get(file.id).bytes.slice(),
       createFile: async ({ file, bytes }) => {
         creates.push(file.id);
-        if (files.has(file.id)) throw new FleetError('file-exists', 'synthetic 409');
+        if (files.has(file.id)) throw new PinItAnywhereError('file-exists', 'synthetic 409');
         files.set(file.id, { file, bytes: bytes.slice() }); changes.push({ id: file.id, removed: false, file });
-        if (loseResponse) { loseResponse = false; throw new FleetError('network', 'synthetic response loss'); }
+        if (loseResponse) { loseResponse = false; throw new PinItAnywhereError('network', 'synthetic response loss'); }
         return file;
       },
     };

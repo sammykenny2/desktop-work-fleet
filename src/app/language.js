@@ -2,7 +2,7 @@ import { localizeDocument, resolveLocale, setLocale, t, validPreference } from '
 
 // Native hosts keep the preference beside their other device settings so the tray and menus follow it before the
 // window opens. The browser preview has no host and keeps it in this origin's storage, which may be unavailable.
-const STORAGE_KEY = 'work-fleet.language';
+const STORAGE_KEY = 'pin-it-anywhere.language';
 let preference = 'auto';
 let system = [];
 let bridge = null;

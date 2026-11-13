@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Workspace } from '../src/core/workspace.js';
-import { copy, FleetError } from '../src/core/contracts.js';
+import { copy, PinItAnywhereError } from '../src/core/contracts.js';
 import { sha256 } from '../src/sources/files.js';
 import { AutomaticBackup } from '../src/backup/automatic.js';
 import { openBackup } from '../src/backup/payload.js';
@@ -149,7 +149,7 @@ test('encrypted schedules require an available vault, pause on missing keys and 
   assert.equal(unavailable.disk(), null);
   let password; const f = await fixture({ vault: { available: true, encrypt: async ({ profileId, keyId, bytes, signal }) => {
     assert.equal(profileId, f.workspace.state.profileId); assert.equal(keyId, 'os-key-reference');
-    if (!password) throw new FleetError('backup-key-unavailable', 'Key missing');
+    if (!password) throw new PinItAnywhereError('backup-key-unavailable', 'Key missing');
     return encryptBackup(bytes, password, { signal });
   } } });
   await f.service.configure({ ...policy, encrypted: true, keyId: 'os-key-reference' });
@@ -163,7 +163,7 @@ test('encrypted schedules require an available vault, pause on missing keys and 
 
 test('permission loss pauses until explicit retry, and disable cancels preparation then leaves the queue usable', async () => {
   const f = await fixture(); await f.service.configure(policy);
-  const create = f.files.create; f.files.create = async () => { throw new FleetError('backup-permission', 'permission missing'); };
+  const create = f.files.create; f.files.create = async () => { throw new PinItAnywhereError('backup-permission', 'permission missing'); };
   await assert.rejects(f.service.run(), fails('backup-permission')); assert.equal((await f.service.run()).kind, 'paused');
   f.files.create = create;
   let release; let entered; const gate = new Promise(resolve => { release = resolve; }); const ready = new Promise(resolve => { entered = resolve; });
@@ -184,7 +184,7 @@ test('pending files with missing ownership or changed identity stay unconfirmed 
   for (const code of ['backup-file-unowned', 'backup-file-changed']) {
     const f = await fixture(); await f.service.configure(policy); f.fault('create-after');
     await assert.rejects(f.service.run(), /create-after/); const pending = f.disk().pending;
-    const read = f.files.read; f.files.read = job => job.id === pending.id ? Promise.reject(new FleetError(code, 'changed')) : read(job);
+    const read = f.files.read; f.files.read = job => job.id === pending.id ? Promise.reject(new PinItAnywhereError(code, 'changed')) : read(job);
     assert.equal((await f.make().run({ force: true })).kind, 'saved');
     assert.equal(f.disk().inventory.find(item => item.id === pending.id).status, 'unconfirmed'); assert.equal(f.removals.length, 0);
   }
@@ -193,7 +193,7 @@ test('pending files with missing ownership or changed identity stay unconfirmed 
 test('vault protection loss and replaced directories pause scheduling until explicit retry', async () => {
   for (const code of ['backup-vault-unavailable', 'backup-directory-changed']) {
     const f = await fixture(); await f.service.configure(policy);
-    f.files.create = async () => { throw new FleetError(code, 'explicit attention required'); };
+    f.files.create = async () => { throw new PinItAnywhereError(code, 'explicit attention required'); };
     await assert.rejects(f.service.run(), fails(code)); f.advance(DAY);
     assert.equal((await f.make().run()).kind, 'paused'); assert.equal(f.creates.length, 0);
   }

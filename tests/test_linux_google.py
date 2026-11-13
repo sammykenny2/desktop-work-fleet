@@ -27,12 +27,12 @@ class WorkspaceDescriptor(unittest.TestCase):
         descriptor = {"id": "init-plan", "kind": "workspace", "sha256": "a" * 64, "size": 8 * 1024 * 1024}
         self.assertEqual(g.file({"file": descriptor}), descriptor)
         metadata = {"id": descriptor["id"], "size": str(descriptor["size"]), "spaces": ["appDataFolder"],
-                    "appProperties": {"wfFormat": "work-fleet-file", "wfSchema": "1", "wfKind": "workspace", "wfSha256": descriptor["sha256"]}}
+                    "appProperties": {"piaFormat": "pin-it-anywhere-file", "piaSchema": "1", "piaKind": "workspace", "piaSha256": descriptor["sha256"]}}
         g.metadata(metadata, descriptor)
         with self.assertRaises(p.Failure):
             g.file({"file": {**descriptor, "size": descriptor["size"] + 1}})
         with self.assertRaises(p.Failure):
-            g.metadata({**metadata, "appProperties": {**metadata["appProperties"], "wfKind": "revision"}}, descriptor)
+            g.metadata({**metadata, "appProperties": {**metadata["appProperties"], "piaKind": "revision"}}, descriptor)
 
 
 class TokenRequest(unittest.TestCase):
@@ -212,7 +212,7 @@ class VaultPause(unittest.TestCase):
 
     def test_account_change_admission_cancels_unlock_even_while_it_is_queued(self):
         tree = ast.parse((Path(__file__).resolve().parents[1] / "src/native/linux/host.py").read_text())
-        host_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "FleetApp")
+        host_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "PinItAnywhereApp")
         receive = next(node for node in host_class.body if isinstance(node, ast.FunctionDef) and node.name == "receive")
         scope = {"p": p, "time": time, "Vault": SimpleNamespace(UNLOCK_TIMEOUT=90), "GLib": SimpleNamespace()}
         exec(compile(ast.Module(body=[receive], type_ignores=[]), "host-receive", "exec"), scope)

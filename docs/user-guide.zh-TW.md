@@ -235,7 +235,7 @@
 - 加密輸出至少 12 個字元，手動匯出的密碼不保存且無法找回；還原使用原密碼。
 - 「加入成新的便箋」另建資料，「與目前的便箋合併」依原身分保留分支；「取代目前的便箋」保留歷史並把額外便箋移至垃圾桶。
 - 「取代目前的便箋」需先成功保存目前資料的安全備份（「先備份目前資料」）；只支援下載而無法確認保存的瀏覽器會停用此步驟。
-- 原生 App 的手動匯出使用原生資料夾選擇器，每次建立 `work-fleet-backup-UUID.zip` 新檔並讀回校驗。
+- 原生 App 的手動匯出使用原生資料夾選擇器，每次建立 `pin-it-anywhere-backup-UUID.zip` 新檔並讀回校驗。
   讀取可攜備份仍可使用一般檔案選擇器。
 - 本機與 Google 備份格式相同。範圍預設為「完整保留歷史」，安全備份也使用這個選擇；Google 完整匯出會先同步，並按需讀取遠端歷史。
   「僅目前狀態」包含目前衝突與未保存修改，不含較早版本；同步失敗時須明確選擇此範圍。備份清單與還原預覽都會註明範圍。
@@ -341,8 +341,8 @@
 ### Windows
 
 - 沒有 Google ID 也能離線記錄；內容、附件、未保存的修改、版面與備份 journal 儲存於
-  ZIP／Debug 的 `%LOCALAPPDATA%\WorkFleet\fleet.sqlite3`，或 MSIX 套件私有資料區的
-  `LocalCache\Local\WorkFleet\fleet.sqlite3`，payload 使用目前 Windows 使用者的 DPAPI 保護。
+  ZIP／Debug 的 `%LOCALAPPDATA%\PinItAnywhere\pinitanywhere.sqlite3`，或 MSIX 套件私有資料區的
+  `LocalCache\Local\PinItAnywhere\pinitanywhere.sqlite3`，payload 使用目前 Windows 使用者的 DPAPI 保護。
 - MSIX 更新保留資料；解除安裝清除套件內全部本機／Google 帳號資料、設定、憑證及 cache。
   重裝前先匯出 ZIP；匯出的檔案與 Google 雲端不受影響。
 - 舊獨立目錄需以舊版／ZIP 匯出再於 MSIX 匯入，不自動搬移或刪除。
@@ -365,7 +365,7 @@
 - GNOME Wayland（例如 Ubuntu 22.04 預設）沒有 layer-shell，桌面便箋要經 XWayland；首次啟動會詢問
   「要改用 XWayland 顯示桌面便箋嗎？」（「改用 XWayland 重新啟動」或「維持目前方式」），
   之後可在「設定 → 桌面便箋」的「以 XWayland 顯示桌面便箋」切換（[ADR-040](decisions/040-gnome-wayland-xwayland-choice.md)），
-  也可直接以 `GDK_BACKEND=x11 work-fleet` 啟動。
+  也可直接以 `GDK_BACKEND=x11 pin-it-anywhere` 啟動。
   經 XWayland 時群組只常駐桌布層（[ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)）。
 - Raspberry Pi OS（labwc）等 layer-shell 桌面的常駐層不受遮罩限制（預設 pcmanfm 桌面沒有桌布層），
   調整模式同樣以遮罩覆蓋整個螢幕並隱藏主視窗。
@@ -375,7 +375,7 @@
   （和系統匣一樣存檔後結束）。例如 sway 的設定檔：`bindsym Ctrl+Shift+n exec gapplication action <app id> quick-capture`；
   wayfire.ini 的 `[command]` 區段：`binding_capture = <ctrl> <shift> KEY_N` 與
   `command_capture = gapplication action <app id> quick-capture`。`<app id>` 是貓亂貼的應用程式 ID，即
-  `/usr/lib/work-fleet/Icons` 裡圖示去掉 `.png` 的檔名（沒有自訂時為 `app.workfleet.preview`）；`gapplication` 隨 GLib 工具
+  `/usr/lib/pin-it-anywhere/Icons` 裡圖示去掉 `.png` 的檔名（沒有自訂時為 `dev.sammykenny2.pinitanywhere`）；`gapplication` 隨 GLib 工具
   （`libglib2.0-bin`）提供。桌面環境沒有給 activation token 時，主視窗可能會跑到前面但沒有取得焦點。
   Hyprland 自己的 portal 提供全域快捷鍵，所以在那裡「設定 → 快捷鍵」會像 GNOME、KDE 一樣註冊（未在 Hyprland 上實測）。
   labwc 請繼續使用設定寫入 rc.xml 的快捷鍵。

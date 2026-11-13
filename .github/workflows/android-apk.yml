@@ -27,14 +27,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      WORK_FLEET_APP_ID: ${{ vars.WORK_FLEET_APP_ID }}
-      WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
-      WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID }}
-      WORK_FLEET_GOOGLE_WEB_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_WEB_CLIENT_ID }}
-      WORK_FLEET_ANDROID_RELEASE_SHA1: ${{ vars.WORK_FLEET_ANDROID_RELEASE_SHA1 }}
-      WORK_FLEET_PRIVACY_URL: ${{ vars.WORK_FLEET_PRIVACY_URL }}
-      WORK_FLEET_SUPPORT_URL: ${{ vars.WORK_FLEET_SUPPORT_URL }}
-      WORK_FLEET_SUPPORT_EMAIL: ${{ vars.WORK_FLEET_SUPPORT_EMAIL }}
+      PIN_IT_ANYWHERE_APP_ID: ${{ vars.PIN_IT_ANYWHERE_APP_ID }}
+      PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID }}
+      PIN_IT_ANYWHERE_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_ANDROID_CLIENT_ID }}
+      PIN_IT_ANYWHERE_GOOGLE_WEB_CLIENT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_WEB_CLIENT_ID }}
+      PIN_IT_ANYWHERE_ANDROID_RELEASE_SHA1: ${{ vars.PIN_IT_ANYWHERE_ANDROID_RELEASE_SHA1 }}
+      PIN_IT_ANYWHERE_PRIVACY_URL: ${{ vars.PIN_IT_ANYWHERE_PRIVACY_URL }}
+      PIN_IT_ANYWHERE_SUPPORT_URL: ${{ vars.PIN_IT_ANYWHERE_SUPPORT_URL }}
+      PIN_IT_ANYWHERE_SUPPORT_EMAIL: ${{ vars.PIN_IT_ANYWHERE_SUPPORT_EMAIL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,37 +55,37 @@ jobs:
       - name: Restore the release keystore
         env:
           RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
-          WORK_FLEET_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-          WORK_FLEET_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
-          WORK_FLEET_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+          PIN_IT_ANYWHERE_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          PIN_IT_ANYWHERE_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          PIN_IT_ANYWHERE_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
-          for value in "$RELEASE_KEYSTORE" "$WORK_FLEET_ANDROID_KEY_ALIAS" "$WORK_FLEET_ANDROID_STORE_PASSWORD" "$WORK_FLEET_ANDROID_KEY_PASSWORD"; do
+          for value in "$RELEASE_KEYSTORE" "$PIN_IT_ANYWHERE_ANDROID_KEY_ALIAS" "$PIN_IT_ANYWHERE_ANDROID_STORE_PASSWORD" "$PIN_IT_ANYWHERE_ANDROID_KEY_PASSWORD"; do
             [ -n "$value" ] || { echo 'An Android release signing secret is not set.'; exit 1; }
           done
-          [[ "$WORK_FLEET_ANDROID_RELEASE_SHA1" =~ ^([[:xdigit:]]{2}:){19}[[:xdigit:]]{2}$ ]] || { echo 'Variable WORK_FLEET_ANDROID_RELEASE_SHA1 must be a SHA-1 fingerprint.'; exit 1; }
+          [[ "$PIN_IT_ANYWHERE_ANDROID_RELEASE_SHA1" =~ ^([[:xdigit:]]{2}:){19}[[:xdigit:]]{2}$ ]] || { echo 'Variable PIN_IT_ANYWHERE_ANDROID_RELEASE_SHA1 must be a SHA-1 fingerprint.'; exit 1; }
           umask 077
           printf '%s' "$RELEASE_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/android-release.keystore"
-          echo "WORK_FLEET_ANDROID_KEYSTORE=$RUNNER_TEMP/android-release.keystore" >> "$GITHUB_ENV"
-          echo "GRADLE_USER_HOME=$RUNNER_TEMP/work-fleet-gradle" >> "$GITHUB_ENV"
+          echo "PIN_IT_ANYWHERE_ANDROID_KEYSTORE=$RUNNER_TEMP/android-release.keystore" >> "$GITHUB_ENV"
+          echo "GRADLE_USER_HOME=$RUNNER_TEMP/pin-it-anywhere-gradle" >> "$GITHUB_ENV"
       - name: Run Android regressions
         run: bash src/native/android/gradlew -p src/native/android --no-daemon --console plain testDebugUnitTest
       - name: Build the APK at the recorded version
         env:
-          WORK_FLEET_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-          WORK_FLEET_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
-          WORK_FLEET_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+          PIN_IT_ANYWHERE_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          PIN_IT_ANYWHERE_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          PIN_IT_ANYWHERE_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: bash scripts/linux/build-android-app.sh --signed --apk
       - name: Verify the APK signer and record the build
         id: package
         run: |
           version=$(node scripts/platform-version.mjs --platform android)
           apk="build/PinItAnywhere-$version-android-release.apk"
-          python3 scripts/check_android_package.py --apk "$apk" --app-id "$WORK_FLEET_APP_ID" --version "$version" \
-            --sha1 "$WORK_FLEET_ANDROID_RELEASE_SHA1" --apksigner "$ANDROID_HOME/build-tools/36.0.0/apksigner" \
+          python3 scripts/check_android_package.py --apk "$apk" --app-id "$PIN_IT_ANYWHERE_APP_ID" --version "$version" \
+            --sha1 "$PIN_IT_ANYWHERE_ANDROID_RELEASE_SHA1" --apksigner "$ANDROID_HOME/build-tools/36.0.0/apksigner" \
             --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           printf 'Android %s\nCommit: %s\nRun: %s/%s/actions/runs/%s\nSigner SHA-1: %s\nInstall with adb install -r; Google OAuth must include this package and signer.\n' \
-            "$version" "$(git rev-parse HEAD)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$WORK_FLEET_ANDROID_RELEASE_SHA1" > build/android-build.txt
+            "$version" "$(git rev-parse HEAD)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$PIN_IT_ANYWHERE_ANDROID_RELEASE_SHA1" > build/android-build.txt
           cat build/android-build.txt >> "$GITHUB_STEP_SUMMARY"
       - name: Save APK and checksum
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

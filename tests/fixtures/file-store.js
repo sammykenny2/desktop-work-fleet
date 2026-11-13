@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { copy, FleetError } from '../../src/core/contracts.js';
+import { copy, PinItAnywhereError } from '../../src/core/contracts.js';
 import { sha256, verifyFile } from '../../src/sources/files.js';
 
 /** Deterministic transport fixture. Fault hooks run at the remote boundary, not in the coordinator. */
@@ -61,13 +61,13 @@ export class MemoryFileStore {
   async readFile(input) {
     await this.#before('readFile', input);
     const entry = this.files.get(input.file.id);
-    if (!entry) throw new FleetError('source-file-missing', 'fixture file missing');
+    if (!entry) throw new PinItAnywhereError('source-file-missing', 'fixture file missing');
     return copy(entry.bytes);
   }
 
   async createFile(input) {
     await this.#before('createFile', input);
-    if (this.files.has(input.file.id)) throw new FleetError('file-exists', 'fixture 409');
+    if (this.files.has(input.file.id)) throw new PinItAnywhereError('file-exists', 'fixture 409');
     await verifyFile(input.file, input.bytes);
     this.files.set(input.file.id, { file: copy(input.file), bytes: copy(input.bytes) });
     this.changes.push({ id: input.file.id, removed: false, file: copy(input.file) });

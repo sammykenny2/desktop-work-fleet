@@ -1,10 +1,10 @@
-import { FleetError, requireValue } from '../core/contracts.js';
+import { PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { sha256 } from '../sources/files.js';
 import { BACKUP_LIMITS, checkCancelled } from './archive.js';
 import { t } from '../i18n/index.js';
 
 export function backupFilename(now = new Date()) {
-  return `work-fleet-backup-${now.toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}.zip`;
+  return `pin-it-anywhere-backup-${now.toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}.zip`;
 }
 
 /** FileSystemFileHandle adapter; success requires close and a matching readback, not merely a queued write. */
@@ -29,7 +29,7 @@ export async function saveBackupToHandle(handle, { bytes, signal, progress = () 
     return { saved: true, receipt: crypto.randomUUID() };
   } catch (error) {
     try { await writable.abort(); } catch { /* Already closed or failed: there is no rollback promise. */ }
-    if (publishing && error.code !== 'backup-save-integrity') throw new FleetError('backup-save-unconfirmed',
+    if (publishing && error.code !== 'backup-save-integrity') throw new PinItAnywhereError('backup-save-unconfirmed',
       t('errors.backup.saveIncomplete'));
     throw error;
   }

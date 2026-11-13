@@ -3,8 +3,8 @@ import { canonicalJson, parseJson } from '../sources/json.js';
 import { sha256, validDigest } from '../sources/files.js';
 import { t } from '../i18n/index.js';
 
-export const RECORD_FORMAT = 'work-fleet-local-records';
-export const TRANSACTION_FORMAT = 'work-fleet-record-transaction';
+export const RECORD_FORMAT = 'pin-it-anywhere-local-records';
+export const TRANSACTION_FORMAT = 'pin-it-anywhere-record-transaction';
 export const RECORD_COLLECTIONS = Object.freeze(['meta', 'current', 'history', 'draft', 'outbox', 'control', 'job']);
 export const RECORD_LIMITS = Object.freeze({ rows: 512, rowBytes: 8 * 1024 * 1024 - 1024,
   transactionBytes: 8 * 1024 * 1024, pageRows: 100, pageBytes: 8 * 1024 * 1024,

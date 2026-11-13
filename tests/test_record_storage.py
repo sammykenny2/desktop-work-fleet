@@ -34,7 +34,7 @@ class RecordStorageTests(unittest.TestCase):
         return dict(collection=collection, key=key, ordinal=ordinal, value=value or {"text": key}, entity=entity)
 
     def batch(self, revision=0, puts=None, deletes=None):
-        return dict(format="work-fleet-record-transaction", schemaVersion=1, profileId=self.db.profile,
+        return dict(format="pin-it-anywhere-record-transaction", schemaVersion=1, profileId=self.db.profile,
                     revision=revision, commitId=str(uuid.uuid4()), puts=puts or [], deletes=deletes or [])
 
     def stage(self, value):

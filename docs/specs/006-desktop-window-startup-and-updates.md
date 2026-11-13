@@ -13,7 +13,7 @@
 
 ## Summary
 
-Make Work Fleet on Windows, macOS and Linux remember the main window's position and size, offer a "Startup behaviour"
+Make Pin It Anywhere on Windows, macOS and Linux remember the main window's position and size, offer a "Startup behaviour"
 setting, and check for, download and install new versions from the tray and the settings page. Since 2026-10-23 it
 also covers what the start shows when the local data cannot be opened (DO). The requirements come
 from experience with an Electron desktop reference project, but are redesigned for this product's native hosts.
@@ -49,7 +49,7 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | U03 | Settings > General (Settings > Desktop until 2026-10-24, [ADR-059](../decisions/059-settings-pages-and-entry-points.md)) offers "Startup behaviour", following the options of the existing desktop project |
 | U04 | The maintainer will make the repo public; updates come from this repo's GitHub Releases |
 | U05 | Windows, macOS and Linux all get in-app upgrades; Windows uses MSIX, not NSIS |
-| U06 | "Start Work Fleet at sign-in" is on by default |
+| U06 | "Start Pin It Anywhere at sign-in" is on by default |
 | U07 | The architecture differs, so the reference project's code is not copied directly; the ADR, SPEC and PLAN come first |
 
 ## Functional Requirements
@@ -71,12 +71,12 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 
 | ID | Requirement |
 |---|---|
-| SB-F01 | Settings > General adds "Startup behaviour": "Start Work Fleet at sign-in" (on by default), "Keep running in the tray when the main window closes" (on by default), "Open the main window after a sign-in start" (off by default) |
+| SB-F01 | Settings > General adds "Startup behaviour": "Start Pin It Anywhere at sign-in" (on by default), "Keep running in the tray when the main window closes" (on by default), "Open the main window after a sign-in start" (off by default) |
 | SB-F02 | The preferences live in the host-level `host-preferences.json`, written atomically; the renderer reads and writes them through host methods, which return the effective state |
 | SB-F03 | Windows MSIX registers through StartupTask; on `DisabledByUser`/`DisabledByPolicy` it does not override, shows the system state and can open the Windows Startup apps settings |
 | SB-F04 | Windows ZIP and Debug builds offer no sign-in start; the option is disabled with the reason; no Run key is written |
 | SB-F05 | macOS registers through `SMAppService.mainApp`; when approval is needed, it shows the state and can open the Login Items settings |
-| SB-F06 | Linux writes or removes `$XDG_CONFIG_HOME/autostart/work-fleet.desktop` with `--launch-at-login`, and reads the file back to decide the actual state |
+| SB-F06 | Linux writes or removes `$XDG_CONFIG_HOME/autostart/pin-it-anywhere.desktop` with `--launch-at-login`, and reads the file back to decide the actual state |
 | SB-F07 | On a sign-in start where opening the main window was not chosen, the main window stays hidden and desktop notes start as usual; a manual open, or an unavailable tray, always shows it |
 | SB-F08 | When keeping the app in the tray on close is off, closing the main window runs the existing save-and-quit flow; when the tray is unavailable, it still quits |
 | SB-F09 | A second start on Windows brings up the existing instance's main window and exits normally, without an "already open" error; macOS and Linux keep their existing activation |
@@ -91,7 +91,7 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | DO-F03 | The message shows the data folder and offers to open it in the system file manager |
 | DO-F04 | Where starting again can help (data shown to be damaged or that cannot be decrypted), the message offers "Set aside and start again". After an explicit confirmation it moves the local database (on Linux with its key file) into a dated `set-aside-<date>-<time>` folder inside the data folder and opens empty data. It never deletes anything, leaves preferences, window placement and the WebView profile where they are, and a failed move puts back what it moved; if a put-back fails too, it says where the files are and does not open the data folder again |
 | DO-F05 | The confirmation says what comes back: in a Google workspace the notes, groups and attachments return from Drive after signing in, while this device's layout, colours, shortcuts and drafts not yet synced stay only in the set-aside copy; a local workspace comes back only by restoring a backup ZIP |
-| DO-F06 | A full disk, data another program holds, a folder Work Fleet may not open and a cause the host cannot tell (which could be healthy data from a newer version) are not offered setting aside: the message points to freeing space, closing what holds the data or checking the folder's permissions. Data that cannot be decrypted first names the system account it belongs to; setting it aside comes after that |
+| DO-F06 | A full disk, data another program holds, a folder Pin It Anywhere may not open and a cause the host cannot tell (which could be healthy data from a newer version) are not offered setting aside: the message points to freeing space, closing what holds the data or checking the folder's permissions. Data that cannot be decrypted first names the system account it belongs to; setting it aside comes after that |
 | DO-F07 | When the database opens but the main window cannot read its notes (a record that cannot be decrypted or that is not a workspace), the main window shows the same explanation, and the host sets the data aside and reopens the page; a record from a newer version keeps its own message |
 
 ### App updates (UP)
@@ -103,7 +103,7 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | UP-F03 | The native host owns the update state machine and the mapping of the single main button: "Check for updates", "Download update", "Restart and install"; repeated requests join the work in progress |
 | UP-F04 | When capable, the tray shows "Check for updates…", handled natively; a click checks again and answers with a native dialog, from which the app can update and restart directly. While a macOS Sparkle session is already running, another explicit click presents that session instead of replacing its feed. |
 | UP-F05 | Read the public GitHub `releases.atom`, filtered by the configured repo and `v<version>` (`<platform>-v<version>` until 2026-10-23); preview includes published prereleases; choose the highest version in the feed that is newer; never call or fall back to the REST API; reject unsupported channels and non-empty feeds that list no `v<version>` release |
-| UP-F06 | Build the URL of that release's `work-fleet-update-<platform>.json` (`work-fleet-update.json` until 2026-10-23) from the configured repo and the validated tag; check the platform, version, tag and single-level file name, and verify the actual download size and SHA-256 against the manifest; reject on any mismatch |
+| UP-F06 | Build the URL of that release's `pin-it-anywhere-update-<platform>.json` (`pin-it-anywhere-update.json` until 2026-10-23) from the configured repo and the validated tag; check the platform, version, tag and single-level file name, and verify the actual download size and SHA-256 against the manifest; reject on any mismatch |
 | UP-F07 | Downloads use HTTPS only and send no credentials; redirects are allowed only to the GitHub release asset host; the size is capped and verified while downloading |
 | UP-F08 | Check again before downloading; when the downloaded version is no longer the latest, download again; only the last check time is persisted |
 | UP-F09 | Before installing, run the save-and-quit flow: stop admitting input and background work, stop and drain sync/maintenance, finish admitted writes, persist drafts and layout, then acknowledge closure so the host tears down scenes/transfers and closes data. An idle Settings page, recovery notice or unconfirmed reset is not a reason to cancel; quitting never confirms a destructive choice. Remain stopped after acknowledgement. |
@@ -111,11 +111,11 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | UP-F11 | macOS downloads, verifies and installs the signed and notarized new version with the standard Sparkle 2.10.0 dialogs. The host finds the release and coordinates foreground presentation and placement; it does not replace Sparkle's installer or user driver. |
 | UP-F12 | Linux checks the DEB name, architecture and version, installs with `pkexec` and runs again; when authorization is cancelled, it keeps running and shows the reason |
 | UP-F13 | Errors show with a stable code and Traditional Chinese text (the text now comes from the locale catalogs, see [ADR-056](../decisions/056-english-first-ui-and-locale-catalogs.md)); raw responses do not reach the UI, and logs contain no tokens or personal data |
-| UP-F14 | One release per version, tagged `v<version>`, carries every platform's installer with its `.sha256` and each desktop platform's `work-fleet-update-<platform>.json` (until 2026-10-23 one release per platform, tagged `<platform>-v<version>`, with `work-fleet-update.json`) |
+| UP-F14 | One release per version, tagged `v<version>`, carries every platform's installer with its `.sha256` and each desktop platform's `pin-it-anywhere-update-<platform>.json` (until 2026-10-23 one release per platform, tagged `<platform>-v<version>`, with `pin-it-anywhere-update.json`) |
 | UP-F15 | The privacy notice and the security rules list the GitHub connection, which happens only when the user checks or downloads |
 | UP-F16 | A manual macOS update request must not reveal, restore, move or use the main window as an alert parent. Wait for activation through a temporary key window, with a one-second fallback, and destroy that window before presenting independent update UI. A quit during that wait cancels presentation; a late feed result must not reopen it. |
 | UP-F17 | Capture the invoking display before checking: the pointer's display for the menu bar, the visible main window's display for Settings. Place the initial update UI within that display's usable area. Preserve the user's chosen center between update stages; clamp into a remaining display after disconnection. Do not change native alert sizes or persist update-window placement. |
-| UP-F18 | While Work Fleet is active, update windows sit above its floating notes. Restore their original levels when another app becomes active and restore all temporary properties when the session ends. Progress updates and display changes must not activate the app or restore a minimized window. |
+| UP-F18 | While Pin It Anywhere is active, update windows sit above its floating notes. Restore their original levels when another app becomes active and restore all temporary properties when the session ends. Progress updates and display changes must not activate the app or restore a minimized window. |
 
 ## Delegated Defaults (D)
 
@@ -128,7 +128,7 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | D05 | Preview packages built locally with the same identity also have update capability; the settings page shows the source |
 | D06 | Manual checks only; a tray click always checks again and never uses a remembered result |
 | D07 | The updaters are implemented per platform; the feed and manifest rules are tested with shared JSON fixtures |
-| D08 | The test feed is read only by `app.workfleet.updateprobe.*` package identities (`update-probe.txt` in the data directory); production identities always ignore it |
+| D08 | The test feed is read only by `dev.sammykenny2.pinitanywhere.updateprobe.*` package identities (`update-probe.txt` in the data directory); production identities always ignore it |
 | D09 | The backup `appVersion` uses the `host.info` version, as a small fix in the same batch |
 
 ## Open Questions (Q)

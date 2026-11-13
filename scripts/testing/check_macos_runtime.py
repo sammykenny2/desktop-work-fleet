@@ -3,7 +3,7 @@
 
 Usage: python3 scripts/testing/check_macos_runtime.py PATH.app [--launch]
 Reads Mach-O load commands with lipo/otool; never modifies the app.
-Optional --launch uses Work Fleet's exit before UI/storage to exercise dyld.
+Optional --launch uses Pin It Anywhere's exit before UI/storage to exercise dyld.
 This checks library resolution, not signing, Google login or UI startup.
 """
 
@@ -97,7 +97,7 @@ def check_app(app):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("app", type=Path)
-    parser.add_argument("--launch", action="store_true", help="Run Work Fleet's --check-runtime exit before opening UI or storage")
+    parser.add_argument("--launch", action="store_true", help="Run Pin It Anywhere's --check-runtime exit before opening UI or storage")
     args = parser.parse_args()
     try:
         count = check_app(args.app)
@@ -106,7 +106,7 @@ def main():
                 binary = args.app / "Contents/MacOS" / plistlib.load(stream)["CFBundleExecutable"]
             result = subprocess.run([str(binary.resolve()), "--check-runtime"], text=True,
                                     capture_output=True, timeout=15, check=True)
-            if result.stdout.strip() != "PASS Work Fleet runtime load":
+            if result.stdout.strip() != "PASS Pin It Anywhere runtime load":
                 raise ValueError("Runtime launch did not return the expected confirmation")
     except (OSError, KeyError, ValueError, subprocess.SubprocessError) as error:
         if isinstance(error, subprocess.CalledProcessError):

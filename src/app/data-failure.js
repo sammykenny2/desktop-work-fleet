@@ -1,4 +1,4 @@
-import { FleetError } from '../core/contracts.js';
+import { PinItAnywhereError } from '../core/contracts.js';
 import { schemas } from '../core/schema.js';
 
 // SPEC-006 DO: what the main window says when this device's notes cannot be read, and when starting again can help.
@@ -20,7 +20,7 @@ export function loadFailureCause(error) {
  * message. Anything but a refusal is a fault in this version rather than in the data, so it keeps its message too.
  */
 export function workspaceFailureCause(error, saved) {
-  if (!(error instanceof FleetError)) return null;
+  if (!(error instanceof PinItAnywhereError)) return null;
   const found = saved?.schemaVersion;
   return error.code === 'unsupported-schema' && Number.isSafeInteger(found) && found > schemas.workspace ? null : 'data-damaged';
 }

@@ -93,8 +93,8 @@ See the [Android project notes](src/native/android/README.md).
 
 ## Open iOS / macOS in Xcode
 
-On a Mac, clone the full repository and open `src/native/apple/WorkFleet.xcodeproj` directly, then choose
-`WorkFleetIOS` or `WorkFleetMac`. The project, schemes and icons are in Git and use relative paths. With Node 22+ and
+On a Mac, clone the full repository and open `src/native/apple/PinItAnywhere.xcodeproj` directly, then choose
+`PinItAnywhereIOS` or `PinItAnywhereMac`. The project, schemes and icons are in Git and use relative paths. With Node 22+ and
 npm installed, the Xcode build prepares the UI assets automatically.
 Your personal identity and Team go in the ignored `src/native/apple/config/Local.xcconfig`; see the
 [Apple project notes](src/native/apple/README.md).
@@ -107,7 +107,7 @@ On macOS:
 bash scripts/macos/start-validation.sh
 ```
 
-In the menu bar, WF > Quick capture / Unlock opens the editor, and WF > Lock returns to the presentation (the 0.1.0
+In the menu bar, PIA > Quick capture / Unlock opens the editor, and PIA > Lock returns to the presentation (the 0.1.0
 prototype's interface is English only).
 This is the validation version's flow; it does not include the group operations above or Google sign-in.
 Build, pairing and backup steps are in the [setup guide](docs/setup-guide.md); checks are in

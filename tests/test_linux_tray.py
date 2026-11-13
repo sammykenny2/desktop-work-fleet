@@ -119,7 +119,7 @@ class LinuxTrayTests(unittest.TestCase):
     def create(self, visible=False):
         self.window = Window(visible)
         self.actions, self.menu_states = [], []
-        return self.module.Tray("app.workfleet.test", self.window, lambda target, *_: self.actions.append(target), None, self.menu_states.append, reveal=lambda: self.revealed.append(True),
+        return self.module.Tray("dev.sammykenny2.pinitanywhere.test", self.window, lambda target, *_: self.actions.append(target), None, self.menu_states.append, reveal=lambda: self.revealed.append(True),
                                 changed=self.changes.append)
 
     def test_primary_click_opens_the_window_in_both_tray_backends(self):
@@ -142,7 +142,7 @@ class LinuxTrayTests(unittest.TestCase):
 
     def test_the_menu_follows_the_display_language(self):
         self.addCleanup(text.set_locale, "en")
-        tray = self.module.Tray("app.workfleet.test", Window(), None, None, None, update=lambda: None)
+        tray = self.module.Tray("dev.sammykenny2.pinitanywhere.test", Window(), None, None, None, update=lambda: None)
         self.assertEqual(self.labels(tray), ["Open Pin It Anywhere", "Quick capture", "Adjust all groups", "Show or hide desktop notes",
                                              "Check for updates…", "Save and quit"])
         text.set_locale("zh-TW")
@@ -150,7 +150,7 @@ class LinuxTrayTests(unittest.TestCase):
         self.assertEqual(self.labels(tray), [text.ZH_TW[key] for key in ("tray.open", "tray.quickCapture", "tray.adjustAll",
                                                                           "tray.toggleDesktop", "tray.checkUpdates", "tray.saveAndQuit")])
         # A tray started in Traditional Chinese, as at a sign-in start, draws it from the first frame.
-        self.assertEqual(self.labels(self.module.Tray("app.workfleet.test", Window(), None, None, None))[0], text.ZH_TW["tray.open"])
+        self.assertEqual(self.labels(self.module.Tray("dev.sammykenny2.pinitanywhere.test", Window(), None, None, None))[0], text.ZH_TW["tray.open"])
         text.set_locale("en")
         tray.close()
         tray.relabel()

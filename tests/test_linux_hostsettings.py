@@ -32,7 +32,7 @@ class LinuxHostSettingsTests(unittest.TestCase):
                 self.assertEqual(hostsettings.resolve(case["saved"], case["areas"], size["width"], size["height"]), case["expected"])
 
     def test_placement_round_trip_and_damaged_files(self):
-        folder = self.folder() / "WorkFleet"
+        folder = self.folder() / "PinItAnywhere"
         for value in ({"x": -1200, "y": 40, "width": 900, "height": 700, "maximized": True},
                       {"x": None, "y": None, "width": 800, "height": 600, "maximized": False}):
             hostsettings.write_placement(folder, value)
@@ -91,20 +91,20 @@ class LinuxHostSettingsTests(unittest.TestCase):
 
     def test_distribution_version_and_sign_in_command(self):
         base = self.folder()
-        bundle = base / "work fleet $1"
+        bundle = base / "pin it anywhere $1"
         (bundle / "Assets").mkdir(parents=True)
-        (bundle / "run-work-fleet.sh").write_text("#!/bin/bash\n", "utf-8")
+        (bundle / "run-pin-it-anywhere.sh").write_text("#!/bin/bash\n", "utf-8")
         (bundle / "package.json").write_text('{"version": "0.2.0"}', "utf-8")
         self.assertEqual(hostsettings.distribution(bundle / "Assets"), "bundle")
         self.assertEqual(hostsettings.version(bundle / "Assets", base / "host.py"), "0.2.0")
         default = base / "data"
         command, reason = hostsettings.launch_command(bundle / "Assets", default, default)
         self.assertIsNone(reason)
-        self.assertEqual(command, '"' + str(bundle / "run-work-fleet.sh").replace("$", "\\$") + '" --launch-at-login')
+        self.assertEqual(command, '"' + str(bundle / "run-pin-it-anywhere.sh").replace("$", "\\$") + '" --launch-at-login')
         command, _ = hostsettings.launch_command(bundle / "Assets", base / "other 100%", default)
         self.assertTrue(command.endswith(' --data "' + str(base / "other 100%%") + '" --launch-at-login'))
-        self.assertEqual(hostsettings.distribution(Path("/usr/lib/work-fleet/Assets")), "deb")
-        self.assertEqual(hostsettings.launch_command(Path("/usr/lib/work-fleet/Assets"), default, default), ("work-fleet --launch-at-login", None))
+        self.assertEqual(hostsettings.distribution(Path("/usr/lib/pin-it-anywhere/Assets")), "deb")
+        self.assertEqual(hostsettings.launch_command(Path("/usr/lib/pin-it-anywhere/Assets"), default, default), ("pin-it-anywhere --launch-at-login", None))
         source = base / "checkout" / "build" / "app"
         source.mkdir(parents=True)
         (base / "native").mkdir()
@@ -118,19 +118,19 @@ class LinuxHostSettingsTests(unittest.TestCase):
 
     def test_autostart_entry_follows_xdg_config_home_and_only_removes_its_own(self):
         base = self.folder()
-        self.assertEqual(hostsettings.autostart_path({"XDG_CONFIG_HOME": str(base / "config")}), base / "config/autostart/work-fleet.desktop")
-        self.assertEqual(hostsettings.autostart_path({"XDG_CONFIG_HOME": "relative"}), Path.home() / ".config/autostart/work-fleet.desktop")
-        path = base / "config/autostart/work-fleet.desktop"
+        self.assertEqual(hostsettings.autostart_path({"XDG_CONFIG_HOME": str(base / "config")}), base / "config/autostart/pin-it-anywhere.desktop")
+        self.assertEqual(hostsettings.autostart_path({"XDG_CONFIG_HOME": "relative"}), Path.home() / ".config/autostart/pin-it-anywhere.desktop")
+        path = base / "config/autostart/pin-it-anywhere.desktop"
         self.assertEqual(hostsettings.autostart_state(path), "disabled")
-        hostsettings.write_autostart(path, "work-fleet --launch-at-login", "app.workfleet.preview",
+        hostsettings.write_autostart(path, "pin-it-anywhere --launch-at-login", "dev.sammykenny2.pinitanywhere",
                                      {"en": "Shows notes after sign-in", "zh-TW": "Traditional Chinese comment"})
         text = path.read_text("utf-8")
         self.assertIn("\nName=Pin It Anywhere\n", text)
         self.assertIn(f"\nName[zh_TW]={hostsettings.text.ZH_TW['common.appName']}\n", text)
-        self.assertIn("Exec=work-fleet --launch-at-login\n", text)
+        self.assertIn("Exec=pin-it-anywhere --launch-at-login\n", text)
         # The session shows the comment in its own language: English by default, Comment[zh_TW] for Traditional Chinese.
         self.assertIn("\nComment=Shows notes after sign-in\nComment[zh_TW]=Traditional Chinese comment\n", text)
-        self.assertIn("X-Work-Fleet-Managed=true\n", text)
+        self.assertIn("X-Work-PinItAnywhere-Managed=true\n", text)
         self.assertEqual(hostsettings.autostart_state(path), "enabled")
         path.write_text(text.replace("X-GNOME-Autostart-enabled=true", "X-GNOME-Autostart-enabled=false"), "utf-8")
         self.assertEqual(hostsettings.autostart_state(path), "disabled")
@@ -155,7 +155,7 @@ class LinuxHostSettingsTests(unittest.TestCase):
 
     def test_host_log_lines_rotation_and_failures(self):
         from datetime import datetime, timedelta, timezone
-        folder = self.folder() / "WorkFleet"
+        folder = self.folder() / "PinItAnywhere"
         moment = datetime(2026, 10, 17, 1, 2, 3, 250000, tzinfo=timezone(timedelta(hours=8)))
         hostsettings.append_log(folder, "start version=0.2.8\n", moment)
         hostsettings.append_log(folder, "tray available=True uptime=4.2s", moment)

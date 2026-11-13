@@ -2,7 +2,7 @@ import type { Card, Group, Id, Revision } from './desktop.js';
 
 /** SPEC-004. The envelope is closed; unknown JSON fields inside value are preserved. */
 export type RevisionRecord = {
-  format: 'work-fleet-revision';
+  format: 'pin-it-anywhere-revision';
   schemaVersion: 1;
   entityId: Id;
   revisionId: Revision;
@@ -17,7 +17,7 @@ export interface EntityHeads { kind: 'card' | 'group'; entityId: Id; heads: Revi
 
 export interface FileDescriptor { id: string; kind: 'revision' | 'attachment' | 'reset' | 'workspace'; sha256: string; size: number }
 export interface InitializationIdentity {
-  format: 'work-fleet-workspace'; schemaVersion: 1; workspaceId: string; sourceResetIds: string[];
+  format: 'pin-it-anywhere-workspace'; schemaVersion: 1; workspaceId: string; sourceResetIds: string[];
 }
 export interface InitializationPlan extends InitializationIdentity {
   phase: 'prepare'; mode: 'starter' | 'existing' | 'restore'; origin: 'bootstrap' | 'reset';
@@ -33,7 +33,7 @@ export interface InitializationState {
 /** Stored before the marker or any deletion; survives process restart and lost responses. */
 export interface SourceResetJob {
   sourceId: string; marker: FileDescriptor;
-  markerValue: { format: 'work-fleet-reset'; schema: 1; resetAt: string; initialization: 'workspace-init-v1' };
+  markerValue: { format: 'pin-it-anywhere-reset'; schema: 1; resetAt: string; initialization: 'workspace-init-v1' };
   previousResetIds: string[]; plan: InitializationPlan; planId: string;
   phase: 'reset' | 'initialize' | 'upload' | 'complete'; markerPublished: boolean;
   uploads: Record<string, FileDescriptor>; deleted: number; superseded?: boolean;

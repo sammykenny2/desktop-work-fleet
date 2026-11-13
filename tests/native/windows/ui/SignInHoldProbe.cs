@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text.RegularExpressions;
-using WorkFleet.Windows;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows;
+using PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// ADR-046 on a real window: a sign-in launch keeps its scenes out of Explorer while the injected state says a closed
@@ -15,7 +15,7 @@ internal static class SignInHoldProbe
   {
     Program.English(directory); directoryForErrors = directory;
     var state = new BuiltInDisplays(true, true, true);
-    var window = new FleetWindow(directory, desktopDisplays: [NativeDisplays.Read().First(d => d.Primary)],
+    var window = new PinItAnywhereWindow(directory, desktopDisplays: [NativeDisplays.Read().First(d => d.Primary)],
       shell: new HostShell(directory, true, "debug"), desktopBuiltIn: () => state) { ShowActivated = false };
     window.Show();
     try

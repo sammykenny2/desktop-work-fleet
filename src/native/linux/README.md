@@ -2,7 +2,7 @@
 
 Python 3.10+, GTK 3, WebKitGTK 4.1 (WebKit 2.40+), PyGObject/cairo and cryptography, provided by the Linux
 distribution. This is not the Python note server;
-the native GTK main window loads the packaged `workfleet://app/app/index.html`, and there is no resident HTTP listener.
+the native GTK main window loads the packaged `pinitanywhere://app/app/index.html`, and there is no resident HTTP listener.
 Python 3.10 is for Ubuntu 22.04; the WebKitGTK 2.36 that 22.04 shipped with is not enough, and the newer version from
 jammy-security must be installed (2.50.4 on amd64 in 2026-10). The code must not use syntax from 3.11 or later, which
 `tests/test_linux_python_floor.py` checks.
@@ -10,7 +10,7 @@ jammy-security must be installed (2.50.4 on amd64 in 2026-10). The code must not
 ```bash
 npm ci --ignore-scripts
 bash scripts/linux/build-native-app.sh
-bash "build/linux/work-fleet-$(cat src/native/linux/VERSION)/run-work-fleet.sh"
+bash "build/linux/pin-it-anywhere-$(cat src/native/linux/VERSION)/run-pin-it-anywhere.sh"
 # Build the installation package where Debian tools are available:
 bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
@@ -18,7 +18,7 @@ bash scripts/linux/build-native-app.sh --release --deb
 
 The launch script prefers `/usr/bin/python3`, so that a pyenv/virtualenv `python3` on the PATH without the
 distribution's GI bindings is not used;
-set `WORK_FLEET_PYTHON` for another interpreter, and only an environment without `/usr/bin/python3` uses the `python3`
+set `PIN_IT_ANYWHERE_PYTHON` for another interpreter, and only an environment without `/usr/bin/python3` uses the `python3`
 on the PATH.
 
 The Linux client ID in `.env.example` is a Google Desktop app type. Without Google configured, notes can still be
@@ -35,7 +35,7 @@ retained to preserve its routing/authentication behavior; this fallback does not
 connections. OAuth and avatar traffic are unchanged. Loopback pool tests pass, but real
 Linux/Google latency remains unverified; see [idle sync verification](../../../docs/testing.md#idle-sync-verification).
 
-Data is in `$XDG_DATA_HOME/WorkFleet` by default (usually `~/.local/share/WorkFleet`); `--data PATH` selects a new
+Data is in `$XDG_DATA_HOME/PinItAnywhere` by default (usually `~/.local/share/PinItAnywhere`); `--data PATH` selects a new
 directory with the same protection. [ADR-047](../../../docs/decisions/047-linux-local-key-without-keyring-prompts.md) and
 [ADR-048](../../../docs/decisions/048-linux-offline-workspace-and-system-secrets.md):
 SQLite payloads and native backup metadata are encrypted with AES-GCM; the 32-byte master key is stored in
@@ -164,7 +164,7 @@ papers near an edge are not rescued on a transient.
 `_NET_WORKAREA` is one rectangle for the whole layout, so with several displays only panels on the outer edges of the
 layout count: a panel at an inner edge (for example at the bottom of the shorter of two top-aligned displays) is
 missed, and a panel on one display also narrows a display beside it on the same outer edge.
-Holding the connection keeps an Xwayland that the compositor starts on demand running while Work Fleet does.
+Holding the connection keeps an Xwayland that the compositor starts on demand running while Pin It Anywhere does.
 The scenes still cover the whole monitor, so adjust mode keeps covering panels.
 Without layer-shell support the reason is reported, and notes can still be taken in the main window. Areas outside cards
 and papers that cannot be operated do not intercept desktop input.
@@ -181,7 +181,7 @@ layout and keeps the original WebView.
 X11 shortcuts use Keybinder 3 raw matching (the default cooked matching makes Ctrl+Shift with a letter or digit be
 intercepted without triggering);
 labwc offers no way for a program to register global shortcuts, so pressing "Write the labwc settings" ("Write the
-labwc settings again" after a change) on the Shortcuts page of the settings writes the current combination into a block of rc.xml that Work Fleet manages (after a backup, with `labwc --reconfigure`),
+labwc settings again" after a change) on the Shortcuts page of the settings writes the current combination into a block of rc.xml that Pin It Anywhere manages (after a backup, with `labwc --reconfigure`),
 and the keybind runs `gapplication action <app id> shortcut` to hand it to the app
 ([ADR-041](../../../docs/decisions/041-labwc-shortcuts-through-rc-xml-keybinds.md));
 otherwise the XDG GlobalShortcuts portal is used, which needs a matching backend from the desktop.
@@ -192,12 +192,12 @@ a native environment.
 Gio exports a StatusNotifierItem and its flat D-Bus menu on a dedicated session-bus connection. `ItemIsMenu=false` and
 `Activate` opens the main window; the context menu keeps the existing actions. Older AppIndicator runtimes do not provide
 this primary-click contract. X11 also has a Gtk.StatusIcon fallback, hidden while a StatusNotifier host is connected.
-The tooltip reads "Work Fleet"; the main window is hidden only after the tray is confirmed available.
+The tooltip reads "Pin It Anywhere"; the main window is hidden only after the tray is confirmed available.
 Quitting from the tray uses the draft save flow; if a tray that was connected disconnects, the main window is restored,
 and an account switch closes the old desktop session.
 The main window size, X11 position and maximized state are stored in `window-placement.json` in the data directory, and
 the start-up behaviour in `host-preferences.json` (ADR-043).
-Launch at login writes `$XDG_CONFIG_HOME/autostart/work-fleet.desktop` (`work-fleet` for the DEB, the bundle's launcher
+Launch at login writes `$XDG_CONFIG_HOME/autostart/pin-it-anywhere.desktop` (`pin-it-anywhere` for the DEB, the bundle's launcher
 for the tar.gz; running from source is not supported),
 rewritten only when the default is applied at the first start and when the user changes it. With `--launch-at-login` the
 main window stays in the tray; because the panel can become ready later than the app at login, the main window is shown
@@ -259,7 +259,7 @@ Common to all desktops:
 - Attachment thumbnails from installed thumbnailers and opening with the default app have not been checked on a real
   Linux desktop, and text fitting with "…" has not been checked in WebKitGTK (as of 2026-10-17).
 - Data that can't be opened (SPEC-006 DO): `datafailure.py` names the cause from SQLite and OS errors, and a
-  `storage-integrity` key failure counts as undecryptable data. Setting aside moves `fleet.sqlite3`, its journals and
+  `storage-integrity` key failure counts as undecryptable data. Setting aside moves `pinitanywhere.sqlite3`, its journals and
   `storage-key` together, on the storage thread after the old session closed. A locked keyring (`vault-locked`) or a
   missing keyring keeps its own message and is not offered setting aside (2026-10-23).
 

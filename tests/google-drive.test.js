@@ -12,7 +12,7 @@ const empty = (status, headers = {}) => ({ status, headers, body: new Uint8Array
 const failCode = code => error => error.code === code;
 const location = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=private-session';
 const metadata = file => ({ id: file.id, size: String(file.size), spaces: ['appDataFolder'], trashed: false,
-  sha256Checksum: file.sha256, appProperties: { wfFormat: 'work-fleet-file', wfSchema: '1', wfKind: file.kind, wfSha256: file.sha256 } });
+  sha256Checksum: file.sha256, appProperties: { piaFormat: 'pin-it-anywhere-file', piaSchema: '1', piaKind: file.kind, piaSha256: file.sha256 } });
 const datasetMeta = file => ({ ...datasetMetadata(file), spaces: ['appDataFolder'], trashed: false,
   ...(file.sha256 ? { size: String(file.size), sha256Checksum: file.sha256 } : {}) });
 async function fixture(bytes = new Uint8Array([0, 255, 1, 3])) {
@@ -38,8 +38,8 @@ test('dataset Drive operations use typed filtered queries, verified folders, cur
     { status: 200, headers: {}, body: bytes }, input => {
       const body = JSON.parse(new TextDecoder().decode(input.body));
       assert.equal(body.mimeType, 'application/json'); assert.equal(input.headers['X-Upload-Content-Type'], 'application/json');
-      assert.deepEqual(body.parents, ['note-folder']); assert.equal(body.appProperties.wfDataset, id);
-      assert.equal(body.appProperties.wfRevision, 'r1'); assert.equal(body.appProperties.wfEntity, 'note');
+      assert.deepEqual(body.parents, ['note-folder']); assert.equal(body.appProperties.piaDataset, id);
+      assert.equal(body.appProperties.piaRevision, 'r1'); assert.equal(body.appProperties.piaEntity, 'note');
       return empty(200, { location });
     }, input => { assert.equal(input.headers['Content-Type'], 'application/json'); return response({ ...datasetMeta(file), mimeType: 'text/plain' }); }]);
   assert.deepEqual((await s.store.listObjects({ query: { scope: 'history', datasetId: id, parentId: 'note-folder' } })).files, [file]);
@@ -53,8 +53,8 @@ test('dataset Drive operations use typed filtered queries, verified folders, cur
 test('dataset change feed counts irrelevant history events and exposes legacy reset fences without downloading their bodies', async () => {
   const id = crypto.randomUUID();
   const folder = { id: 'note-folder', datasetId: id, kind: 'folder', role: 'note', parentId: 'notes-folder', entityId: 'note' };
-  const s = scripted([response({ changes: [{ fileId: 'old', file: { appProperties: { wfKind: 'revision' } } },
-    { fileId: 'fence', file: { appProperties: { wfKind: 'reset' } } }, { fileId: folder.id, file: datasetMeta(folder) },
+  const s = scripted([response({ changes: [{ fileId: 'old', file: { appProperties: { piaKind: 'revision' } } },
+    { fileId: 'fence', file: { appProperties: { piaKind: 'reset' } } }, { fileId: folder.id, file: datasetMeta(folder) },
     { fileId: 'gone', removed: true }], newStartPageToken: 'end' })]);
   assert.deepEqual(await s.store.listDatasetChanges({ cursor: 'start' }), { changes: [
     { id: 'old', removed: false, legacyReset: false, legacyWrite: true }, { id: 'fence', removed: false, legacyReset: true, legacyWrite: false },
@@ -123,7 +123,7 @@ test('the native Google store skips the app data folder in the changes feed the 
 test('Drive rejects unsupported metadata, false integrity claims and ambiguous or malformed pages', async () => {
   const f = await fixture();
   for (const patch of [{ size: '03' }, { size: '-1' }, { size: '999999999999999999999' }, { spaces: ['drive'] },
-    { appProperties: {} }, { appProperties: { ...f.metadata.appProperties, wfSchema: '2' } }, { sha256Checksum: '0'.repeat(64) }]) {
+    { appProperties: {} }, { appProperties: { ...f.metadata.appProperties, piaSchema: '2' } }, { sha256Checksum: '0'.repeat(64) }]) {
     const s = scripted([response({ files: [{ ...f.metadata, ...patch }] })]); await assert.rejects(s.store.listFiles()); s.done();
   }
   for (const page of [{ changes: [{}], newStartPageToken: 'a' }, { changes: [], nextPageToken: 'a', newStartPageToken: 'b' },
@@ -135,7 +135,7 @@ test('Drive rejects unsupported metadata, false integrity claims and ambiguous o
 
 test('both reset enumeration adapters preserve incompleteSearch and identify markers without rejecting unknown file kinds', async () => {
   for (const incomplete of [false, true, 'invalid']) {
-    const page = { files: [{ id: 'reset', appProperties: { wfKind: 'reset' } }, { id: 'future', appProperties: { wfKind: 'future-format' } }], incompleteSearch: incomplete };
+    const page = { files: [{ id: 'reset', appProperties: { piaKind: 'reset' } }, { id: 'future', appProperties: { piaKind: 'future-format' } }], incompleteSearch: incomplete };
     const rest = scripted([response(page)]);
     const native = new NativeGoogleFileStore({ request: async () => page }, { profileId: 'google:verified-subject' }, 'verified-subject');
     for (const store of [rest.store, native]) {
@@ -161,7 +161,7 @@ test('resumable creation uses the reserved ID, scoped metadata, binary bytes and
   const [start, upload] = s.calls;
   assert.equal(start.method, 'POST'); assert.ok(start.path.startsWith('/upload/drive/v3/files?uploadType=resumable'));
   assert.deepEqual(JSON.parse(new TextDecoder().decode(start.body)), {
-    id: f.file.id, name: `work-fleet-v1-attachment-${f.file.sha256}.bin`, mimeType: 'application/octet-stream', parents: ['appDataFolder'],
+    id: f.file.id, name: `pin-it-anywhere-v1-attachment-${f.file.sha256}.bin`, mimeType: 'application/octet-stream', parents: ['appDataFolder'],
     appProperties: f.metadata.appProperties,
   });
   assert.equal(start.headers['X-Upload-Content-Length'], '4');

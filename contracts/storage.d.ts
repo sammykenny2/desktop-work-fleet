@@ -11,7 +11,7 @@ export interface LocalRecord {
   value: unknown;
 }
 export interface RecordTransaction {
-  format: 'work-fleet-record-transaction';
+  format: 'pin-it-anywhere-record-transaction';
   schemaVersion: 1;
   profileId: string;
   revision: number;
@@ -23,7 +23,7 @@ export interface RecordTransaction {
   attachmentDeletes?: string[];
 }
 export interface RecordReceipt {
-  format: 'work-fleet-local-records';
+  format: 'pin-it-anywhere-local-records';
   schemaVersion: 1;
   profileId: string;
   revision: number;

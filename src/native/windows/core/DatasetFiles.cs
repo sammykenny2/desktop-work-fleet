@@ -2,12 +2,12 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>Closed dataset descriptors and typed selectors; no renderer-provided HTTP or query strings.</summary>
 public static class DatasetFiles
 {
-  public const string Format = "work-fleet-dataset";
+  public const string Format = "pin-it-anywhere-dataset";
   public const string Fields = "id,name,mimeType,parents,spaces,trashed,size,createdTime,appProperties,sha256Checksum";
   public static readonly string[] Shards = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "groups"];
   public static void Check(bool value) => HostError.Require(value, "invalid-source-file", "The dataset descriptor or query isn't valid.");
@@ -19,8 +19,8 @@ public static class DatasetFiles
   private static string Text(JsonElement value, string key) => JsonRules.Text(value, key, 256);
   private static Dictionary<string, string> Properties(JsonElement file)
   {
-    var result = new Dictionary<string, string> { ["wfFormat"] = Format, ["wfSchema"] = "1", ["wfDataset"] = Text(file, "datasetId"), ["wfKind"] = Text(file, "kind") };
-    foreach (var (key, property) in new[] { ("sha256", "wfSha256"), ("role", "wfRole"), ("entityId", "wfEntity"), ("revisionId", "wfRevision"), ("shard", "wfShard") })
+    var result = new Dictionary<string, string> { ["piaFormat"] = Format, ["piaSchema"] = "1", ["piaDataset"] = Text(file, "datasetId"), ["piaKind"] = Text(file, "kind") };
+    foreach (var (key, property) in new[] { ("sha256", "piaSha256"), ("role", "piaRole"), ("entityId", "piaEntity"), ("revisionId", "piaRevision"), ("shard", "piaShard") })
       if (file.TryGetProperty(key, out _)) result[property] = Text(file, key);
     Check(result.All(item => Encoding.UTF8.GetByteCount(item.Key + item.Value) <= 124)); return result;
   }
@@ -76,39 +76,39 @@ public static class DatasetFiles
     Check(value.ValueKind == JsonValueKind.Array && value.GetArrayLength() is >= 1 and <= 100);
     var ids = value.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.String ? item.GetString()! : "").ToArray();
     Check(ids.Distinct(StringComparer.Ordinal).Count() == ids.Length && ids.All(id => FileId(id) && id is not ("root" or "appDataFolder")));
-    var body = string.Concat(ids.Select((id, index) => $"--work_fleet_delete\r\nContent-Type: application/http\r\nContent-ID: wf-{index}\r\n\r\nDELETE /drive/v3/files/{id} HTTP/1.1\r\n\r\n")) + "--work_fleet_delete--\r\n";
+    var body = string.Concat(ids.Select((id, index) => $"--pin_it_anywhere_delete\r\nContent-Type: application/http\r\nContent-ID: wf-{index}\r\n\r\nDELETE /drive/v3/files/{id} HTTP/1.1\r\n\r\n")) + "--pin_it_anywhere_delete--\r\n";
     return Encoding.UTF8.GetBytes(body);
   }
   public static string Query(JsonElement value)
   {
     Check(value.ValueKind == JsonValueKind.Object); var scope = Text(value, "scope"); var keys = new HashSet<string>(["scope"], StringComparer.Ordinal);
     var clauses = new List<string> { "trashed = false" };
-    if (scope == "fences") clauses.Add(Prop("wfKind", "reset"));
+    if (scope == "fences") clauses.Add(Prop("piaKind", "reset"));
     else if (scope != "legacy")
     {
-      clauses.Add(Prop("wfFormat", Format));
-      if (scope is not ("datasets" or "reset-datasets")) { keys.Add("datasetId"); Check(DatasetId(Text(value, "datasetId"))); clauses.Add(Prop("wfDataset", Text(value, "datasetId"))); }
+      clauses.Add(Prop("piaFormat", Format));
+      if (scope is not ("datasets" or "reset-datasets")) { keys.Add("datasetId"); Check(DatasetId(Text(value, "datasetId"))); clauses.Add(Prop("piaDataset", Text(value, "datasetId"))); }
       if (scope is "datasets" or "reset-datasets" or "ready" or "roots")
       {
-        clauses.Add(Prop("wfKind", scope is "datasets" or "reset-datasets" ? "dataset" : scope == "roots" ? "dataset-root" : "ready"));
+        clauses.Add(Prop("piaKind", scope is "datasets" or "reset-datasets" ? "dataset" : scope == "roots" ? "dataset-root" : "ready"));
         if (scope == "roots") clauses.Add("'appDataFolder' in parents");
       }
       else if (scope is "current" or "current-all")
       {
-        if (scope == "current") { keys.Add("shard"); var shard = Text(value, "shard"); Check(Shards.Contains(shard)); clauses.Add(Prop("wfShard", shard)); }
-        clauses.Add("(" + Prop("wfKind", "checkpoint") + " or " + Prop("wfKind", "change") + ")");
+        if (scope == "current") { keys.Add("shard"); var shard = Text(value, "shard"); Check(Shards.Contains(shard)); clauses.Add(Prop("piaShard", shard)); }
+        clauses.Add("(" + Prop("piaKind", "checkpoint") + " or " + Prop("piaKind", "change") + ")");
       }
       else if (scope is "history" or "children")
       {
         keys.Add("parentId"); Check(FileId(Text(value, "parentId"))); clauses.Add("'" + Text(value, "parentId") + "' in parents");
-        if (scope == "history") clauses.Add(Prop("wfKind", "revision"));
+        if (scope == "history") clauses.Add(Prop("piaKind", "revision"));
       }
       else if (scope is "purges" or "entity-folders" or "entity-data")
       {
         keys.Add("entities"); var ids = value.GetProperty("entities").EnumerateArray().Select(item => item.GetString()!).ToArray();
         Check(ids.Length is > 0 and <= 20 && ids.All(EntityId) && ids.Distinct(StringComparer.Ordinal).Count() == ids.Length);
-        clauses.Add(scope == "entity-data" ? "(" + string.Join(" or ", new[] { "revision", "attachment", "folder" }.Select(kind => Prop("wfKind", kind))) + ")"
-          : Prop("wfKind", scope == "purges" ? "purge" : "folder")); clauses.Add("(" + string.Join(" or ", ids.Select(id => Prop("wfEntity", id))) + ")");
+        clauses.Add(scope == "entity-data" ? "(" + string.Join(" or ", new[] { "revision", "attachment", "folder" }.Select(kind => Prop("piaKind", kind))) + ")"
+          : Prop("piaKind", scope == "purges" ? "purge" : "folder")); clauses.Add("(" + string.Join(" or ", ids.Select(id => Prop("piaEntity", id))) + ")");
       }
       else Check(false);
     }

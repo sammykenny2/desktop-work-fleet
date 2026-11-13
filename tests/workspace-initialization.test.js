@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { Workspace } from '../src/core/workspace.js';
-import { copy, FleetError } from '../src/core/contracts.js';
+import { copy, PinItAnywhereError } from '../src/core/contracts.js';
 import { FileSync, resetSource } from '../src/sources/file-sync.js';
 import { encodeRevision, revisionRecord } from '../src/sources/revisions.js';
 import { encodeSourceRevision } from '../src/sources/source-revisions.js';
@@ -18,7 +18,7 @@ const group = (id = 'g') => revisionRecord('group', { id, revision: `${id}-root`
 async function client(store) {
   let disk; let failure = () => false;
   const persist = async (next, previous) => {
-    if (failure(next)) throw new FleetError('disk-full', 'disk full');
+    if (failure(next)) throw new PinItAnywhereError('disk-full', 'disk full');
     assert.equal(previous, disk?.revision ?? null); disk = copy(next);
   };
   let workspace = await Workspace.create({ profileId: 'google:fixture', deviceId: crypto.randomUUID(),
@@ -35,7 +35,7 @@ test('reset followers wait through marker-only cleanup, then download the owner 
   const store = new MemoryFileStore(); store.pageSize = 1;
   await store.seed(encodeRevision(group('old-unscoped')));
   let job; const saved = value => { job = copy(value); };
-  store.hooks.deleteFile = () => { throw new FleetError('cleanup-interrupted', 'stop'); };
+  store.hooks.deleteFile = () => { throw new PinItAnywhereError('cleanup-interrupted', 'stop'); };
   await assert.rejects(resetSource(store, { saveJob: saved }), code('cleanup-interrupted'));
   const follower = await client(store); const creates = store.calls.filter(call => call.method === 'createFile').length;
   assert.equal((await follower.sync.sync()).phase, 'waiting-initialization');
@@ -66,7 +66,7 @@ test('a fresh waiting follower forgets old controls cleared during a later reset
     const follower = await client(store); assert.equal((await follower.sync.sync()).phase, 'waiting-initialization');
     assert.deepEqual(follower.workspace.snapshot.groups, []);
     resume.resolve(); await running; follower.reopen();
-    if (expire) store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new FleetError('cursor-expired', 'expired'); };
+    if (expire) store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new PinItAnywhereError('cursor-expired', 'expired'); };
     await follower.sync.sync(); assert.equal(follower.sync.status.phase, 'idle');
     assert.equal(follower.workspace.snapshot.groups.length, 1); assert.equal(follower.workspace.syncState.sourceResetIds.length, 1);
     await assert.rejects(old.sync.sync(), code('source-reset'));
@@ -169,7 +169,7 @@ test('an initialized empty workspace remains empty and an existing same-name gro
 test('a reset journal survives lost create replies and reopening never repeats cleanup once initialization starts', async () => {
   const store = new MemoryFileStore(); await store.seed(encodeRevision(group('old'))); let job;
   const saveJob = value => { job = copy(value); };
-  store.hooks.afterCreate = ({ file }) => { if (file.kind === 'workspace') throw new FleetError('lost-reply', 'lost'); };
+  store.hooks.afterCreate = ({ file }) => { if (file.kind === 'workspace') throw new PinItAnywhereError('lost-reply', 'lost'); };
   await assert.rejects(resetSource(store, { saveJob }), code('lost-reply'));
   assert.equal(job.phase, 'initialize'); const marker = job.marker.id;
   const deletes = store.calls.filter(call => call.method === 'deleteFile').length;
@@ -197,7 +197,7 @@ test('incomplete listings during initial or resumed cleanup never authorize dele
   await assert.rejects(resetSource(store), code('incomplete-source-scan'));
   assert.equal(store.calls.some(call => ['createFile', 'deleteFile'].includes(call.method)), false);
   incomplete = false; let job;
-  store.hooks.deleteFile = () => { throw new FleetError('interrupted', 'stop'); };
+  store.hooks.deleteFile = () => { throw new PinItAnywhereError('interrupted', 'stop'); };
   await assert.rejects(resetSource(store, { saveJob: value => { job = value; } }), code('interrupted'));
   const count = store.calls.length; incomplete = true; delete store.hooks.deleteFile;
   await assert.rejects(resetSource(store, { job }), code('incomplete-source-scan'));

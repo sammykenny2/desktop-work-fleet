@@ -70,14 +70,14 @@ def own_watcher():
 # A packaged bundle layout, so the sign-in command and version come from it rather than from this checkout.
 bundle = OUTPUT / "bundle"
 (bundle / "Assets").mkdir(parents=True, exist_ok=True)
-(bundle / "run-work-fleet.sh").write_text("#!/bin/bash\n", "utf-8")
+(bundle / "run-pin-it-anywhere.sh").write_text("#!/bin/bash\n", "utf-8")
 (bundle / "package.json").write_text('{"version": "9.8.7"}', "utf-8")
 data = OUTPUT / "data"
-real_open_store = host.FleetApp.open_store
-host.FleetApp.open_store = lambda self, profile, persist=False, set_aside=False: None
+real_open_store = host.PinItAnywhereApp.open_store
+host.PinItAnywhereApp.open_store = lambda self, profile, persist=False, set_aside=False: None
 # A shorter wait than config/startup.json, delivered the same way: through the public config.
 WAIT = 3
-app = host.FleetApp(bundle / "Assets", {"appId": "app.workfleet.hostprobe", "startup": {"trayWaitSeconds": WAIT}}, data,
+app = host.PinItAnywhereApp(bundle / "Assets", {"appId": "dev.sammykenny2.pinitanywhere.hostprobe", "startup": {"trayWaitSeconds": WAIT}}, data,
                     launched_at_login=MODE.startswith("hidden"), default_data=data)
 app.register(None)
 autostart = hostsettings.autostart_path(os.environ)
@@ -88,7 +88,7 @@ if MODE == "place":
     settle(0.5)
     width, height = app.window.get_size()
     check((width, height) == (1180, 800), f"default size {width}x{height}")
-    check(autostart.is_file() and "Exec=" + hostsettings._quote(str(bundle / "run-work-fleet.sh")) + " --launch-at-login" in autostart.read_text("utf-8"),
+    check(autostart.is_file() and "Exec=" + hostsettings._quote(str(bundle / "run-pin-it-anywhere.sh")) + " --launch-at-login" in autostart.read_text("utf-8"),
           "first launch writes the sign-in entry for the bundle launcher")
     check(hostsettings.read_preferences(data)[1], "first launch records the preferences file")
     app.window.move(100, 80)
@@ -264,7 +264,7 @@ elif MODE == "actions":
 
     def run(name):
         answered = []
-        bus.call("app.workfleet.hostprobe", "/app/workfleet/hostprobe", "org.gtk.Actions", "Activate", GLib.Variant("(sava{sv})", (name, [], {})),
+        bus.call("dev.sammykenny2.pinitanywhere.hostprobe", "/app/pinitanywhere/hostprobe", "org.gtk.Actions", "Activate", GLib.Variant("(sava{sv})", (name, [], {})),
                  None, Gio.DBusCallFlags.NONE, -1, None, lambda source, result: answered.append(source.call_finish(result)))
         spin(lambda: answered, message=f"{name} answered over D-Bus")
     app.window.hide()
@@ -282,18 +282,18 @@ elif MODE == "actions":
     check(quitting == [True], "quit saves and quits like the tray item")
     app.shutdown(app)
 elif MODE == "data-failure":
-    host.FleetApp.open_store = real_open_store
+    host.PinItAnywhereApp.open_store = real_open_store
     data.mkdir(parents=True, exist_ok=True)
     os.chmod(data, 0o700)
-    for stale in data.glob("fleet.sqlite3*"):
+    for stale in data.glob("pinitanywhere.sqlite3*"):
         stale.unlink()
-    (data / "fleet.sqlite3").write_bytes(b"these bytes are not a SQLite database")
+    (data / "pinitanywhere.sqlite3").write_bytes(b"these bytes are not a SQLite database")
     key = data / "storage-key"
     key.write_bytes(os.urandom(32))
     os.chmod(key, 0o600)
     explained = []
-    explain = host.FleetApp.data_failure
-    host.FleetApp.data_failure = lambda self, cause, profile: (explained.append(cause), explain(self, cause, profile))
+    explain = host.PinItAnywhereApp.data_failure
+    host.PinItAnywhereApp.data_failure = lambda self, cause, profile: (explained.append(cause), explain(self, cause, profile))
     app.activate(app)
     shown = lambda: [window for window in Gtk.Window.list_toplevels() if isinstance(window, Gtk.MessageDialog) and window.get_visible()]
     spin(lambda: explained and shown(), seconds=30, message="the damaged database explains itself")
@@ -306,7 +306,7 @@ elif MODE == "data-failure":
     shown()[0].response(Gtk.ResponseType.OK)
     spin(lambda: app.service is not None, seconds=30, message="empty data opens after the set-aside")
     folders = list(data.glob("set-aside-*"))
-    check(len(folders) == 1 and (folders[0] / "fleet.sqlite3").read_bytes() == b"these bytes are not a SQLite database"
+    check(len(folders) == 1 and (folders[0] / "pinitanywhere.sqlite3").read_bytes() == b"these bytes are not a SQLite database"
           and (folders[0] / "storage-key").read_bytes() != (data / "storage-key").read_bytes(),
           "the damaged database and its key moved into one set-aside folder, and the new data has its own key")
     app.shutdown(app)

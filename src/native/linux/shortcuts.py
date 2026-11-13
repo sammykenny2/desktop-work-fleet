@@ -75,7 +75,7 @@ class Shortcuts:
         for binding in self.bindings:
             status = binding["status"]
             if status == "available" and self.labwc is not None:
-                # labwc runs the keybind whichever window has the focus, Work Fleet's own included.
+                # labwc runs the keybind whichever window has the focus, Pin It Anywhere's own included.
                 status = "available" if binding["id"] in registered else "unwritten"
             elif status == "available":
                 status = "suspended" if self.suspended else "available" if binding["id"] in registered else "unavailable"

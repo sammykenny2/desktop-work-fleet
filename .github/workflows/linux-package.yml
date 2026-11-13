@@ -1,7 +1,7 @@
 name: Linux package
 
 # Called by preview-release.yml for one vX.Y.Z release. Builds the DEB from the release commit and saves it with its
-# .sha256 and work-fleet-update-linux.json as the release-linux artifact; the caller publishes every platform at once.
+# .sha256 and pin-it-anywhere-update-linux.json as the release-linux artifact; the caller publishes every platform at once.
 # Procedure: docs/deployment.md, "Preview releases".
 
 on:
@@ -40,32 +40,32 @@ jobs:
       # A preview that cannot sign in to Google is not worth installing on another machine.
       - name: Check Google settings
         env:
-          WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
-          WORK_FLEET_GOOGLE_LINUX_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_LINUX_CLIENT_ID }}
-          HAS_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET != '' }}
+          PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID }}
+          PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_ID }}
+          HAS_SECRET: ${{ secrets.PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_SECRET != '' }}
         run: |
           node scripts/check-config.mjs --google --platform linux
-          [ "$HAS_SECRET" = true ] || { echo 'Secret WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET is not set.'; exit 1; }
+          [ "$HAS_SECRET" = true ] || { echo 'Secret PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_SECRET is not set.'; exit 1; }
       - name: Build the package
         env:
-          WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
-          WORK_FLEET_GOOGLE_LINUX_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_LINUX_CLIENT_ID }}
-          WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET }}
-          WORK_FLEET_PRIVACY_URL: ${{ vars.WORK_FLEET_PRIVACY_URL }}
-          WORK_FLEET_SUPPORT_URL: ${{ vars.WORK_FLEET_SUPPORT_URL }}
-          WORK_FLEET_SUPPORT_EMAIL: ${{ vars.WORK_FLEET_SUPPORT_EMAIL }}
+          PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID }}
+          PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_ID: ${{ vars.PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_ID }}
+          PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_SECRET: ${{ secrets.PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_SECRET }}
+          PIN_IT_ANYWHERE_PRIVACY_URL: ${{ vars.PIN_IT_ANYWHERE_PRIVACY_URL }}
+          PIN_IT_ANYWHERE_SUPPORT_URL: ${{ vars.PIN_IT_ANYWHERE_SUPPORT_URL }}
+          PIN_IT_ANYWHERE_SUPPORT_EMAIL: ${{ vars.PIN_IT_ANYWHERE_SUPPORT_EMAIL }}
           SUMMARY: ${{ inputs.summary }}
           VERSION: ${{ inputs.version }}
         run: |
           bash scripts/linux/build-native-app.sh --deb --update-summary "$SUMMARY"
-          test -f "build/pin-it-anywhere_${VERSION}_all.deb" && test -f build/work-fleet-update-linux.json
+          test -f "build/pin-it-anywhere_${VERSION}_all.deb" && test -f build/pin-it-anywhere-update-linux.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-linux
           path: |
             build/pin-it-anywhere_${{ inputs.version }}_all.deb
             build/pin-it-anywhere_${{ inputs.version }}_all.deb.sha256
-            build/work-fleet-update-linux.json
+            build/pin-it-anywhere-update-linux.json
           if-no-files-found: error
           # A re-run of this job replaces the artifact its failed attempt may have left.
           overwrite: true

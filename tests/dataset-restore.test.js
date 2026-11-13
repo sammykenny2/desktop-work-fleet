@@ -58,7 +58,7 @@ test('background seed slices return before readiness and accept foreground edits
 
 test('seeded cloud replacement publishes history before ready and creates checkpoints only for populated shards', async () => {
   const provider = new DatasetTestProvider(), document = await backup(145), target = await stage(provider, document);
-  assert.equal(target.state.format, 'work-fleet-workspace-current'); assert.equal(target.state.revisions.length, 2);
+  assert.equal(target.state.format, 'pin-it-anywhere-workspace-current'); assert.equal(target.state.revisions.length, 2);
   let seeded = null;
   provider.hook = async (point, id) => {
     if (point === 'create-after' && provider.files.get(id)?.file.kind === 'ready') {

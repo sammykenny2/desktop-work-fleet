@@ -6,9 +6,9 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Media;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 public readonly record struct SceneHitRect(double X, double Y, double Width, double Height, bool Interactive);
 
@@ -37,7 +37,7 @@ public sealed class DesktopSurface : IDisposable
   /// The DPI the browser draws at: that of the display under the scene, since neither WebView2 control sets a
   /// rasterization scale. An attached scene's own DPI can differ: on a scaling change it takes the DPI of Explorer's
   /// desktop window, which stayed at 144 at both 150% and 125% (Windows 11 build 26300), so after 150% to 125% those
-  /// scenes drew their papers at 125/150 of their size until Work Fleet restarted.
+  /// scenes drew their papers at 125/150 of their size until Pin It Anywhere restarted.
   /// </summary>
   public uint MonitorDpi => GetDpiForMonitor(MonitorFromWindow(InputHandle, 2), 0, out var dpi, out _) == 0 ? dpi : Dpi;
   public event Action? CloseRequested;

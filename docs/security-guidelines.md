@@ -131,13 +131,13 @@ entry/alternate links of the same repo and valid `vX.Y.Z` tags are accepted. The
 URLs are always built from the repo, the tag and a single-level file name. Downloads are allowed only from
 `github.com` and the GitHub release asset host, with at most three redirects; responses and installers have size
 limits, and the installer's size and SHA-256 must match the platform's manifest in the release
-(`work-fleet-update-windows.json`, `work-fleet-update-linux.json`). The MSIX identity
+(`pin-it-anywhere-update-windows.json`, `pin-it-anywhere-update-linux.json`). The MSIX identity
 (Name, Publisher, architecture) must be the same as the installed package with a higher version, and Windows checks
 the signature at installation.
 The manifest and the installer come from the same release, so this only protects against corruption and a single
 replaced file, not against a compromised GitHub account. The renderer cannot specify any URL.
-The local test source is read only by the `app.workfleet.updateprobe.*` package identity; other identities ignore it.
-Linux checks the package name `work-fleet`, the architecture and a higher version with `dpkg-deb` before installing
+The local test source is read only by the `dev.sammykenny2.pinitanywhere.updateprobe.*` package identity; other identities ignore it.
+Linux checks the package name `pin-it-anywhere`, the architecture and a higher version with `dpkg-deb` before installing
 with pkexec; a DEB has no operating-system signature check and relies only on the same release's manifest and
 SHA-256.
 macOS only queries the Atom feed above itself (refusing redirects). After that, Sparkle downloads by the appcast of

@@ -10,7 +10,7 @@ import { generateAppleProject } from '../scripts/generate-apple-project.mjs';
 import { ensureWebDependencies, prepareAppleBuild } from '../scripts/prepare-apple-build.mjs';
 
 test('native notices can be refreshed after read-only package licenses were copied', { skip: process.platform === 'win32' }, async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-notices-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'pin-it-anywhere-apple-notices-'));
   try {
     const source = path.join(directory, 'checkouts', 'sample package');
     const destination = path.join(directory, 'bundle licenses');
@@ -32,9 +32,9 @@ test('native notices can be refreshed after read-only package licenses were copi
 });
 
 async function fixture(root) {
-  for (const file of ['src/native/apple/Shared/FleetProtocol.swift', 'src/native/apple/Shared/FleetCaptureInbox.swift',
-    'src/native/apple/Shared/FleetText.swift', 'src/native/apple/ios/Main.swift', 'src/native/apple/macos/Main.swift', 'src/native/apple/share/ShareViewController.swift',
-    'src/native/apple/PrivacyInfo.xcprivacy', 'src/native/apple/config/WorkFleet.xcconfig',
+  for (const file of ['src/native/apple/Shared/PinItAnywhereProtocol.swift', 'src/native/apple/Shared/PinItAnywhereCaptureInbox.swift',
+    'src/native/apple/Shared/PinItAnywhereText.swift', 'src/native/apple/ios/Main.swift', 'src/native/apple/macos/Main.swift', 'src/native/apple/share/ShareViewController.swift',
+    'src/native/apple/PrivacyInfo.xcprivacy', 'src/native/apple/config/PinItAnywhere.xcconfig',
     'src/native/apple/resources/en.lproj/InfoPlist.strings', 'src/native/apple/resources/zh-Hant.lproj/InfoPlist.strings',
     'LICENSE', 'THIRD-PARTY-NOTICES.md']) {
     await mkdir(path.dirname(path.join(root, file)), { recursive: true });
@@ -48,13 +48,13 @@ async function fixture(root) {
 }
 
 test('Xcode project is location independent and does not embed local configuration', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-project-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'pin-it-anywhere-apple-project-'));
   try {
     const roots = [path.join(directory, 'first checkout'), path.join(directory, 'moved checkout')];
     const projects = [];
     for (const root of roots) {
       await fixture(root);
-      await writeFile(path.join(root, '.env'), 'WORK_FLEET_APP_ID=app.private.fixture\nPRIVATE_TOKEN=synthetic-secret\n');
+      await writeFile(path.join(root, '.env'), 'PIN_IT_ANYWHERE_APP_ID=app.private.fixture\nPRIVATE_TOKEN=synthetic-secret\n');
       const { project, objects } = await generateAppleProject(root);
       const text = await readFile(path.join(project, 'project.pbxproj'), 'utf8');
       assert.equal(text.includes(root), false);
@@ -68,7 +68,7 @@ test('Xcode project is location independent and does not embed local configurati
         }
       }
       const targets = Object.values(objects).filter(object => object.isa === 'PBXNativeTarget');
-      assert.deepEqual(targets.map(target => target.name).sort(), ['WorkFleetIOS', 'WorkFleetMac', 'WorkFleetShare']);
+      assert.deepEqual(targets.map(target => target.name).sort(), ['PinItAnywhereIOS', 'PinItAnywhereMac', 'PinItAnywhereShare']);
       for (const target of targets) assert.equal(objects[target.buildPhases[0]].name, 'Prepare local resources');
       for (const target of targets) {
         const phase = target.buildPhases.map(id => objects[id]).find(phase => phase.isa === 'PBXResourcesBuildPhase');
@@ -80,12 +80,12 @@ test('Xcode project is location independent and does not embed local configurati
       for (const target of targets) {
         const configurations = objects[target.buildConfigurationList].buildConfigurations.map(id => objects[id]);
         for (const configuration of configurations) {
-          if (target.name === 'WorkFleetMac') {
+          if (target.name === 'PinItAnywhereMac') {
             assert.ok(configuration.buildSettings.LD_RUNPATH_SEARCH_PATHS.includes('@executable_path/../Frameworks'));
           }
-          if (target.name === 'WorkFleetMac' && configuration.name === 'Release') {
-            assert.equal(configuration.buildSettings.CODE_SIGN_STYLE, '$(WORK_FLEET_MACOS_SIGNING_STYLE)');
-            assert.equal(configuration.buildSettings.PROVISIONING_PROFILE_SPECIFIER, '$(WORK_FLEET_MACOS_PROFILE)');
+          if (target.name === 'PinItAnywhereMac' && configuration.name === 'Release') {
+            assert.equal(configuration.buildSettings.CODE_SIGN_STYLE, '$(PIN_IT_ANYWHERE_MACOS_SIGNING_STYLE)');
+            assert.equal(configuration.buildSettings.PROVISIONING_PROFILE_SPECIFIER, '$(PIN_IT_ANYWHERE_MACOS_PROFILE)');
           } else {
             assert.equal(configuration.buildSettings.CODE_SIGN_STYLE, 'Automatic');
             assert.equal(configuration.buildSettings.PROVISIONING_PROFILE_SPECIFIER, undefined);
@@ -95,13 +95,13 @@ test('Xcode project is location independent and does not embed local configurati
       // Every target that draws text compiles the host string table; the extension takes only the files it needs.
       const sources = target => objects[target.buildPhases.find(id => objects[id].isa === 'PBXSourcesBuildPhase')].files
         .map(id => path.basename(objects[objects[id].fileRef].path)).sort();
-      for (const name of ['WorkFleetIOS', 'WorkFleetMac']) assert.ok(sources(targets.find(target => target.name === name)).includes('FleetText.swift'), name);
-      assert.deepEqual(sources(targets.find(target => target.name === 'WorkFleetShare')),
-        ['FleetCaptureInbox.swift', 'FleetProtocol.swift', 'FleetText.swift', 'ShareViewController.swift']);
-      const ios = targets.find(target => target.name === 'WorkFleetIOS');
+      for (const name of ['PinItAnywhereIOS', 'PinItAnywhereMac']) assert.ok(sources(targets.find(target => target.name === name)).includes('PinItAnywhereText.swift'), name);
+      assert.deepEqual(sources(targets.find(target => target.name === 'PinItAnywhereShare')),
+        ['PinItAnywhereCaptureInbox.swift', 'PinItAnywhereProtocol.swift', 'PinItAnywhereText.swift', 'ShareViewController.swift']);
+      const ios = targets.find(target => target.name === 'PinItAnywhereIOS');
       assert.equal(ios.dependencies.length, 1);
       assert.ok(ios.buildPhases.some(id => objects[id].name === 'Embed Share Extension'));
-      for (const scheme of ['WorkFleetIOS', 'WorkFleetMac']) await access(path.join(project, 'xcshareddata/xcschemes', `${scheme}.xcscheme`));
+      for (const scheme of ['PinItAnywhereIOS', 'PinItAnywhereMac']) await access(path.join(project, 'xcshareddata/xcschemes', `${scheme}.xcscheme`));
       await access(path.join(project, 'project.xcworkspace/contents.xcworkspacedata'));
       projects.push(text);
     }
@@ -114,15 +114,15 @@ test('Xcode project is location independent and does not embed local configurati
 test('the committed Xcode project is what the generator writes', async () => {
   // A Swift file added to Shared/ or to the Share Extension must reach the committed project and its schemes.
   const root = fileURLToPath(new URL('../', import.meta.url));
-  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-sync-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'pin-it-anywhere-apple-sync-'));
   try {
     const apple = path.join(root, 'src/native/apple');
     await cp(apple, path.join(directory, 'src/native/apple'), { recursive: true,
       filter: source => !['.generated', 'xcuserdata', 'Local.xcconfig'].includes(path.basename(source)) });
     for (const file of ['LICENSE', 'THIRD-PARTY-NOTICES.md']) await cp(path.join(root, file), path.join(directory, file));
     const { project } = await generateAppleProject(directory);
-    for (const file of ['project.pbxproj', 'xcshareddata/xcschemes/WorkFleetIOS.xcscheme', 'xcshareddata/xcschemes/WorkFleetMac.xcscheme']) {
-      assert.equal(await readFile(path.join(project, file), 'utf8'), await readFile(path.join(apple, 'WorkFleet.xcodeproj', file), 'utf8'), file);
+    for (const file of ['project.pbxproj', 'xcshareddata/xcschemes/PinItAnywhereIOS.xcscheme', 'xcshareddata/xcschemes/PinItAnywhereMac.xcscheme']) {
+      assert.equal(await readFile(path.join(project, file), 'utf8'), await readFile(path.join(apple, 'PinItAnywhere.xcodeproj', file), 'utf8'), file);
     }
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -130,11 +130,11 @@ test('the committed Xcode project is what the generator writes', async () => {
 });
 
 test('Apple build prepares fresh bundle resources and keeps share extension free of app config', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-assets-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'pin-it-anywhere-apple-assets-'));
   try {
     const environment = {
-      WORK_FLEET_APP_ID: 'app.workfleet.ios', WORK_FLEET_APP_GROUP_ID: 'group.app.workfleet.ios',
-      DEVELOPMENT_TEAM: 'ABCDE12345', WORK_FLEET_GOOGLE_IOS_CLIENT_ID: '123-ios.apps.googleusercontent.com',
+      PIN_IT_ANYWHERE_APP_ID: 'dev.sammykenny2.pinitanywhere.ios', PIN_IT_ANYWHERE_APP_GROUP_ID: 'group.dev.sammykenny2.pinitanywhere.ios',
+      DEVELOPMENT_TEAM: 'ABCDE12345', PIN_IT_ANYWHERE_GOOGLE_IOS_CLIENT_ID: '123-ios.apps.googleusercontent.com',
       PRIVATE_TOKEN: 'synthetic-secret', CONFIGURATION: 'Debug',
     };
     const app = path.join(directory, 'App with spaces');
@@ -142,15 +142,15 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
     assert.equal(config.appleTeamId, environment.DEVELOPMENT_TEAM);
     const plist = await readFile(path.join(app, 'Info.plist'), 'utf8');
     assert.ok(plist.includes('com.googleusercontent.apps.123-ios'));
-    assert.ok(plist.includes('group.app.workfleet.ios'));
+    assert.ok(plist.includes('group.dev.sammykenny2.pinitanywhere.ios'));
     assert.ok(plist.includes('<key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/>'));
-    assert.ok(plist.includes('<string>$(PRODUCT_MODULE_NAME).FleetSceneDelegate</string>'));
+    assert.ok(plist.includes('<string>$(PRODUCT_MODULE_NAME).PinItAnywhereSceneDelegate</string>'));
     assert.equal(plist.includes('LSApplicationCategoryType'), false);
     // System-drawn alert buttons, share sheets and menus follow the user's language for both supported localizations.
     const localizations = '<key>CFBundleDevelopmentRegion</key><string>en</string><key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hant</string></array>';
     assert.ok(plist.includes(localizations));
     const bundled = await readFile(path.join(app, 'Config/public.json'), 'utf8');
-    assert.equal(JSON.parse(bundled).appId, environment.WORK_FLEET_APP_ID);
+    assert.equal(JSON.parse(bundled).appId, environment.PIN_IT_ANYWHERE_APP_ID);
     assert.equal(bundled.includes('synthetic-secret'), false);
     for (const file of ['app/index.html', 'native/files.js', 'native/capture.js', 'vendor/marked.js']) await access(path.join(app, 'Assets', file));
     for (const [folder, entry] of [['app', 'main'], ['desktop', 'scene']]) {
@@ -161,12 +161,12 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
       assert.equal(html.includes("'unsafe-eval'"), false);
       assert.ok(html.includes("script-src 'self';"));
       const script = await readFile(path.join(app, 'Assets', folder, `${entry}.bundle.js`), 'utf8');
-      assert.ok(script.includes('workFleet'));
+      assert.ok(script.includes('pinItAnywhere'));
       assert.equal(script.includes('PRIVATE_TOKEN'), false);
     }
     const mac = path.join(directory, 'Mac');
     await prepareAppleBuild({ platform: 'macos', output: mac, environment: {
-      ...environment, WORK_FLEET_GOOGLE_MACOS_CLIENT_ID: '123-macos.apps.googleusercontent.com',
+      ...environment, PIN_IT_ANYWHERE_GOOGLE_MACOS_CLIENT_ID: '123-macos.apps.googleusercontent.com',
     }, installDependencies: false });
     const macPlist = await readFile(path.join(mac, 'Info.plist'), 'utf8');
     assert.ok(macPlist.includes('<key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>'));
@@ -174,11 +174,11 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
     await prepareAppleBuild({ platform: 'share', output: share, environment });
     const sharePlist = await readFile(path.join(share, 'Info.plist'), 'utf8');
     assert.ok(sharePlist.includes('com.apple.share-services'));
-    assert.ok(sharePlist.includes('group.app.workfleet.ios'));
+    assert.ok(sharePlist.includes('group.dev.sammykenny2.pinitanywhere.ios'));
     assert.ok(sharePlist.includes(localizations));
     assert.equal(sharePlist.includes('LSApplicationCategoryType'), false);
     assert.equal(sharePlist.includes('UIApplicationSceneManifest'), false);
-    assert.equal(sharePlist.includes(environment.WORK_FLEET_GOOGLE_IOS_CLIENT_ID), false);
+    assert.equal(sharePlist.includes(environment.PIN_IT_ANYWHERE_GOOGLE_IOS_CLIENT_ID), false);
     await assert.rejects(access(path.join(share, 'Config')));
     await assert.rejects(access(path.join(share, 'Assets')));
   } finally {
@@ -187,7 +187,7 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
 });
 
 test('Xcode release resource preparation rejects incomplete public settings', async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-release-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'pin-it-anywhere-apple-release-'));
   try {
     await assert.rejects(prepareAppleBuild({ platform: 'ios', root: directory, output: path.join(directory, 'output'),
       environment: { CONFIGURATION: 'Release' } }), /Apple release settings are incomplete/);
@@ -197,16 +197,16 @@ test('Xcode release resource preparation rejects incomplete public settings', as
 });
 
 test('Apple dependency install lets npm find the running node when Xcode PATH lacks it', { skip: process.platform === 'win32' }, async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-npm-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'pin-it-anywhere-apple-npm-'));
   try {
     await writeFile(path.join(directory, 'package.json'), '{"devDependencies":{}}\n');
     await writeFile(path.join(directory, 'package-lock.json'), '{}\n');
     const npm = path.join(directory, 'fake npm');
     await writeFile(npm, "#!/usr/bin/env node\nconst fs = require('node:fs'); fs.mkdirSync('node_modules'); fs.writeFileSync('node_modules/node-path', process.execPath);\n");
     await chmod(npm, 0o755);
-    await ensureWebDependencies(directory, { PATH: '/usr/bin:/bin', WORK_FLEET_NPM: npm });
+    await ensureWebDependencies(directory, { PATH: '/usr/bin:/bin', PIN_IT_ANYWHERE_NPM: npm });
     assert.equal(await readFile(path.join(directory, 'node_modules', 'node-path'), 'utf8'), process.execPath);
-    await access(path.join(directory, 'node_modules', '.work-fleet-apple-lock'));
+    await access(path.join(directory, 'node_modules', '.pin-it-anywhere-apple-lock'));
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

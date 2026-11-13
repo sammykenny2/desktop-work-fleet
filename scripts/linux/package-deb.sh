@@ -2,7 +2,7 @@
 # Package the generated Linux app with the distribution's dpkg-deb.
 # The version comes from the bundle's package.json, generated from src/native/linux/VERSION.
 # The temporary staging directory is removed on exit.
-# Also writes work-fleet-update-linux.json, the in-app update manifest (ADR-044) that the vVERSION release carries beside
+# Also writes pin-it-anywhere-update-linux.json, the in-app update manifest (ADR-044) that the vVERSION release carries beside
 # the DEB.
 # Usage: package-deb.sh --source PATH --output PATH --app-id ID [--maintainer-email EMAIL] [--update-summary TEXT] [--release]
 set -euo pipefail
@@ -33,22 +33,22 @@ mkdir -p "$OUTPUT"
 OUTPUT="$(cd "$OUTPUT" && pwd)"; BUNDLE="$(cd "$BUNDLE" && pwd)"
 STAGE="$(mktemp -d "$OUTPUT/deb-stage-XXXXXXXX")"
 trap 'rm -rf -- "$STAGE"' EXIT
-mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/lib/work-fleet" "$STAGE/usr/bin" "$STAGE/usr/share/applications" "$STAGE/usr/share/icons" "$STAGE/usr/share/doc/work-fleet"
-cp -R "$BUNDLE/." "$STAGE/usr/lib/work-fleet/"
+mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/lib/pin-it-anywhere" "$STAGE/usr/bin" "$STAGE/usr/share/applications" "$STAGE/usr/share/icons" "$STAGE/usr/share/doc/pin-it-anywhere"
+cp -R "$BUNDLE/." "$STAGE/usr/lib/pin-it-anywhere/"
 cp "$BUNDLE/Desktop/$APP_ID.desktop" "$STAGE/usr/share/applications/"
 # Every size, the scalable SVG and the symbolic glyph, already named after the app ID.
 cp -R "$BUNDLE/Icons/hicolor" "$STAGE/usr/share/icons/"
-cp "$BUNDLE/Licenses/LICENSE" "$STAGE/usr/share/doc/work-fleet/copyright"
-cp "$BUNDLE/Licenses/THIRD-PARTY-NOTICES.md" "$STAGE/usr/share/doc/work-fleet/"
-cat > "$STAGE/usr/bin/work-fleet" <<'LAUNCHER'
+cp "$BUNDLE/Licenses/LICENSE" "$STAGE/usr/share/doc/pin-it-anywhere/copyright"
+cp "$BUNDLE/Licenses/THIRD-PARTY-NOTICES.md" "$STAGE/usr/share/doc/pin-it-anywhere/"
+cat > "$STAGE/usr/bin/pin-it-anywhere" <<'LAUNCHER'
 #!/bin/bash
-exec /usr/lib/work-fleet/run-work-fleet.sh "$@"
+exec /usr/lib/pin-it-anywhere/run-pin-it-anywhere.sh "$@"
 LAUNCHER
 find "$STAGE" -type d -exec chmod 755 {} +
 find "$STAGE" -type f -exec chmod 644 {} +
-chmod 755 "$STAGE/usr/bin/work-fleet" "$STAGE/usr/lib/work-fleet/run-work-fleet.sh"
+chmod 755 "$STAGE/usr/bin/pin-it-anywhere" "$STAGE/usr/lib/pin-it-anywhere/run-pin-it-anywhere.sh"
 cat > "$STAGE/DEBIAN/control" <<CONTROL
-Package: work-fleet
+Package: pin-it-anywhere
 Version: $VERSION
 Architecture: all
 Maintainer: Pin It Anywhere maintainers <$EMAIL>
@@ -62,7 +62,7 @@ CONTROL
 PACKAGE="$OUTPUT/pin-it-anywhere_${VERSION}_all.deb"
 dpkg-deb --build --root-owner-group "$STAGE" "$PACKAGE"
 (cd "$OUTPUT" && sha256sum "${PACKAGE##*/}" > "$PACKAGE.sha256")
-python3 - "$PACKAGE" "$VERSION" "$SUMMARY" "$OUTPUT/work-fleet-update-linux.json" <<'MANIFEST'
+python3 - "$PACKAGE" "$VERSION" "$SUMMARY" "$OUTPUT/pin-it-anywhere-update-linux.json" <<'MANIFEST'
 import hashlib, json, os, sys
 package, version, summary, target = sys.argv[1:]
 if len(summary) > 500:
@@ -73,4 +73,4 @@ value = {'schemaVersion': 1, 'platform': 'linux', 'version': version, 'tag': 'v'
 open(target, 'w', encoding='utf-8').write(json.dumps(value, ensure_ascii=False, indent=2) + chr(10))
 MANIFEST
 echo "Debian package: $PACKAGE"
-echo "Update manifest: $OUTPUT/work-fleet-update-linux.json"
+echo "Update manifest: $OUTPUT/pin-it-anywhere-update-linux.json"

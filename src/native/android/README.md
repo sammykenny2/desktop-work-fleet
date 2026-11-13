@@ -30,9 +30,9 @@ The project includes `gradlew`, `gradlew.bat` and `gradle/wrapper/`; Gradle does
    If the first Gradle Sync fails, the `app` Run configuration is not created; add it under Edit Configurations.
 
 The `local.properties` that Android Studio creates holds only the local SDK path and is excluded from version control.
-If the IDE does not load the shell environment and cannot find Node/npm, set `workFleetNode`/`workFleetNpm` to the
+If the IDE does not load the shell environment and cannot find Node/npm, set `pinItAnywhereNode`/`pinItAnywhereNpm` to the
 executable paths in the local Gradle user properties (use `/` in Windows paths); the environment variables
-`WORK_FLEET_NODE`/`WORK_FLEET_NPM` are also supported. Do not commit personal paths to the project settings.
+`PIN_IT_ANYWHERE_NODE`/`PIN_IT_ANYWHERE_NPM` are also supported. Do not commit personal paths to the project settings.
 
 The command line in this directory also builds; set `JAVA_HOME` and `ANDROID_HOME`, or use the SDK path the IDE created:
 
@@ -56,7 +56,7 @@ After changing the application ID in `.env`, run Gradle Sync again; the other pu
 build time.
 
 An APK with a different debug signature (or a lower versionCode) cannot install over the existing app; on 2026-10-06
-the old app had to be uninstalled. Build with the shared debug keystore (`WORK_FLEET_ANDROID_DEBUG_KEYSTORE`) so updates
+the old app had to be uninstalled. Build with the shared debug keystore (`PIN_IT_ANYWHERE_ANDROID_DEBUG_KEYSTORE`) so updates
 keep the data.
 Android Studio and a terminal `adb` compete for port 5037, which shows `ADB server didn't ACK`; it does not affect the
 app, but some `adb` commands need a retry.
@@ -90,8 +90,8 @@ bash scripts/linux/build-android-app.sh --signed --apk
 
 The default application ID is `dev.sammykenny2.pinitanywhere`. Release requires the matching public settings and
 an Android OAuth client registered for the actual distribution certificate. The Web client alone is insufficient.
-Signing comes from four process/CI variables, `WORK_FLEET_ANDROID_KEYSTORE` (absolute path),
-`WORK_FLEET_ANDROID_KEY_ALIAS`, `WORK_FLEET_ANDROID_STORE_PASSWORD` and `WORK_FLEET_ANDROID_KEY_PASSWORD`,
+Signing comes from four process/CI variables, `PIN_IT_ANYWHERE_ANDROID_KEYSTORE` (absolute path),
+`PIN_IT_ANYWHERE_ANDROID_KEY_ALIAS`, `PIN_IT_ANYWHERE_ANDROID_STORE_PASSWORD` and `PIN_IT_ANYWHERE_ANDROID_KEY_PASSWORD`,
 which are never written to the repository, `.env` or the public JSON. `-Signed`/`--signed` requires all inputs and stops
 when one is missing.
 Add `-Apk`/`--apk` to produce `PinItAnywhere-<versionName>-android-release.apk` with `assembleRelease` instead of a release
@@ -103,16 +103,16 @@ A release AAB without the inputs is unsigned and must go to an external signing 
 `build/gradle-home`.
 Google needs an Android client (package + signing SHA-1) and a Web client (the Credential Manager audience) in the same
 project.
-Set `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`/`WORK_FLEET_GOOGLE_WEB_CLIENT_ID` and rebuild.
+Set `PIN_IT_ANYWHERE_GOOGLE_ANDROID_CLIENT_ID`/`PIN_IT_ANYWHERE_GOOGLE_WEB_CLIENT_ID` and rebuild.
 No Web client secret is needed, and no own sign-in server is built.
 
 The GitHub **Android Release APK** workflow builds manually from main with the release keystore and checks
-`WORK_FLEET_ANDROID_RELEASE_SHA1`; it does not bump the version or publish a Release, and the artifact is kept for
+`PIN_IT_ANYWHERE_ANDROID_RELEASE_SHA1`; it does not bump the version or publish a Release, and the artifact is kept for
 fourteen days. It inspects the actual signature, manifest identity/version, debuggable/test-only flags and bundled
 Release runtime inventory before saving anything. Missing release signing settings fail the build; the old Debug
 signing Secret is not used. Play App Signing is configured separately.
 The Secret settings are in [phone test builds](../../../docs/deployment.md#phone-test-builds).
-`WORK_FLEET_ANDROID_DEBUG_KEYSTORE` can point locally or in CI to the absolute path of an existing debug keystore,
+`PIN_IT_ANYWHERE_ANDROID_DEBUG_KEYSTORE` can point locally or in CI to the absolute path of an existing debug keystore,
 with the standard Android debug alias and passwords; when it is not set, Android Studio's default behaviour is kept.
 
 The system life cycle does not guarantee a close callback, so body input saves the draft immediately. The back key first
@@ -168,7 +168,7 @@ removing the app or the key loses the ability to decrypt it.
   preferences under the key `language`; it is never part of a profile, a backup or Google data. A missing or damaged
   value reads as `auto`, which follows the system's locale list.
 - The host's own text (dialogs, chooser titles and the values it returns for the page to show) is in
-  `app/src/main/java/app/workfleet/nativehost/HostText.java`, with an `i18n:en` and an `i18n:zh-TW` block.
+  `app/src/main/java/dev/sammykenny2/pinitanywhere/nativehost/HostText.java`, with an `i18n:en` and an `i18n:zh-TW` block.
 - `host.language.set` saves the preference, re-resolves the locale, redraws any open host dialog and replies with
   `{ preference, system }`. Android has no tray or menus to redraw. The rules are in
   [Internationalization](../../../docs/i18n.md).

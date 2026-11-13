@@ -21,10 +21,10 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"; cd "$PROJECT_ROOT"
 PRODUCTS="$PROJECT_ROOT/build/apple/DerivedData/Build/Products"
-APP="$PRODUCTS/Debug/WorkFleetMac.app"; PLIST="$APP/Contents/Info.plist"
+APP="$PRODUCTS/Debug/PinItAnywhereMac.app"; PLIST="$APP/Contents/Info.plist"
 if [[ "$PLATFORM" == ios ]]; then
     SDK=iphoneos; [[ "$SIMULATOR" == 0 ]] || SDK=iphonesimulator
-    APP="$PRODUCTS/Debug-$SDK/WorkFleetIOS.app"; PLIST="$APP/Info.plist"
+    APP="$PRODUCTS/Debug-$SDK/PinItAnywhereIOS.app"; PLIST="$APP/Info.plist"
 fi
 [[ -d "$APP" ]] || { echo 'Build the matching native Debug app first.' >&2; exit 1; }
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
@@ -56,7 +56,7 @@ xcodebuild -version > "$OUTPUT/toolchain.txt"
 printf 'Native Debug preview %s. Requires suitable signing/provisioning for protected storage and device installation.\n' "$NAME" > "$OUTPUT/README.txt"
 if [[ "$PLATFORM" == ios && "$SIMULATOR" == 0 ]]; then
     PACKAGE="$NAME.ipa"
-    mkdir "$OUTPUT/Payload"; ditto "$APP" "$OUTPUT/Payload/WorkFleetIOS.app"
+    mkdir "$OUTPUT/Payload"; ditto "$APP" "$OUTPUT/Payload/PinItAnywhereIOS.app"
     (cd "$OUTPUT"; ditto -c -k --keepParent Payload "$PACKAGE")
 elif [[ "$DMG" == 1 ]]; then
     PACKAGE="$NAME.dmg"

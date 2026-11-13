@@ -16,7 +16,7 @@
 
 - Type: single-project
 - Purpose: Backlog-first work notes with cross-device sync and optional desktop presentation.
-- Entry points: README.md, docs/README.md, src/server/work_fleet.py, src/macos/main.swift.
+- Entry points: README.md, docs/README.md, src/server/pin_it_anywhere.py, src/macos/main.swift.
 - Stack and versions: Validation version uses Swift/AppKit, WebKit, native ES modules and Python 3.12+ standard-library SQLite; see ADR-002 and the runtime inventory.
 - Test commands: `python3 -m unittest discover -s tests -p 'test_*.py' -v`, `node --test tests/drafts.test.js`; macOS build/probe commands are in docs/testing.md.
 - Subprojects: none declared; nested AGENTS.md files provide scoped instructions

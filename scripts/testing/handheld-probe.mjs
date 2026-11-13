@@ -15,7 +15,7 @@ const index = process.argv.indexOf('--url'); assert.ok(index >= 0 && process.arg
 const base = new URL(process.argv[index + 1]);
 assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname), 'Only loopback development previews are allowed');
 base.pathname = '/app/index.html';
-const executable = path.resolve('tests/native/windows/core/bin/Debug/net10.0-windows/WorkFleet.Windows.Core.Tests.dll');
+const executable = path.resolve('tests/native/windows/core/bin/Debug/net10.0-windows/PinItAnywhere.Windows.Core.Tests.dll');
 await access(executable);
 
 // The Windows core bridge keeps the notes in a real native store; only host.info is changed so the page takes the phone
@@ -36,9 +36,9 @@ async function phone(platform, locale) {
       Object.assign(reply.result, { platform, appVersion: '9.8.7', distribution: platform });
       Object.assign(reply.result.capabilities, { hostPreferences: false, updates: false, desktopPresentation: false, dataRecovery: false });
     }
-    void page.evaluate(text => window.workFleet.onmessage({ data: text }), JSON.stringify(reply)).catch(() => {});
+    void page.evaluate(text => window.pinItAnywhere.onmessage({ data: text }), JSON.stringify(reply)).catch(() => {});
   });
-  await page.addInitScript(() => { window.workFleet = { postMessage: text => window.probeRelay(text) }; });
+  await page.addInitScript(() => { window.pinItAnywhere = { postMessage: text => window.probeRelay(text) }; });
   try {
     setLocale(locale === 'zh-TW' ? 'zh-TW' : 'en');
     await page.goto(base.href); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true', { timeout: 15_000 });

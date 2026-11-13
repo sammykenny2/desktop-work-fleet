@@ -5,7 +5,7 @@
     Uses already built Release UI probes and build/windows/package/content,
     the Windows SDK and an existing trusted
     local signing certificate. Installs and removes only a unique test package;
-    never starts, uninstalls or writes data for the real Work Fleet package.
+    never starts, uninstalls or writes data for the real Pin It Anywhere package.
     Evidence and exported-file fixtures remain under build. No UAC or new trust.
 .PARAMETER CertificateThumbprint
     Thumbprint of an existing CurrentUser/My certificate trusted on this machine.
@@ -20,7 +20,7 @@ $ProbeRoot = [IO.Path]::GetFullPath((Join-Path $ProjectRoot ('build/storage-prob
 $BuildRoot = [IO.Path]::GetFullPath((Join-Path $ProjectRoot 'build'))
 if (-not $ProbeRoot.StartsWith($BuildRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Probe directory escaped build.' }
 $Stage = Join-Path $ProbeRoot 'content'
-$PackageName = 'app.workfleet.storageprobe.' + [guid]::NewGuid().ToString('N').Substring(0, 20)
+$PackageName = 'dev.sammykenny2.pinitanywhere.storageprobe.' + [guid]::NewGuid().ToString('N').Substring(0, 20)
 $SdkVersions = Get-ChildItem -LiteralPath (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin') -Directory |
     Where-Object { $_.Name -match '^10\.\d+\.\d+\.\d+$' -and (Test-Path -LiteralPath (Join-Path $_.FullName 'x64/makeappx.exe')) -and (Test-Path -LiteralPath (Join-Path $_.FullName 'x64/signtool.exe')) } |
     Sort-Object { [version]$_.Name } -Descending
@@ -30,18 +30,18 @@ $ProbeBin = Join-Path $ProjectRoot 'tests/native/windows/ui/bin/Release/net10.0-
 $Certificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$CertificateThumbprint"
 if (-not $Certificate.HasPrivateKey -or $Certificate.NotAfter -le (Get-Date) -or
     -not (Test-Path -LiteralPath "Cert:\LocalMachine\TrustedPeople\$CertificateThumbprint")) { throw 'Use an existing valid, trusted local signing certificate.' }
-if ($Certificate.Subject -cne 'CN=Work Fleet Preview') { throw 'Probe publisher does not match certificate.' }
+if ($Certificate.Subject -cne 'CN=Pin It Anywhere Preview') { throw 'Probe publisher does not match certificate.' }
 New-Item -ItemType Directory -Path $Stage | Out-Null
-Get-ChildItem -LiteralPath $ProbeBin -File | Where-Object { $_.Extension -in '.dll', '.json' -or $_.Name -eq 'WorkFleet.Windows.Ui.Tests.exe' } |
+Get-ChildItem -LiteralPath $ProbeBin -File | Where-Object { $_.Extension -in '.dll', '.json' -or $_.Name -eq 'PinItAnywhere.Windows.Ui.Tests.exe' } |
     Copy-Item -Destination $Stage
 Copy-Item -LiteralPath (Join-Path $ProjectRoot 'build/windows/package/content/PackageAssets') -Destination $Stage -Recurse
 [xml]$Manifest = [IO.File]::ReadAllText((Join-Path $ProjectRoot 'build/windows/package/content/AppxManifest.xml'))
 $Manifest.Package.Identity.SetAttribute('Name', $PackageName)
 $Manifest.Package.Identity.SetAttribute('Version', '1.0.0.0')
-$Manifest.Package.Properties.DisplayName = 'Work Fleet storage probe'
+$Manifest.Package.Properties.DisplayName = 'Pin It Anywhere storage probe'
 $Manifest.Package.Applications.Application.SetAttribute('Id', 'Probe')
-$Manifest.Package.Applications.Application.SetAttribute('Executable', 'WorkFleet.Windows.Ui.Tests.exe')
-$Manifest.Package.Applications.Application.VisualElements.SetAttribute('DisplayName', 'Work Fleet storage probe')
+$Manifest.Package.Applications.Application.SetAttribute('Executable', 'PinItAnywhere.Windows.Ui.Tests.exe')
+$Manifest.Package.Applications.Application.VisualElements.SetAttribute('DisplayName', 'Pin It Anywhere storage probe')
 [IO.File]::WriteAllText((Join-Path $Stage 'AppxManifest.xml'), $Manifest.OuterXml, [Text.UTF8Encoding]::new($false))
 $Msix = Join-Path $ProbeRoot 'storage-probe.msix'
 $PackOutput = & (Join-Path $Sdk 'makeappx.exe') pack /d $Stage /p $Msix /o
@@ -55,9 +55,9 @@ try {
     if (Get-AppxPackage -Name $PackageName) { throw 'Unique probe package already exists.' }
     Add-AppxPackage -Path $Msix
     $Installed = Get-AppxPackage -Name $PackageName
-    if ($Installed.Name -cne $PackageName -or -not $PackageName.StartsWith('app.workfleet.storageprobe.')) { throw 'Unexpected installed package; do not remove it.' }
+    if ($Installed.Name -cne $PackageName -or -not $PackageName.StartsWith('dev.sammykenny2.pinitanywhere.storageprobe.')) { throw 'Unexpected installed package; do not remove it.' }
     $Output = Join-Path $ProbeRoot 'packaged'
-    Invoke-CommandInDesktopPackage -PackageFamilyName $Installed.PackageFamilyName -AppId Probe -Command (Join-Path $Installed.InstallLocation 'WorkFleet.Windows.Ui.Tests.exe') -Args "--app-data `"$Output`""
+    Invoke-CommandInDesktopPackage -PackageFamilyName $Installed.PackageFamilyName -AppId Probe -Command (Join-Path $Installed.InstallLocation 'PinItAnywhere.Windows.Ui.Tests.exe') -Args "--app-data `"$Output`""
     $Report = Join-Path $Output 'app-data.json'
     $Deadline = (Get-Date).AddSeconds(30)
     while (-not (Test-Path -LiteralPath $Report) -and (Get-Date) -lt $Deadline) { Start-Sleep -Milliseconds 100 }
@@ -70,7 +70,7 @@ try {
     if (-not (Test-Path -LiteralPath $Marker)) { throw 'Private data marker missing.' }
     Write-Output "PASS explicit package data: $Directory"
 } finally {
-    if ($Installed -and $Installed.Name -ceq $PackageName -and $PackageName.StartsWith('app.workfleet.storageprobe.')) {
+    if ($Installed -and $Installed.Name -ceq $PackageName -and $PackageName.StartsWith('dev.sammykenny2.pinitanywhere.storageprobe.')) {
         Write-Output "Remove isolated probe only: $($Installed.PackageFullName)"
         Remove-AppxPackage -Package $Installed.PackageFullName
     }

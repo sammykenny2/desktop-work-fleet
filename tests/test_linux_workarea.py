@@ -221,7 +221,7 @@ class PublishedTests(unittest.TestCase):
         try:
             self.assertEqual(reader.read((1920, 1080)), TOP_PANEL)
             self.assertEqual(reader.read((1920, 1080)), TOP_PANEL)
-            self.assertEqual(reader.thread.name, "work-fleet-workarea")
+            self.assertEqual(reader.thread.name, "pin-it-anywhere-workarea")
         finally:
             reader.close()
 

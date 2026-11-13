@@ -2,7 +2,7 @@ using Microsoft.Data.Sqlite;
 using System.Globalization;
 using System.Security.Cryptography;
 
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// SPEC-006 DO: why the local data could not be opened, and setting a damaged database aside. Setting aside moves the
@@ -13,7 +13,7 @@ public static class DataFailure
 {
   public const string Damaged = "data-damaged", Full = "data-full", InUse = "data-in-use", Denied = "data-denied", Key = "data-key",
     Unreadable = "data-unreadable";
-  public static readonly string[] DatabaseFiles = ["fleet.sqlite3", "fleet.sqlite3-wal", "fleet.sqlite3-shm", "fleet.sqlite3-journal"];
+  public static readonly string[] DatabaseFiles = ["pinitanywhere.sqlite3", "pinitanywhere.sqlite3-wal", "pinitanywhere.sqlite3-shm", "pinitanywhere.sqlite3-journal"];
   public const string SetAsidePrefix = "set-aside-";
 
   /// <summary>The cause of an exception thrown while opening or reading the local data, or null when it is no data failure.</summary>

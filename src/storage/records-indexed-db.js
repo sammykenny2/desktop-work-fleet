@@ -1,4 +1,4 @@
-import { FleetError, requireValue } from '../core/contracts.js';
+import { PinItAnywhereError, requireValue } from '../core/contracts.js';
 import { canonicalJson } from '../sources/json.js';
 import { validDigest } from '../sources/files.js';
 import { t } from '../i18n/index.js';
@@ -8,14 +8,14 @@ import { RECORD_LIMITS, checkImmutableRecord, checkRecordRevision, recordCollect
 const encoder = new TextEncoder();
 const invalid = condition => requireValue(condition, 'invalid-record-transaction', t('errors.storage.recordTransactionInvalid'));
 const transactionFailure = error => error?.name === 'QuotaExceededError'
-  ? new FleetError('local-storage-quota', t('errors.storage.localQuota')) : error;
+  ? new PinItAnywhereError('local-storage-quota', t('errors.storage.localQuota')) : error;
 
 function openDatabase(name, create) {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(name, 1); let failed = false;
     request.onupgradeneeded = () => create?.(request.result);
     request.onerror = () => { failed = true; reject(request.error); };
-    request.onblocked = () => { failed = true; reject(new FleetError('storage-blocked', t('errors.storage.storageBlocked'))); };
+    request.onblocked = () => { failed = true; reject(new PinItAnywhereError('storage-blocked', t('errors.storage.storageBlocked'))); };
     request.onsuccess = () => {
       if (failed) { request.result.close(); return; }
       request.result.onversionchange = () => request.result.close(); resolve(request.result);
@@ -26,8 +26,8 @@ function openDatabase(name, create) {
 /** The new database has its own name. Opening it never upgrades or reads the old workspace payload. */
 export class IndexedDbRecordStore {
   #db; #legacyName;
-  constructor(db, legacyName = 'work-fleet-v1') { this.#db = db; this.#legacyName = legacyName; }
-  static async open(name = 'work-fleet-records-v1', { legacyName = 'work-fleet-v1' } = {}) {
+  constructor(db, legacyName = 'pin-it-anywhere-v1') { this.#db = db; this.#legacyName = legacyName; }
+  static async open(name = 'pin-it-anywhere-records-v1', { legacyName = 'pin-it-anywhere-v1' } = {}) {
     const db = await openDatabase(name, database => {
       database.createObjectStore('profiles', { keyPath: 'profileId' });
       database.createObjectStore('attachments', { keyPath: ['profileId', 'id'] });
@@ -44,7 +44,7 @@ export class IndexedDbRecordStore {
       try { tx = this.#db.transaction(['profiles', 'entries', 'attachments'], mode, { durability: 'strict' }); }
       catch (error) { reject(transactionFailure(error)); return; }
       tx.oncomplete = () => resolve(result);
-      tx.onabort = () => reject(transactionFailure(failure || tx.error || new FleetError('storage-aborted', t('errors.storage.storageAborted'))));
+      tx.onabort = () => reject(transactionFailure(failure || tx.error || new PinItAnywhereError('storage-aborted', t('errors.storage.storageAborted'))));
       const context = { result: value => { result = value; }, fail: error => { failure = error; tx.abort(); } };
       try { work(tx, context); } catch (error) { context.fail(error); }
     });
@@ -55,7 +55,7 @@ export class IndexedDbRecordStore {
       const request = indexedDB.open(this.#legacyName); let absent = false, failed = false;
       request.onupgradeneeded = () => { absent = true; request.transaction.abort(); };
       request.onerror = () => absent ? resolve(null) : reject(request.error);
-      request.onblocked = () => { failed = true; reject(new FleetError('storage-blocked', t('errors.storage.storageBlocked'))); };
+      request.onblocked = () => { failed = true; reject(new PinItAnywhereError('storage-blocked', t('errors.storage.storageBlocked'))); };
       request.onsuccess = () => { if (failed) request.result.close(); else resolve(request.result); };
     });
     if (!db) return false;

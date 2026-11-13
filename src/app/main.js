@@ -1,7 +1,7 @@
 import { Workspace } from '../core/workspace.js';
 import { CombinedWorkspace } from '../core/combined-workspace.js';
 import { CrossMove } from '../core/cross-move.js';
-import { activeGroups, blankContent, copy, eligible, FleetError, gridRegions, summaryText } from '../core/contracts.js';
+import { activeGroups, blankContent, copy, eligible, PinItAnywhereError, gridRegions, summaryText } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, shortcutRegion, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
@@ -382,7 +382,7 @@ async function openCompanion(id, backLayer) {
       current: true, bootstrapGroup: false, arrivalLayer: backLayer });
     const held = new Set([primary, ...companions.map(item => item.workspace)].flatMap(item => [...item.ownIds()]));
     // Only one backup restored into two collections with its ids kept can do this; routing by id could not tell them apart.
-    if ([...opened.ownIds()].some(id => held.has(id))) throw new FleetError('shared-ids', t('app.sections.sharedIds'));
+    if ([...opened.ownIds()].some(id => held.has(id))) throw new PinItAnywhereError('shared-ids', t('app.sections.sharedIds'));
     const history = new DatasetHistory({ workspace: opened, storage: own, fileStore: () => null });
     opened.setHistory(history); own.setAttachmentLoader(attachment => history.attachment(attachment)); opened.setArrivalLayer(backLayer);
     companions.push({ id, workspace: opened, storage: own, purge: new DatasetPurge({ workspace: opened, storage: own, fileStore: () => null }),
@@ -1235,7 +1235,7 @@ async function discardChanges(cardId) {
   await workspace.discardChanges(cardId);
   if (!kept) { status(t('app.status.closedNoChanges')); return; }
   status(t('app.status.changesDiscarded'), false, { label: t('app.status.undoDiscard'), run: async () => {
-    if (currentDraft?.cardId === cardId || workspace.unsavedChanges(cardId)) throw new FleetError('conflict', t('app.status.discardUndoStale'));
+    if (currentDraft?.cardId === cardId || workspace.unsavedChanges(cardId)) throw new PinItAnywhereError('conflict', t('app.status.discardUndoStale'));
     await workspace.saveDraft({ ...kept, id: crypto.randomUUID() });
     await workspace.layout.placeNew(workspace.working, workAreas()); render(); status(t('app.status.changesRestored'));
   } });
@@ -2070,8 +2070,8 @@ async function changeCard(id, patch, done = t('app.status.savedLocally')) {
 // be on the way to disk) waits until the editor closes.
 async function tickStep(id, revision, task) {
   const card = currentCard(id);
-  if (!card || card.revision !== revision) throw new FleetError('desktop-expired', t('errors.desktop.noteChanged'));
-  if (currentDraft?.cardId === id) throw new FleetError('note-editing', t('errors.desktop.noteEditing'));
+  if (!card || card.revision !== revision) throw new PinItAnywhereError('desktop-expired', t('errors.desktop.noteChanged'));
+  if (currentDraft?.cardId === id) throw new PinItAnywhereError('note-editing', t('errors.desktop.noteEditing'));
   const kept = workspace.unsavedChanges(id);
   if (kept) {
     await workspace.saveDraft({ ...kept, content: { ...kept.content, text: toggleChecklist(kept.content.text, task) } });
@@ -2121,7 +2121,7 @@ async function moveNoteToGroup(id, groupId) {
   // A note from a group off the desktop has no place yet, and needs one if this group is on it.
   await controller.moveToGroup(id, groupId); await settleMoved();
   status(t('app.status.movedTo', { group: nameOf(groupId) }), false, { label: t('app.status.undoMove'), run: async () => {
-    if (currentCard(id)?.groupId !== groupId) throw new FleetError('conflict', t('app.status.moveUndoStale'));
+    if (currentCard(id)?.groupId !== groupId) throw new PinItAnywhereError('conflict', t('app.status.moveUndoStale'));
     await controller.moveToGroup(id, from); await settleMoved(); status(t('app.status.undone'));
   } });
 }
@@ -2994,7 +2994,7 @@ const distributionName = value => ({ msix: t('settings.desktop.distribution.msix
   debug: t('settings.desktop.distribution.debug'), deb: t('settings.desktop.distribution.deb'), bundle: t('settings.desktop.distribution.bundle'),
   source: t('settings.desktop.distribution.source'), app: t('settings.desktop.distribution.app'),
   ios: t('settings.desktop.distribution.ios'), android: t('settings.desktop.distribution.android') })[value] || '';
-// macOS keeps Work Fleet in the menu bar; Windows and Linux in the tray.
+// macOS keeps Pin It Anywhere in the menu bar; Windows and Linux in the tray.
 const menuBar = () => native?.info.platform === 'macos';
 function renderHostSettings() {
   const available = native?.info.capabilities.hostPreferences === true; $('#host-settings').hidden = !available;
@@ -3437,7 +3437,7 @@ function bindEvents() {
       await flushDraft();
       const { title, text } = currentDraft.content;
       const bytes = new TextEncoder().encode(title ? `${title}\n\n${text}` : text);
-      const result = await nativeFiles.export(bytes, 'work-fleet-note.md', bytes.length <= 128 * 1024 ? 'shareText' : 'share');
+      const result = await nativeFiles.export(bytes, 'pin-it-anywhere-note.md', bytes.length <= 128 * 1024 ? 'shareText' : 'share');
       status(result.completed ? t('app.status.noteShared') : t('app.status.shareCancelled'));
     } finally { setEditorBusy(false); }
   });

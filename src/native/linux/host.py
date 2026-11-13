@@ -44,7 +44,7 @@ import protocol as p
 import text
 from text import t
 
-ORIGIN = "workfleet://app"
+ORIGIN = "pinitanywhere://app"
 DOCUMENT = ORIGIN + "/app/index.html"
 # What the fatal-error window says for a failure's code; any other failure gets the generic text.
 FATAL = {"native-view": "fatal.viewStopped", "workspace-owned": "fatal.workspaceOwned", "native-storage": "fatal.storageAccess",
@@ -61,14 +61,14 @@ class LocalWeb:
         self.key = secrets.token_urlsafe(32)
         context = WebKit2.WebContext.new_ephemeral()
         security = context.get_security_manager()
-        security.register_uri_scheme_as_secure("workfleet")
-        security.register_uri_scheme_as_cors_enabled("workfleet")
-        context.register_uri_scheme("workfleet", self.resource)
+        security.register_uri_scheme_as_secure("pinitanywhere")
+        security.register_uri_scheme_as_cors_enabled("pinitanywhere")
+        context.register_uri_scheme("pinitanywhere", self.resource)
         self.context = context
         self.manager = WebKit2.UserContentManager()
-        self.manager.register_script_message_handler("workFleetNative")
-        self.manager.connect("script-message-received::workFleetNative", self.message)
-        script = "(() => { const key=" + p.encode(self.key).decode() + "; const channel=globalThis.webkit.messageHandlers.workFleetNative; Object.defineProperty(globalThis,'workFleet',{value:{postMessage(text){channel.postMessage({key,value:JSON.parse(text)});}},writable:false,configurable:false}); })();"
+        self.manager.register_script_message_handler("pinItAnywhereNative")
+        self.manager.connect("script-message-received::pinItAnywhereNative", self.message)
+        script = "(() => { const key=" + p.encode(self.key).decode() + "; const channel=globalThis.webkit.messageHandlers.pinItAnywhereNative; Object.defineProperty(globalThis,'pinItAnywhere',{value:{postMessage(text){channel.postMessage({key,value:JSON.parse(text)});}},writable:false,configurable:false}); })();"
         self.manager.add_script(WebKit2.UserScript.new(script, WebKit2.UserContentInjectedFrames.TOP_FRAME, WebKit2.UserScriptInjectionTime.START, None, None))
         self.web = WebKit2.WebView(web_context=context, user_content_manager=self.manager)
         settings = self.web.get_settings()
@@ -86,7 +86,7 @@ class LocalWeb:
         data, media = b"Resource unavailable", "text/plain"
         try:
             path = unquote(uri.path)
-            p.require(uri.scheme == "workfleet" and uri.netloc == "app" and not uri.query and not uri.fragment and request.get_http_method() == "GET" and ".." not in Path(path).parts and "\\" not in path, "native-assets", "The packaged asset path isn't valid.")
+            p.require(uri.scheme == "pinitanywhere" and uri.netloc == "app" and not uri.query and not uri.fragment and request.get_http_method() == "GET" and ".." not in Path(path).parts and "\\" not in path, "native-assets", "The packaged asset path isn't valid.")
             file = (self.assets / path.lstrip("/")).resolve(strict=True)
             file.relative_to(self.assets)
             p.require(file.is_file() and file.stat().st_size <= 16 * 1024 * 1024, "native-assets", "The packaged asset's size isn't valid.")
@@ -111,7 +111,7 @@ class LocalWeb:
 
     def post(self, value):
         if not self.closed and self.web.get_uri() == self.document:
-            self.web.evaluate_javascript("globalThis.workFleet?.onmessage?.({data:" + p.encode(value).decode("ascii") + "});", -1, None, None, None, None, None)
+            self.web.evaluate_javascript("globalThis.pinItAnywhere?.onmessage?.({data:" + p.encode(value).decode("ascii") + "});", -1, None, None, None, None, None)
 
     def event(self, name, **values):
         self.post({"v": 1, "event": name, **values})
@@ -130,7 +130,7 @@ class LocalWeb:
 
     def load(self, callback):
         # Block all network subresources before the first document starts.
-        folder = Path(GLib.get_user_cache_dir()) / "WorkFleet" / "filters"
+        folder = Path(GLib.get_user_cache_dir()) / "PinItAnywhere" / "filters"
         folder.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.filters = WebKit2.UserContentFilterStore.new(str(folder))
         rules = GLib.Bytes.new(b'[{"trigger":{"url-filter":"^https?://"},"action":{"type":"block"}}]')
@@ -147,11 +147,11 @@ class LocalWeb:
 
     def close(self):
         self.closed = True
-        self.manager.unregister_script_message_handler("workFleetNative")
+        self.manager.unregister_script_message_handler("pinItAnywhereNative")
         self.web.stop_loading()
 
 
-class FleetApp(Gtk.Application):
+class PinItAnywhereApp(Gtk.Application):
     def __init__(self, assets, config, directory, launched_at_login=False, default_data=None):
         self.assets, self.config, self.directory = assets, config, directory
         self.default_data = default_data or directory
@@ -164,13 +164,13 @@ class FleetApp(Gtk.Application):
         text.set_locale(text.resolve_locale(self.preferences["language"], self.system_languages))
         self.hidden_start = launched_at_login and not self.preferences["openMainAtLogin"]
         # A hidden sign-in start waits this long for the tray before showing the main window: the panel that hosts the tray can
-        # start in the same second as Work Fleet, as wf-panel-pi does on Raspberry Pi OS, and register its watcher later (ADR-043).
+        # start in the same second as Pin It Anywhere, as wf-panel-pi does on Raspberry Pi OS, and register its watcher later (ADR-043).
         self.tray_wait = hostsettings.tray_wait(config)
         self.placement = hostsettings.read_placement(directory)
         self.placement_dirty = self.tracking = self.pending_maximize = False
         self.placement_timer = None
         self.x11 = False
-        super().__init__(application_id=config.get("appId") or "app.workfleet.preview", flags=Gio.ApplicationFlags.FLAGS_NONE)
+        super().__init__(application_id=config.get("appId") or "dev.sammykenny2.pinitanywhere", flags=Gio.ApplicationFlags.FLAGS_NONE)
         self.connect("activate", self.activate)
         self.connect("shutdown", self.shutdown)
         # labwc keybinds written from the shortcut settings run `gapplication action <app id> shortcut "'<key>'"`.
@@ -191,12 +191,12 @@ class FleetApp(Gtk.Application):
         self.restart = False
         self.native_dialogs = 0
         self.tray_menu = False
-        self.storage = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fleet-storage")
-        self.network = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fleet-google")
-        self.previews = ThreadPoolExecutor(max_workers=2, thread_name_prefix="fleet-preview")
+        self.storage = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pinitanywhere-storage")
+        self.network = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pinitanywhere-google")
+        self.previews = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pinitanywhere-preview")
         self.epoch = self.admitted = 0
         self.closing = self.stopped = False
-        self.vault = Vault(config.get("appId") or "app.workfleet.preview")
+        self.vault = Vault(config.get("appId") or "dev.sammykenny2.pinitanywhere")
         self.launched_at_login = launched_at_login
         # ADR-044: checks and downloads run on a worker thread; their state reaches the page through the main loop.
         self.updater = updates.Updater(directory, config, hostsettings.version(assets, __file__), hostsettings.distribution(assets),
@@ -205,11 +205,11 @@ class FleetApp(Gtk.Application):
 
     def activate(self, _application):
         if self.window is not None:
-            # Launching Work Fleet again shows the running one, including after a hidden sign-in start.
+            # Launching Pin It Anywhere again shows the running one, including after a hidden sign-in start.
             self.show_main()
             return
         self.window = Gtk.ApplicationWindow(application=self, title=text.t("common.appName"))
-        icon = self.assets.parent / "Icons" / ((self.config.get("appId") or "app.workfleet.preview") + ".png")
+        icon = self.assets.parent / "Icons" / ((self.config.get("appId") or "dev.sammykenny2.pinitanywhere") + ".png")
         if icon.is_file():
             self.window.set_icon_from_file(str(icon))
         self.x11 = "x11" in type(Gdk.Display.get_default()).__name__.lower()
@@ -223,7 +223,7 @@ class FleetApp(Gtk.Application):
         self.log(f"start version={hostsettings.version(self.assets, __file__)} distribution={hostsettings.distribution(self.assets)} "
                  f"pid={os.getpid()} launchedAtLogin={self.launched_at_login} hidden={self.hidden_start}")
         # How long the tray takes at sign-in is the evidence for trayWaitSeconds in config/startup.json.
-        self.tray = Tray(self.config.get("appId") or "app.workfleet.preview", self.window, self.tray_action, self.close_requested, self.menu_active,
+        self.tray = Tray(self.config.get("appId") or "dev.sammykenny2.pinitanywhere", self.window, self.tray_action, self.close_requested, self.menu_active,
                          icon if icon.is_file() else None, reveal=lambda: self.show_main(activate=False),
                          update=self.tray_update if self.updater.capable else None,
                          changed=lambda available: self.log(f"tray available={available} uptime={self.uptime()}"))
@@ -408,7 +408,7 @@ class FleetApp(Gtk.Application):
             command, _reason = self.startup_command()
             path = hostsettings.autostart_path(os.environ)
             if self.preferences["startAtLogin"] and command is not None and not path.exists():
-                hostsettings.write_autostart(path, command, self.config.get("appId") or "app.workfleet.preview", text.translations("startup.entryComment"))
+                hostsettings.write_autostart(path, command, self.config.get("appId") or "dev.sammykenny2.pinitanywhere", text.translations("startup.entryComment"))
             hostsettings.write_preferences(self.directory, self.preferences)
         except OSError:
             pass
@@ -437,11 +437,11 @@ class FleetApp(Gtk.Application):
                     if value:
                         command, _reason = self.startup_command()
                         p.require(command is not None, "startup-unavailable", "This computer doesn't support starting at sign-in.")
-                        hostsettings.write_autostart(path, command, self.config.get("appId") or "app.workfleet.preview", text.translations("startup.entryComment"))
+                        hostsettings.write_autostart(path, command, self.config.get("appId") or "dev.sammykenny2.pinitanywhere", text.translations("startup.entryComment"))
                     else:
                         hostsettings.remove_autostart(path)
                 except PermissionError as error:
-                    raise p.Failure("startup-foreign", "This autostart entry wasn't created by Work Fleet. Remove it in the system settings.") from error
+                    raise p.Failure("startup-foreign", "This autostart entry wasn't created by Pin It Anywhere. Remove it in the system settings.") from error
                 except OSError as error:
                     raise p.Failure("startup-write", "The autostart entry couldn't be updated. Try again later.") from error
             changed = hostsettings.change(self.preferences, name, value)
@@ -505,7 +505,7 @@ class FleetApp(Gtk.Application):
         return False
 
     def begin_install(self):
-        """pkexec installs the verified DEB while Work Fleet runs; on success the usual close saves drafts and restarts it."""
+        """pkexec installs the verified DEB while Pin It Anywhere runs; on success the usual close saves drafts and restarts it."""
         p.require(self.updater.status == "downloaded" and not self.closing, "update-not-ready", "No update has finished downloading yet.")
         self.updater.install(lambda ok: GLib.idle_add(self.installed, ok))
 
@@ -831,7 +831,7 @@ class FleetApp(Gtk.Application):
             pass
 
     def window_close(self, *_):
-        # The title-bar close keeps Work Fleet in the tray unless that setting is off; the tray's exit item saves and quits.
+        # The title-bar close keeps Pin It Anywhere in the tray unless that setting is off; the tray's exit item saves and quits.
         if self.preferences["closeToTray"] and self.hide_to_tray():
             return True
         return self.close_requested()
@@ -861,7 +861,7 @@ class FleetApp(Gtk.Application):
 
         def destination(_download, suggested):
             picker = Gtk.FileChooserNative.new(t("picker.saveFile"), self.window, Gtk.FileChooserAction.SAVE, t("picker.save"), t("picker.cancel"))
-            picker.set_current_name(Path(suggested or "work-fleet-export").name[:240])
+            picker.set_current_name(Path(suggested or "pin-it-anywhere-export").name[:240])
             picker.set_do_overwrite_confirmation(True)
             self.dialog_opened()
 
@@ -961,7 +961,7 @@ class FleetApp(Gtk.Application):
         if self.window is not None and not self.window.get_visible():
             self.window.set_focus_on_map(False)
             self.window.show_all()
-        self.failure(p.Failure("native-view", "The window's page process stopped. Data confirmed as saved is kept; reopen Work Fleet."))
+        self.failure(p.Failure("native-view", "The window's page process stopped. Data confirmed as saved is kept; reopen Pin It Anywhere."))
 
     def shutdown(self, _application):
         self.flush_placement()
@@ -982,7 +982,7 @@ class FleetApp(Gtk.Application):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Work Fleet Linux native host")
+    parser = argparse.ArgumentParser(description="Pin It Anywhere Linux native host")
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--data", type=Path, default=xwayland.data_directory([], os.environ))
@@ -991,14 +991,14 @@ def main():
     args = parser.parse_args()
     config = p.decode(args.config.read_bytes())
     directory = args.data.expanduser().absolute()
-    application = FleetApp(args.assets.resolve(strict=True), config, directory, args.login, xwayland.data_directory([], os.environ))
+    application = PinItAnywhereApp(args.assets.resolve(strict=True), config, directory, args.login, xwayland.data_directory([], os.environ))
     code = application.run([sys.argv[0]])
     if not application.restart:
         return code
     # Storage finishes closing before the new process takes the data lock; the new display choice applies there.
     application.storage.shutdown(wait=True)
     if not xwayland.data_unlocked(directory):
-        print("Work Fleet closed but its data is still in use; open it again to apply the display choice.", file=sys.stderr)
+        print("Pin It Anywhere closed but its data is still in use; open it again to apply the display choice.", file=sys.stderr)
         return code
     environment = dict(os.environ)
     xwayland.configure(environment, directory)

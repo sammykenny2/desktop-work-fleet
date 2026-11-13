@@ -2,7 +2,7 @@ import Foundation
 
 @main struct BoundedHTTPProbe {
     static func check(_ value: Bool, _ message: String) throws {
-        if !value { throw FleetFailure("probe-failed", message) }
+        if !value { throw PinItAnywhereFailure("probe-failed", message) }
     }
     static func main() async throws {
         let base = CommandLine.arguments[1], pool = BoundedHTTPSession()
@@ -23,16 +23,16 @@ import Foundation
         for path in ["/large", "/chunked"] {
             do {
                 _ = try await BoundedHTTP(maximum: 32, session: pool).send(request(path))
-                throw FleetFailure("probe-failed", "Oversized response was accepted")
-            } catch let failure as FleetFailure { try check(failure.code == "response-size", "Wrong size error") }
+                throw PinItAnywhereFailure("probe-failed", "Oversized response was accepted")
+            } catch let failure as PinItAnywhereFailure { try check(failure.code == "response-size", "Wrong size error") }
         }
         let cancelled = BoundedHTTP(maximum: 32, session: pool); cancelled.cancel()
-        do { _ = try await cancelled.send(request("/echo")); throw FleetFailure("probe-failed", "Early cancellation was lost") }
+        do { _ = try await cancelled.send(request("/echo")); throw PinItAnywhereFailure("probe-failed", "Early cancellation was lost") }
         catch is CancellationError { }
         let slow = BoundedHTTP(maximum: 32, session: pool)
         let waiting = Task { try await slow.send(request("/slow")) }
         try await Task.sleep(nanoseconds: 20_000_000); waiting.cancel()
-        do { _ = try await waiting.value; throw FleetFailure("probe-failed", "In-flight cancellation was lost") }
+        do { _ = try await waiting.value; throw PinItAnywhereFailure("probe-failed", "In-flight cancellation was lost") }
         catch is CancellationError { }
         _ = try await BoundedHTTP(maximum: 32, session: pool).send(request("/echo"))
         try await withThrowingTaskGroup(of: Void.self) { group in
@@ -42,9 +42,9 @@ import Foundation
         let retired = BoundedHTTPSession()
         let running = Task { try await BoundedHTTP(maximum: 32, session: retired).send(request("/slow")) }
         try await Task.sleep(nanoseconds: 20_000_000); retired.close()
-        do { _ = try await running.value; throw FleetFailure("probe-failed", "Retirement left a request running") }
-        catch { try check(!(error is FleetFailure), "Retirement unexpectedly succeeded") }
-        do { _ = try await BoundedHTTP(maximum: 32, session: retired).send(request("/echo")); throw FleetFailure("probe-failed", "Retired account admitted work") }
+        do { _ = try await running.value; throw PinItAnywhereFailure("probe-failed", "Retirement left a request running") }
+        catch { try check(!(error is PinItAnywhereFailure), "Retirement unexpectedly succeeded") }
+        do { _ = try await BoundedHTTP(maximum: 32, session: retired).send(request("/echo")); throw PinItAnywhereFailure("probe-failed", "Retired account admitted work") }
         catch is CancellationError { }
         for _ in 0..<50 {
             let client = BoundedHTTP(maximum: 32, session: pool)

@@ -32,7 +32,7 @@ def filename(name):
 class AttachmentFiles:
     def __init__(self, ui=lambda work: work(), render=None, launch=None):
         self.ui, self.render, self.launch = ui, render or self.thumbnail, launch or self.open_default
-        self.root = Path(tempfile.mkdtemp(prefix="WorkFleet-attachments-"))
+        self.root = Path(tempfile.mkdtemp(prefix="PinItAnywhere-attachments-"))
         self.previews, self.copies = {}, []
         self.processes = set()
         self.lock = threading.RLock()

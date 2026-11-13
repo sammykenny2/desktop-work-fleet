@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows.Interop;
-using WorkFleet.Windows;
+using PinItAnywhere.Windows;
 
 internal static class ShortcutIntegrationProbe
 {
@@ -15,7 +15,7 @@ internal static class ShortcutIntegrationProbe
     throw new Exception("Shortcut probe timeout: " + message);
   }
   private static T Field<T>(object value, string name) => (T)value.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(value)!;
-  public static async Task Run(FleetWindow main)
+  public static async Task Run(PinItAnywhereWindow main)
   {
     var web = main.WebView.CoreWebView2; var coordinator = main.Desktop!;
     var scene = coordinator.Surfaces[1].WebView.CoreWebView2;

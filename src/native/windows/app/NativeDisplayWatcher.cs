@@ -2,7 +2,7 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
 
-namespace WorkFleet.Windows;
+namespace PinItAnywhere.Windows;
 
 /// <summary>Owns a broadcast recipient; messages are hints to re-enumerate, never a monitor inventory.</summary>
 public sealed class NativeDisplayWatcher : IDisposable
@@ -24,7 +24,7 @@ public sealed class NativeDisplayWatcher : IDisposable
     Action<IReadOnlyList<DisplayInfo>> changed, Action failed)
   {
     this.read = read; this.invalidated = invalidated; this.changed = changed; this.failed = failed;
-    source = new HwndSource(new HwndSourceParameters("Work Fleet display notifications")
+    source = new HwndSource(new HwndSourceParameters("Pin It Anywhere display notifications")
       { Width = 0, Height = 0, WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000080 });
     source.AddHook(Message);
     var lid = LidSwitch; lidRegistration = RegisterPowerSettingNotification(source.Handle, ref lid, 0);

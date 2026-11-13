@@ -8,13 +8,13 @@ import common from '../src/i18n/locales/en/common.js';
 import traditionalChinese from '../src/i18n/locales/zh-TW/common.js';
 
 if (process.argv.includes('--help')) {
-  console.log('Usage: node scripts/generate-linux-package.mjs\nRun npm run build first. Writes build/linux/work-fleet-VERSION, using src/native/linux/VERSION.');
+  console.log('Usage: node scripts/generate-linux-package.mjs\nRun npm run build first. Writes build/linux/pin-it-anywhere-VERSION, using src/native/linux/VERSION.');
 } else {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const version = await readPlatformVersion('linux');
-  const destination = path.join(root, 'build', 'linux', `work-fleet-${version}`);
+  const destination = path.join(root, 'build', 'linux', `pin-it-anywhere-${version}`);
   const config = await readBuildConfig(new URL('../', import.meta.url), process.env, { platform: 'linux' });
-  const appId = config.appId || 'app.workfleet.preview';
+  const appId = config.appId || 'dev.sammykenny2.pinitanywhere';
   // The bundle is a work directory; rebuild it so removed sources never reach the tar.gz or DEB.
   await rm(destination, { recursive: true, force: true });
   for (const name of ['Native', 'Config', 'Icons', 'Desktop', 'Licenses']) await mkdir(path.join(destination, name), { recursive: true });
@@ -35,16 +35,16 @@ if (process.argv.includes('--help')) {
     await cp(path.join(theme, size, 'apps', name), path.join(destination, 'Icons', 'hicolor', size, 'apps', name.replace(/^app-icon/, appId)));
   }
   await cp(path.join(theme, '256x256', 'apps', 'app-icon.png'), path.join(destination, 'Icons', `${appId}.png`));
-  await writeFile(path.join(destination, 'run-work-fleet.sh'), `#!/bin/bash
+  await writeFile(path.join(destination, 'run-pin-it-anywhere.sh'), `#!/bin/bash
 # Launch the packaged native app using the distribution's Python/GI runtime.
-# Uses /usr/bin/python3 when present; WORK_FLEET_PYTHON selects another interpreter with the same GI bindings.
-# Usage: ./run-work-fleet.sh [--help] [--data PATH]
+# Uses /usr/bin/python3 when present; PIN_IT_ANYWHERE_PYTHON selects another interpreter with the same GI bindings.
+# Usage: ./run-pin-it-anywhere.sh [--help] [--data PATH]
 set -euo pipefail
-usage() { echo 'Usage: ./run-work-fleet.sh [--help] [--data PATH]'; }
+usage() { echo 'Usage: ./run-pin-it-anywhere.sh [--help] [--data PATH]'; }
 if [[ "\${1:-}" == '--help' ]]; then usage; exit 0; fi
 APP_ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 # A python3 found on PATH may be a pyenv or virtualenv interpreter without the distribution's GI bindings.
-PYTHON="\${WORK_FLEET_PYTHON:-}"
+PYTHON="\${PIN_IT_ANYWHERE_PYTHON:-}"
 if [[ -z "$PYTHON" ]]; then
   if [[ -x /usr/bin/python3 ]]; then PYTHON=/usr/bin/python3; else PYTHON=python3; fi
 fi
@@ -58,12 +58,12 @@ Type=Application
 Name=${common['common.appName']}
 Name[zh_TW]=${traditionalChinese['common.appName']}
 Comment=Quick work notes with optional Google sync
-Exec=work-fleet
+Exec=pin-it-anywhere
 Icon=${appId}
 Terminal=false
 Categories=Office;Utility;
 StartupNotify=true
 `);
   await writeFile(path.join(destination, 'package.json'), JSON.stringify({ appId, version, runtime: ['python3>=3.10', 'python3-gi', 'python3-gi-cairo', 'python3-cairo', 'python3-cryptography', 'gir1.2-gtk-3.0', 'gir1.2-webkit2-4.1'], optionalRuntime: ['gir1.2-secret-1', 'gir1.2-gtklayershell-0.1', 'gir1.2-keybinder-3.0', 'gir1.2-ayatanaappindicator3-0.1', 'xdg-desktop-portal', 'libglib2.0-bin'], binariesBuilt: false }, null, 2) + '\n');
-  console.log(`Packaged build/linux/work-fleet-${version} (system GTK/WebKit required; libsecret for Google, saved backup passwords and legacy migration).`);
+  console.log(`Packaged build/linux/pin-it-anywhere-${version} (system GTK/WebKit required; libsecret for Google, saved backup passwords and legacy migration).`);
 }

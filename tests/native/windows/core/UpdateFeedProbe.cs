@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using WorkFleet.Windows.Core;
+using PinItAnywhere.Windows.Core;
 
 /// <summary>ADR-044 feed rules from the shared fixture, plus the MSIX identity check on synthetic manifests.</summary>
 internal static class UpdateFeedProbe
@@ -68,17 +68,17 @@ internal static class UpdateFeedProbe
     static MemoryStream Appx(string name, string publisher, string version, string arch = "x64") => new(Encoding.UTF8.GetBytes(
       $"<?xml version=\"1.0\" encoding=\"utf-8\"?><Package xmlns=\"http://schemas.microsoft.com/appx/manifest/foundation/windows10\"><Identity Name=\"{name}\" Version=\"{version}\" Publisher=\"{publisher}\" ProcessorArchitecture=\"{arch}\" /></Package>"));
     var current = new Version(0, 1, 2, 0);
-    UpdateFeed.CheckIdentity(Appx("app.workfleet.preview", "CN=Work Fleet Preview", "0.1.3.0"), "app.workfleet.preview", "CN=Work Fleet Preview", "x64", current);
+    UpdateFeed.CheckIdentity(Appx("dev.sammykenny2.pinitanywhere", "CN=Pin It Anywhere Preview", "0.1.3.0"), "dev.sammykenny2.pinitanywhere", "CN=Pin It Anywhere Preview", "x64", current);
     count++;
     foreach (var (stream, why) in new[] {
-      (Appx("app.other", "CN=Work Fleet Preview", "0.1.3.0"), "another identity"),
-      (Appx("app.workfleet.preview", "CN=Someone Else", "0.1.3.0"), "another publisher"),
-      (Appx("app.workfleet.preview", "CN=Work Fleet Preview", "0.1.2.0"), "the same version"),
-      (Appx("app.workfleet.preview", "CN=Work Fleet Preview", "0.1.3.0", "arm64"), "another architecture"),
+      (Appx("app.other", "CN=Pin It Anywhere Preview", "0.1.3.0"), "another identity"),
+      (Appx("dev.sammykenny2.pinitanywhere", "CN=Someone Else", "0.1.3.0"), "another publisher"),
+      (Appx("dev.sammykenny2.pinitanywhere", "CN=Pin It Anywhere Preview", "0.1.2.0"), "the same version"),
+      (Appx("dev.sammykenny2.pinitanywhere", "CN=Pin It Anywhere Preview", "0.1.3.0", "arm64"), "another architecture"),
       (new MemoryStream(Encoding.UTF8.GetBytes("<!DOCTYPE x [<!ENTITY a \"b\">]><Package><Identity Name=\"&a;\" /></Package>")), "a DTD"),
       (new MemoryStream(Encoding.UTF8.GetBytes("not xml")), "not XML") })
     {
-      try { UpdateFeed.CheckIdentity(stream, "app.workfleet.preview", "CN=Work Fleet Preview", "x64", current); throw new Exception($"identity check accepted {why}"); }
+      try { UpdateFeed.CheckIdentity(stream, "dev.sammykenny2.pinitanywhere", "CN=Pin It Anywhere Preview", "x64", current); throw new Exception($"identity check accepted {why}"); }
       catch (HostError error) { Require(error.Code == "identity_mismatch", $"identity check code for {why}"); }
     }
     return count;

@@ -125,7 +125,7 @@ test('every error code a native host sends has catalog text', () => {
 });
 
 const NATIVE_TABLES = ['src/native/windows/core/HostText.cs', 'src/native/linux/text.py',
-  'src/native/apple/Shared/FleetText.swift', 'src/native/android/app/src/main/java/app/workfleet/nativehost/HostText.java'];
+  'src/native/apple/Shared/PinItAnywhereText.swift', 'src/native/android/app/src/main/java/dev/sammykenny2/pinitanywhere/nativehost/HostText.java'];
 
 /** Reads the locale blocks of a native string table: lines between "i18n:<locale>" and "i18n:end" markers. */
 function nativeBlocks(text) {

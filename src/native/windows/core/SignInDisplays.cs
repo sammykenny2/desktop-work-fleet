@@ -1,4 +1,4 @@
-namespace WorkFleet.Windows.Core;
+namespace PinItAnywhere.Windows.Core;
 
 /// <summary>
 /// ADR-046: a sign-in launch keeps its desktop scenes out of Explorer while the displays are still settling. Twice,

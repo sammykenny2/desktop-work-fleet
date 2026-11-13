@@ -1,0 +1,102 @@
+package dev.sammykenny2.pinitanywhere.nativehost;
+
+import android.app.Activity;
+import android.content.ClipData;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.ParcelFileDescriptor;
+import androidx.core.content.FileProvider;
+import org.json.JSONObject;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
+final class PinItAnywhereExports implements AutoCloseable {
+    private final PinItAnywhereActivity activity;
+    private volatile CompletableFuture<Uri> picker;
+    private volatile boolean closed;
+    PinItAnywhereExports(PinItAnywhereActivity activity) { this.activity = activity; }
+    static String filename(String name) {
+        String value = name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
+        if (value.isEmpty() || value.equals(".") || value.equals("..")) return "pin-it-anywhere-export";
+        return value.substring(0, Math.min(180, value.length()));
+    }
+    Object export(JSONObject args, PinItAnywhereBridge bridge) throws Exception {
+        String name = filename(Protocol.text(args, "name", 240)), action = Protocol.text(args, "action", 16);
+        Protocol.require(!closed && (action.equals("save") || action.equals("share") || action.equals("shareText")), "file-export", "The file export action is invalid.");
+        byte[] bytes = bridge.upload(args, "backup");
+        try {
+            if (action.equals("shareText")) {
+                Protocol.require(bytes.length <= 128 * 1024, "file-capacity", "The text is too large to share as text. Share it as a file instead.");
+                String text = StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString();
+                CompletableFuture<Void> launched = new CompletableFuture<>();
+                activity.runOnUiThread(() -> {
+                    try {
+                        Protocol.require(!closed, "native-closed", "The native session has ended.");
+                        activity.startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), HostText.get("share.textChooser")));
+                        launched.complete(null);
+                    } catch (Exception error) { launched.completeExceptionally(error); }
+                });
+                launched.get(110, TimeUnit.SECONDS); return Protocol.object("completed", true, "shared", true);
+            }
+            if (action.equals("share")) {
+                File root = new File(activity.getCacheDir(), "exports");
+                Protocol.require(root.isDirectory() || root.mkdir(), "file-export", "Couldn't create temporary storage for sharing.");
+                long total = 0; int count = 0;
+                File[] folders = root.listFiles();
+                if (folders != null) for (File folder : folders) {
+                    if (!Protocol.uuid(folder.getName()) || !folder.isDirectory() || !folder.getCanonicalFile().getParentFile().equals(root.getCanonicalFile())) continue;
+                    File[] files = folder.listFiles(); if (files == null) continue;
+                    boolean expired = System.currentTimeMillis() - folder.lastModified() > 24L * 60 * 60 * 1000;
+                    for (File file : files) {
+                        if (!file.getCanonicalFile().getParentFile().equals(folder.getCanonicalFile())) continue;
+                        if (expired && file.isFile() && file.delete()) continue;
+                        total += file.length();
+                    }
+                    if (expired && folder.delete()) continue;
+                    count++;
+                }
+                Protocol.require(count < 32 && total + bytes.length <= 256L * 1024 * 1024, "file-capacity", "Temporary storage for sharing is full. Try again later, or export the file instead.");
+                File folder = new File(root, Protocol.uuid()); Protocol.require(folder.mkdir(), "file-export", "Couldn't create temporary storage for sharing.");
+                File file = new File(folder, name);
+                try (FileOutputStream stream = new FileOutputStream(file)) { stream.write(bytes); stream.flush(); stream.getFD().sync(); }
+                Uri uri = FileProvider.getUriForFile(activity, activity.getPackageName() + ".exports", file);
+                CompletableFuture<Void> launched = new CompletableFuture<>();
+                activity.runOnUiThread(() -> {
+                    try {
+                        Protocol.require(!closed, "native-closed", "The native session has ended.");
+                        Intent share = new Intent(Intent.ACTION_SEND).setType("application/octet-stream").putExtra(Intent.EXTRA_STREAM, uri)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        share.setClipData(ClipData.newRawUri(name, uri));
+                        activity.startActivity(Intent.createChooser(share, HostText.get("share.fileChooser"))); launched.complete(null);
+                    } catch (Exception error) { launched.completeExceptionally(error); }
+                });
+                launched.get(110, TimeUnit.SECONDS); return Protocol.object("completed", true, "shared", true);
+            }
+            CompletableFuture<Uri> result = new CompletableFuture<>();
+            activity.runOnUiThread(() -> {
+                try {
+                    Protocol.require(!closed && picker == null, "file-busy", "The file picker is already open."); picker = result;
+                    activity.startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                        .setType("application/octet-stream").putExtra(Intent.EXTRA_TITLE, name), 40);
+                } catch (Exception error) { result.completeExceptionally(error); }
+            });
+            Uri destination;
+            try { destination = result.get(110, TimeUnit.SECONDS); }
+            finally { if (picker == result) picker = null; }
+            if (destination == null) return Protocol.object("completed", false);
+            ParcelFileDescriptor descriptor = activity.getContentResolver().openFileDescriptor(destination, "w");
+            Protocol.require(descriptor != null, "file-export", "Couldn't write the chosen file.");
+            try (ParcelFileDescriptor.AutoCloseOutputStream stream = new ParcelFileDescriptor.AutoCloseOutputStream(descriptor)) { stream.write(bytes); stream.flush(); }
+            return Protocol.object("completed", true, "shared", false);
+        } finally { Arrays.fill(bytes, (byte) 0); }
+    }
+    void selected(int result, Intent data) {
+        CompletableFuture<Uri> pending = picker; picker = null;
+        if (pending != null) pending.complete(result == Activity.RESULT_OK && data != null ? data.getData() : null);
+    }
+    @Override public void close() { closed = true; CompletableFuture<Uri> pending = picker; picker = null; if (pending != null) pending.completeExceptionally(new IllegalStateException("Activity closed")); }
+}

@@ -4,13 +4,13 @@
       "input": {
         "scope": "datasets"
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfKind' and value='dataset' }"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaKind' and value='dataset' }"
     },
     {
       "input": {
         "scope": "fences"
       },
-      "expected": "trashed = false and appProperties has { key='wfKind' and value='reset' }"
+      "expected": "trashed = false and appProperties has { key='piaKind' and value='reset' }"
     },
     {
       "input": {
@@ -23,14 +23,14 @@
         "scope": "roots",
         "datasetId": "11111111-2222-3333-4444-555555555555"
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfKind' and value='dataset-root' } and 'appDataFolder' in parents"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='piaKind' and value='dataset-root' } and 'appDataFolder' in parents"
     },
     {
       "input": {
         "scope": "ready",
         "datasetId": "11111111-2222-3333-4444-555555555555"
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfKind' and value='ready' }"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='piaKind' and value='ready' }"
     },
     {
       "input": {
@@ -38,7 +38,7 @@
         "datasetId": "11111111-2222-3333-4444-555555555555",
         "shard": "a"
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfShard' and value='a' } and (appProperties has { key='wfKind' and value='checkpoint' } or appProperties has { key='wfKind' and value='change' })"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='piaShard' and value='a' } and (appProperties has { key='piaKind' and value='checkpoint' } or appProperties has { key='piaKind' and value='change' })"
     },
     {
       "input": {
@@ -46,7 +46,7 @@
         "datasetId": "11111111-2222-3333-4444-555555555555",
         "shard": "groups"
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfShard' and value='groups' } and (appProperties has { key='wfKind' and value='checkpoint' } or appProperties has { key='wfKind' and value='change' })"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='piaShard' and value='groups' } and (appProperties has { key='piaKind' and value='checkpoint' } or appProperties has { key='piaKind' and value='change' })"
     },
     {
       "input": {
@@ -54,7 +54,7 @@
         "datasetId": "11111111-2222-3333-4444-555555555555",
         "parentId": "note-folder"
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and 'note-folder' in parents and appProperties has { key='wfKind' and value='revision' }"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaDataset' and value='11111111-2222-3333-4444-555555555555' } and 'note-folder' in parents and appProperties has { key='piaKind' and value='revision' }"
     },
     {
       "input": {
@@ -62,7 +62,7 @@
         "datasetId": "11111111-2222-3333-4444-555555555555",
         "parentId": "note-folder"
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and 'note-folder' in parents"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaDataset' and value='11111111-2222-3333-4444-555555555555' } and 'note-folder' in parents"
     },
     {
       "input": {
@@ -73,7 +73,7 @@
           "two"
         ]
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfKind' and value='purge' } and (appProperties has { key='wfEntity' and value='one' } or appProperties has { key='wfEntity' and value='two' })"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='piaKind' and value='purge' } and (appProperties has { key='piaEntity' and value='one' } or appProperties has { key='piaEntity' and value='two' })"
     },
     {
       "input": {
@@ -83,14 +83,14 @@
           "one"
         ]
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfKind' and value='folder' } and (appProperties has { key='wfEntity' and value='one' })"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='piaKind' and value='folder' } and (appProperties has { key='piaEntity' and value='one' })"
     },
     {
       "input": {
         "scope": "current-all",
         "datasetId": "11111111-2222-3333-4444-555555555555"
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and (appProperties has { key='wfKind' and value='checkpoint' } or appProperties has { key='wfKind' and value='change' })"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaDataset' and value='11111111-2222-3333-4444-555555555555' } and (appProperties has { key='piaKind' and value='checkpoint' } or appProperties has { key='piaKind' and value='change' })"
     },
     {
       "input": {
@@ -100,13 +100,13 @@
           "one"
         ]
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and (appProperties has { key='wfKind' and value='revision' } or appProperties has { key='wfKind' and value='attachment' } or appProperties has { key='wfKind' and value='folder' }) and (appProperties has { key='wfEntity' and value='one' })"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaDataset' and value='11111111-2222-3333-4444-555555555555' } and (appProperties has { key='piaKind' and value='revision' } or appProperties has { key='piaKind' and value='attachment' } or appProperties has { key='piaKind' and value='folder' }) and (appProperties has { key='piaEntity' and value='one' })"
     },
     {
       "input": {
         "scope": "reset-datasets"
       },
-      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfKind' and value='dataset' }"
+      "expected": "trashed = false and appProperties has { key='piaFormat' and value='pin-it-anywhere-dataset' } and appProperties has { key='piaKind' and value='dataset' }"
     }
   ],
   "files": [
@@ -127,11 +127,11 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "dataset",
-          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "dataset",
+          "piaSha256": "1111111111111111111111111111111111111111111111111111111111111111"
         },
         "spaces": [
           "appDataFolder"
@@ -158,11 +158,11 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "ready",
-          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "ready",
+          "piaSha256": "1111111111111111111111111111111111111111111111111111111111111111"
         },
         "spaces": [
           "appDataFolder"
@@ -192,14 +192,14 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "revision",
-          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-          "wfEntity": "one",
-          "wfRevision": "revision-one",
-          "wfShard": "a"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "revision",
+          "piaSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "piaEntity": "one",
+          "piaRevision": "revision-one",
+          "piaShard": "a"
         },
         "spaces": [
           "appDataFolder"
@@ -227,12 +227,12 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "attachment",
-          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-          "wfEntity": "one"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "attachment",
+          "piaSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "piaEntity": "one"
         },
         "spaces": [
           "appDataFolder"
@@ -262,14 +262,14 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "change",
-          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-          "wfEntity": "one",
-          "wfRevision": "revision-one",
-          "wfShard": "a"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "change",
+          "piaSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "piaEntity": "one",
+          "piaRevision": "revision-one",
+          "piaShard": "a"
         },
         "spaces": [
           "appDataFolder"
@@ -297,12 +297,12 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "checkpoint",
-          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-          "wfShard": "a"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "checkpoint",
+          "piaSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "piaShard": "a"
         },
         "spaces": [
           "appDataFolder"
@@ -331,13 +331,13 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "purge",
-          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-          "wfEntity": "one",
-          "wfShard": "a"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "purge",
+          "piaSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "piaEntity": "one",
+          "piaShard": "a"
         },
         "spaces": [
           "appDataFolder"
@@ -363,11 +363,11 @@
           "appDataFolder"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "dataset-root",
-          "wfRole": "root"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "dataset-root",
+          "piaRole": "root"
         },
         "spaces": [
           "appDataFolder"
@@ -392,12 +392,12 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "folder",
-          "wfRole": "note",
-          "wfEntity": "one"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "folder",
+          "piaRole": "note",
+          "piaEntity": "one"
         },
         "spaces": [
           "appDataFolder"
@@ -425,14 +425,14 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "revision",
-          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-          "wfEntity": "one",
-          "wfRevision": "revision-one",
-          "wfShard": "a"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "revision",
+          "piaSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "piaEntity": "one",
+          "piaRevision": "revision-one",
+          "piaShard": "a"
         },
         "spaces": [
           "appDataFolder"
@@ -462,14 +462,14 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "revision",
-          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-          "wfEntity": "one",
-          "wfRevision": "revision-one",
-          "wfShard": "a"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "revision",
+          "piaSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "piaEntity": "one",
+          "piaRevision": "revision-one",
+          "piaShard": "a"
         },
         "spaces": [
           "appDataFolder"
@@ -499,14 +499,14 @@
           "parent-id"
         ],
         "appProperties": {
-          "wfFormat": "work-fleet-dataset",
-          "wfSchema": "1",
-          "wfDataset": "11111111-2222-3333-4444-555555555555",
-          "wfKind": "revision",
-          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-          "wfEntity": "one",
-          "wfRevision": "revision-one",
-          "wfShard": "a"
+          "piaFormat": "pin-it-anywhere-dataset",
+          "piaSchema": "1",
+          "piaDataset": "11111111-2222-3333-4444-555555555555",
+          "piaKind": "revision",
+          "piaSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "piaEntity": "one",
+          "piaRevision": "revision-one",
+          "piaShard": "a"
         },
         "spaces": [
           "appDataFolder"
@@ -690,7 +690,7 @@
       "old-file_1",
       "incompatible_2"
     ],
-    "body": "--work_fleet_delete\r\nContent-Type: application/http\r\nContent-ID: wf-0\r\n\r\nDELETE /drive/v3/files/old-file_1 HTTP/1.1\r\n\r\n--work_fleet_delete\r\nContent-Type: application/http\r\nContent-ID: wf-1\r\n\r\nDELETE /drive/v3/files/incompatible_2 HTTP/1.1\r\n\r\n--work_fleet_delete--\r\n"
+    "body": "--pin_it_anywhere_delete\r\nContent-Type: application/http\r\nContent-ID: wf-0\r\n\r\nDELETE /drive/v3/files/old-file_1 HTTP/1.1\r\n\r\n--pin_it_anywhere_delete\r\nContent-Type: application/http\r\nContent-ID: wf-1\r\n\r\nDELETE /drive/v3/files/incompatible_2 HTTP/1.1\r\n\r\n--pin_it_anywhere_delete--\r\n"
   },
   "badDeletionIds": [
     [],

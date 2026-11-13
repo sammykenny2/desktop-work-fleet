@@ -3,13 +3,13 @@
     Prove end to end that a sign-in crash leaves Explorer first, with an isolated probe package.
 .DESCRIPTION
     Takes the locally signed build/PinItAnywhere-VERSION-x64.msix (Build-WindowsPackage.ps1 -LocalTestSign) and installs a
-    copy under the probe identity app.workfleet.crashprobe.e2e, signed with the same locally trusted certificate.
+    copy under the probe identity dev.sammykenny2.pinitanywhere.crashprobe.e2e, signed with the same locally trusted certificate.
     crash-probe.txt in its data directory makes this identity (ADR-045; no other reads it) start as a sign-in launch and,
     once its desktop scenes are inside Explorer, fail the way the 0.2.0 sign-in launch did: a render-thread failure.
     Passes when the probe took every window out of Explorer before Windows reported the crash, Explorer kept answering
     and reported no hang, and no instance reopened: the user turned the sign-in reopen off on 2026-10-14. Then removes
     the probe package, its data and its crash dump; host.log is kept under build/windows/crash-probe. The installed Work
-    Fleet package, its data and its certificate trust are never touched. The probe's empty desktop scenes exist briefly.
+    PinItAnywhere package, its data and its certificate trust are never touched. The probe's empty desktop scenes exist briefly.
 .PARAMETER PackagePath
     Signed MSIX to copy. Defaults to build/PinItAnywhere-VERSION-x64.msix.
 .PARAMETER SdkBin
@@ -21,7 +21,7 @@
 param([string]$PackagePath, [string]$SdkBin)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$ProbeName = 'app.workfleet.crashprobe.e2e'
+$ProbeName = 'dev.sammykenny2.pinitanywhere.crashprobe.e2e'
 function Find-SdkTool([string]$Name) {
     if ($SdkBin) { $Tool = Join-Path $SdkBin $Name; if (Test-Path -LiteralPath $Tool -PathType Leaf) { return $Tool }; throw "Missing SDK tool: $Tool" }
     $OnPath = Get-Command $Name -ErrorAction SilentlyContinue; if ($OnPath) { return $OnPath.Source }
@@ -31,12 +31,12 @@ function Find-SdkTool([string]$Name) {
     }
     throw "Windows SDK $Name is required. Set -SdkBin to its directory."
 }
-function Get-ProbeProcess { @(Get-Process -Name WorkFleet -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*\$ProbeName*" }) }
+function Get-ProbeProcess { @(Get-Process -Name PinItAnywhere -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*\$ProbeName*" }) }
 function Remove-Probe {
     Get-ProbeProcess | Stop-Process -Force -ErrorAction SilentlyContinue
     Get-AppxPackage -Name $ProbeName | Remove-AppxPackage
 }
-Add-Type -Namespace WorkFleetProbe -Name Shell -MemberDefinition @'
+Add-Type -Namespace PinItAnywhereProbe -Name Shell -MemberDefinition @'
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindowW(string className, string title);
 [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
 [DllImport("user32.dll")] public static extern bool IsHungAppWindow(IntPtr window);
@@ -66,7 +66,7 @@ $Certificate = @(Get-ChildItem -LiteralPath Cert:\CurrentUser\My -CodeSigningCer
     $_.HasPrivateKey -and $_.Subject -ceq $Publisher -and $_.NotAfter -gt (Get-Date) -and (Test-Path -LiteralPath (Join-Path 'Cert:\LocalMachine\TrustedPeople' $_.Thumbprint))
 })
 if ($Certificate.Count -ne 1) { throw "Needs exactly one trusted signing certificate for '$Publisher', as Build-WindowsPackage -LocalTestSign does." }
-$Manifest.Package.Identity.Name = $ProbeName; $Manifest.Package.Properties.DisplayName = 'Work Fleet crash probe'
+$Manifest.Package.Identity.Name = $ProbeName; $Manifest.Package.Properties.DisplayName = 'Pin It Anywhere crash probe'
 $Manifest.Save($ManifestPath)
 $ProbePackage = Join-Path $Work "crash-probe-$Version.msix"
 & $MakeAppx pack /d $Unpacked /p $ProbePackage /o /h SHA256 > (Join-Path $Work 'pack.log')
@@ -80,14 +80,14 @@ $FirstId = $null; $Log = $null
 try {
     Add-AppxPackage -Path $ProbePackage
     $Installed = Get-AppxPackage -Name $ProbeName
-    $Data = Join-Path $env:LOCALAPPDATA "Packages\$($Installed.PackageFamilyName)\LocalCache\Local\WorkFleet"
+    $Data = Join-Path $env:LOCALAPPDATA "Packages\$($Installed.PackageFamilyName)\LocalCache\Local\PinItAnywhere"
     New-Item -ItemType Directory -Path $Data -Force | Out-Null
     # No sign-in task for the probe; crash-probe.txt makes this identity act as a sign-in launch that loses its renderer once.
     [IO.File]::WriteAllText((Join-Path $Data 'host-preferences.json'), '{"version":1,"startAtLogin":false,"closeToTray":true,"openMainAtLogin":false,"language":"en"}')
     [IO.File]::WriteAllText((Join-Path $Data 'crash-probe.txt'), 'render-thread')
     $Log = Join-Path $Data 'host.log'
     function Read-Log { if (Test-Path -LiteralPath $Log) { [IO.File]::ReadAllText($Log) } else { '' } }
-    Start-Process "shell:AppsFolder\$($Installed.PackageFamilyName)!WorkFleet"
+    Start-Process "shell:AppsFolder\$($Installed.PackageFamilyName)!PinItAnywhere"
 
     $Deadline = (Get-Date).AddMinutes(2)
     while ((Get-Date) -lt $Deadline -and (Read-Log) -notmatch 'fatal ui') { Start-Sleep -Milliseconds 250 }
@@ -103,7 +103,7 @@ try {
     $Deadline = (Get-Date).AddMinutes(2)
     while ((Get-Date) -lt $Deadline) {
         $Checks++
-        if (-not [WorkFleetProbe.Shell]::Answers('Progman') -or -not [WorkFleetProbe.Shell]::Answers('Shell_TrayWnd')) { $Unanswered++ }
+        if (-not [PinItAnywhereProbe.Shell]::Answers('Progman') -or -not [PinItAnywhereProbe.Shell]::Answers('Shell_TrayWnd')) { $Unanswered++ }
         if (-not (Get-Process -Id $FirstId -ErrorAction SilentlyContinue)) { break }
         Start-Sleep -Milliseconds 250
     }
@@ -126,7 +126,7 @@ try {
     # LocalDumps (docs/testing.md) writes the probe's dump beside real ones; keep only real ones.
     if ($FirstId) {
         foreach ($Folder in @((Join-Path $env:LOCALAPPDATA 'CrashDumps'), (Join-Path $env:LOCALAPPDATA "Packages\$ProbeName*"))) {
-            Get-ChildItem -Path $Folder -Filter "WorkFleet.exe.$FirstId.dmp" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+            Get-ChildItem -Path $Folder -Filter "PinItAnywhere.exe.$FirstId.dmp" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
                 Write-Output "Probe crash dump: $($_.FullName) ($([math]::Round($_.Length / 1MB)) MB), removed"; Remove-Item -LiteralPath $_.FullName -Force
             }
         }

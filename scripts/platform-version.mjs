@@ -12,7 +12,7 @@ const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 export const versionRecords = {
   linux: 'src/native/linux/VERSION',
   windows: 'src/native/windows/Directory.Build.props',
-  apple: 'src/native/apple/config/WorkFleet.xcconfig',
+  apple: 'src/native/apple/config/PinItAnywhere.xcconfig',
   android: 'src/native/android/app/build.gradle.kts',
 };
 const patterns = {

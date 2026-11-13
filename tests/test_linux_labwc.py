@@ -1,4 +1,4 @@
-"""labwc shortcuts: Work Fleet only rewrites its own marked rc.xml block, using temporary files instead of the user's config."""
+"""labwc shortcuts: Pin It Anywhere only rewrites its own marked rc.xml block, using temporary files instead of the user's config."""
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -10,7 +10,7 @@ NATIVE = Path(__file__).resolve().parents[1] / "src/native/linux"
 spec = importlib.util.spec_from_file_location("labwc", NATIVE / "labwc.py")
 labwc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(labwc)
-APP = "app.workfleet.preview"
+APP = "dev.sammykenny2.pinitanywhere"
 
 
 class LinuxLabwcTests(unittest.TestCase):
@@ -75,7 +75,7 @@ class LinuxLabwcTests(unittest.TestCase):
         self.assertEqual([key for key, _ in self.keybinds((base / "merged/rc.xml").read_text())], ["C-S-1"])
         self.assertEqual([key for key, _ in self.keybinds((base / "single/rc.xml").read_text())], ["C-S-1", "A-Tab"],
                          "without -m a user rc.xml replaces the system one, so it starts as a copy")
-        self.assertFalse((base / "merged/rc.xml.work-fleet-backup").exists(), "there was nothing to back up")
+        self.assertFalse((base / "merged/rc.xml.pin-it-anywhere-backup").exists(), "there was nothing to back up")
 
     def test_the_first_write_backs_up_the_user_file_once(self):
         path = self.directory() / "rc.xml"
@@ -86,7 +86,7 @@ class LinuxLabwcTests(unittest.TestCase):
         with mock.patch.object(labwc.subprocess, "run"):
             config.write(["Ctrl+Shift+1"])
             config.write(["Ctrl+Shift+2"])
-        self.assertEqual(path.with_name("rc.xml.work-fleet-backup").read_text(), "<labwc_config>\n</labwc_config>\n")
+        self.assertEqual(path.with_name("rc.xml.pin-it-anywhere-backup").read_text(), "<labwc_config>\n</labwc_config>\n")
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
         self.assertEqual(config.keys(), ["Ctrl+Shift+2"])
         self.assertEqual(config.status(["Ctrl+Shift+2"])["state"], "current")

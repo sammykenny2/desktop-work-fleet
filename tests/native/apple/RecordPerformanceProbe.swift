@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 
 // Disposable benchmark profiles use a synthetic key, never the user's Keychain.
-enum FleetKeychain {
+enum PinItAnywhereKeychain {
     static func storageKey(existing: Bool) throws -> SymmetricKey { SymmetricKey(data: Data(repeating: 37, count: 32)) }
 }
 
@@ -12,7 +12,7 @@ enum FleetKeychain {
         var results: [[String: Any]] = []
         for total in [20000, 100000] {
             let directory = root.appendingPathComponent(String(total))
-            var database = try FleetDatabase(directory: directory, profile: "local")
+            var database = try PinItAnywhereDatabase(directory: directory, profile: "local")
             var revision: Int64? = nil
             func row(_ collection: String, _ key: String, _ ordinal: Int64) -> [String: Any] {
                 ["collection": collection, "key": key, "entity": "fixture", "ordinal": ordinal,
@@ -20,9 +20,9 @@ enum FleetKeychain {
             }
             func commit(_ rows: [[String: Any]]) throws -> Int {
                 let next = (revision ?? -1) + 1
-                let bytes = try FleetProtocol.encode(["format": "work-fleet-record-transaction", "schemaVersion": 1,
-                    "profileId": "local", "revision": next, "commitId": FleetProtocol.uuid(), "puts": rows, "deletes": []])
-                _ = try database.commitRecords(database.stage("workspace", bytes, FleetProtocol.digest(bytes)), revision, [])
+                let bytes = try PinItAnywhereProtocol.encode(["format": "pin-it-anywhere-record-transaction", "schemaVersion": 1,
+                    "profileId": "local", "revision": next, "commitId": PinItAnywhereProtocol.uuid(), "puts": rows, "deletes": []])
+                _ = try database.commitRecords(database.stage("workspace", bytes, PinItAnywhereProtocol.digest(bytes)), revision, [])
                 revision = next
                 return bytes.count
             }
@@ -41,22 +41,22 @@ enum FleetKeychain {
             }
             for _ in 0..<14 {
                 try measure("openCurrent") {
-                    database.close(); database = try FleetDatabase(directory: directory, profile: "local")
+                    database.close(); database = try PinItAnywhereDatabase(directory: directory, profile: "local")
                     var after: Any = NSNull(), count = 0, bytes = 0
                     repeat {
                         let data = try database.recordPage(["collection": "current", "entity": "fixture", "limit": 100,
                             "expectedRevision": revision!, "after": after])
-                        let page = try FleetProtocol.json(data)
+                        let page = try PinItAnywhereProtocol.json(data)
                         bytes += data.count; count += (page["rows"] as! [[String: Any]]).count; after = page["next"]!
                     } while !(after is NSNull)
-                    guard count == 2000 else { throw FleetFailure("probe", "Incomplete current read") }
+                    guard count == 2000 else { throw PinItAnywhereFailure("probe", "Incomplete current read") }
                     return bytes
                 }
                 try measure("twoRowDraftCommit") {
                     try commit([row("draft", "draft", revision! + 1), row("meta", "active", revision! + 1)])
                 }
                 try measure("fourRowSaveCommit") {
-                    try commit([row("current", "c0", revision! + 1), row("history", FleetProtocol.uuid(), revision! + 1),
+                    try commit([row("current", "c0", revision! + 1), row("history", PinItAnywhereProtocol.uuid(), revision! + 1),
                                 row("draft", "draft", revision! + 1), row("meta", "active", revision! + 1)])
                 }
             }

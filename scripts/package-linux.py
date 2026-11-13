@@ -14,7 +14,7 @@ def main():
     version = (root / "src" / "native" / "linux" / "VERSION").read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         raise SystemExit("src/native/linux/VERSION must record a numeric x.y.z version.")
-    source = root / "build" / "linux" / f"work-fleet-{version}"
+    source = root / "build" / "linux" / f"pin-it-anywhere-{version}"
     name = f"pin-it-anywhere-{version}"
     target = root / "build" / (name + ".tar.gz")
     if not (source / "Native" / "host.py").is_file():

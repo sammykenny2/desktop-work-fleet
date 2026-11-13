@@ -1,17 +1,17 @@
 // Shared semantics have no dependency on a window system or storage provider.
 import { t } from '../i18n/index.js';
 
-export class FleetError extends Error {
+export class PinItAnywhereError extends Error {
   constructor(code, message, details = {}) {
     super(message);
-    this.name = 'FleetError';
+    this.name = 'PinItAnywhereError';
     this.code = code;
     this.details = details;
   }
 }
 
 export function requireValue(condition, code, message, details) {
-  if (!condition) throw new FleetError(code, message, details);
+  if (!condition) throw new PinItAnywhereError(code, message, details);
 }
 
 export const compareId = (a, b) => a < b ? -1 : a > b ? 1 : 0;

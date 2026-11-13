@@ -193,7 +193,7 @@ test('encrypted payload retains the same logical fingerprint, authenticates all 
 
 test('large history validation dispatches a queued cancel before validating the whole snapshot', async () => {
   const f = await fixture(); const state = f.workspace.state; const root = state.cards[0];
-  const history = Array.from({ length: 8000 }, (_, index) => ({ format: 'work-fleet-revision', schemaVersion: 1, kind: 'card',
+  const history = Array.from({ length: 8000 }, (_, index) => ({ format: 'pin-it-anywhere-revision', schemaVersion: 1, kind: 'card',
     entityId: root.id, revisionId: `history-${index}`, parents: [index ? `history-${index - 1}` : root.revision],
     value: { ...copy(root), revision: `history-${index}` } }));
   state.revisions.push(...history); state.cards[0] = history.at(-1).value;

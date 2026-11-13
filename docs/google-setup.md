@@ -3,7 +3,7 @@
 The native hosts on all five platforms contain the sign-in, account workspace and Drive appDataFolder sync code.
 The browser development preview has local data only and offers no Google sign-in.
 New Apple and Android builds use `dev.sammykenny2.pinitanywhere`; Google clients must be registered for that identity
-in the new `pin-it-anywhere` project. Earlier `work-fleet` clients and `app.workfleet.preview` registrations belong to
+in the new `pin-it-anywhere` project. Earlier `pin-it-anywhere` clients and `dev.sammykenny2.pinitanywhere` registrations belong to
 the old test identity. Keep their credentials and installations until the applicable transition is accepted.
 Actual configuration and native/provider acceptance are separate: current boundaries are in
 [PROGRESS](../PROGRESS.md), [PLAN-014](plans/014-product-identity-and-distribution.md) and [testing](testing.md).
@@ -28,12 +28,12 @@ Actual configuration and native/provider acceptance are separate: current bounda
 
 | Platform | OAuth client type and registration | `.env` field |
 |---|---|---|
-| Windows | Desktop app; the program inside the MSIX is also a desktop app and uses the system browser with a loopback callback | `WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID`, `WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET` |
-| Linux | Desktop app; it can share the Windows Desktop client (enter the same ID and secret) | `WORK_FLEET_GOOGLE_LINUX_CLIENT_ID`, `WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET` |
-| macOS | iOS-type client; the bundle ID is the `WORK_FLEET_APP_ID` of the current build | `WORK_FLEET_GOOGLE_MACOS_CLIENT_ID` |
-| iOS | iOS-type client; the bundle ID is the `WORK_FLEET_APP_ID` of the current build | `WORK_FLEET_GOOGLE_IOS_CLIENT_ID` |
-| Android | Android client; the package is the `WORK_FLEET_APP_ID` of the current build, registered with the actual signing certificate's SHA-1 | `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID` |
-| Android sign-in audience | A separate Web application client in the same project; only its public ID is used, and there is no own sign-in server | `WORK_FLEET_GOOGLE_WEB_CLIENT_ID` |
+| Windows | Desktop app; the program inside the MSIX is also a desktop app and uses the system browser with a loopback callback | `PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_ID`, `PIN_IT_ANYWHERE_GOOGLE_WINDOWS_CLIENT_SECRET` |
+| Linux | Desktop app; it can share the Windows Desktop client (enter the same ID and secret) | `PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_ID`, `PIN_IT_ANYWHERE_GOOGLE_LINUX_CLIENT_SECRET` |
+| macOS | iOS-type client; the bundle ID is the `PIN_IT_ANYWHERE_APP_ID` of the current build | `PIN_IT_ANYWHERE_GOOGLE_MACOS_CLIENT_ID` |
+| iOS | iOS-type client; the bundle ID is the `PIN_IT_ANYWHERE_APP_ID` of the current build | `PIN_IT_ANYWHERE_GOOGLE_IOS_CLIENT_ID` |
+| Android | Android client; the package is the `PIN_IT_ANYWHERE_APP_ID` of the current build, registered with the actual signing certificate's SHA-1 | `PIN_IT_ANYWHERE_GOOGLE_ANDROID_CLIENT_ID` |
+| Android sign-in audience | A separate Web application client in the same project; only its public ID is used, and there is no own sign-in server | `PIN_IT_ANYWHERE_GOOGLE_WEB_CLIENT_ID` |
 
 The certificates for the local Android debug build, the upload key and Google Play App Signing can differ,
 so register an Android client for each package/SHA-1 combination actually in use.
@@ -58,13 +58,13 @@ macOS fields in Google Auth Platform > Clients > Create client:
 |---|---|
 | Application type | iOS, for Google's Apple SDK |
 | Name | for example `Pin It Anywhere macOS`, only for identification in the console |
-| Bundle ID | `dev.sammykenny2.pinitanywhere`, the same as `WORK_FLEET_APP_ID` |
+| Bundle ID | `dev.sammykenny2.pinitanywhere`, the same as `PIN_IT_ANYWHERE_APP_ID` |
 | App Store ID | leave empty for GitHub previews; after a store listing, enter the numeric ID from the App Store URL |
-| Apple Team ID | optional; with an Apple team, enter the value of `WORK_FLEET_APPLE_TEAM_ID`, and use the same value when iOS and macOS share the team |
+| Apple Team ID | optional; with an Apple team, enter the value of `PIN_IT_ANYWHERE_APPLE_TEAM_ID`, and use the same value when iOS and macOS share the team |
 | Firebase App Check | this project has not configured that check, so keep it off when creating the client; turning it on requires a Team ID |
 | Use this client for an AI-powered agent | leave unchecked; this client is for the app's Google sign-in and Drive sync |
 
-After creating it, set the public Client ID as `WORK_FLEET_GOOGLE_MACOS_CLIENT_ID`; GitHub Actions uses the repository
+After creating it, set the public Client ID as `PIN_IT_ANYWHERE_GOOGLE_MACOS_CLIENT_ID`; GitHub Actions uses the repository
 variable of the same name.
 The field definitions are in [Google native OAuth](https://developers.google.com/identity/protocols/oauth2/native-app),
 and the AI client declaration in [Manage OAuth Clients](https://support.google.com/cloud/answer/15549257?hl=en).
@@ -77,13 +77,13 @@ for account selection, then AuthorizationClient for Drive authorization.
 
 ## Fill in the settings and build
 
-Copy [.env.example](../.env.example) to `.env` and fill in `WORK_FLEET_GOOGLE_PROJECT_ID`
+Copy [.env.example](../.env.example) to `.env` and fill in `PIN_IT_ANYWHERE_GOOGLE_PROJECT_ID`
 and the clients of the platforms to build. `.env` is ignored by Git; values of the same name from the shell or CI take
 precedence.
 If only Windows and Linux sign-in is needed, no client is needed for the other platforms.
-Set `WORK_FLEET_APP_ID=dev.sammykenny2.pinitanywhere` and
-`WORK_FLEET_APP_GROUP_ID=group.dev.sammykenny2.pinitanywhere`; Apple profiles and Google registration must match them.
-Windows uses `WORK_FLEET_WINDOWS_PACKAGE_ID` independently; changing the mobile ID does not choose a Windows identity.
+Set `PIN_IT_ANYWHERE_APP_ID=dev.sammykenny2.pinitanywhere` and
+`PIN_IT_ANYWHERE_APP_GROUP_ID=group.dev.sammykenny2.pinitanywhere`; Apple profiles and Google registration must match them.
+Windows uses `PIN_IT_ANYWHERE_WINDOWS_PACKAGE_ID` independently; changing the mobile ID does not choose a Windows identity.
 GitHub Variables reach only the Actions that reference them; local Xcode and Gradle do not download them,
 so the public client IDs and the project ID must still be entered in the Git-ignored `.env` locally. The Web Client
 Secret does not go into `.env`.

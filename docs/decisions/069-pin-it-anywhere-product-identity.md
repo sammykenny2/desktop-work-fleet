@@ -54,15 +54,16 @@ Scatter (two papers on amber) were not selected; their sources stay in `assets/b
   cat-note --install` renders it with Playwright at design time and replaces the committed bitmaps each native project
   reads. Packaging only copies those files and never needs a browser.
 - Apple uses asset catalogs: one 1024 px iOS image with dark and tinted appearances, and macOS 16-1024 px. The Icon
-  Composer `.icon` document is not wired in while CI builds with the `macos-15` image's default Xcode; adopt it once the
-  Apple builds use Xcode 26 or later. The macOS menu bar shows the template glyph `StatusItem` instead of the
+  Composer `.icon` document is not wired in: the last Apple CI build (2026-10-20) used the `macos-15` image's default
+  Xcode 16.4, which predates Icon Composer. Adopt it once the Apple builds use Xcode 26 or later. The macOS menu bar shows the template glyph `StatusItem` instead of the
   `note.text` SF Symbol.
 - Android uses an adaptive icon of bitmap layers, including the monochrome layer for themed icons.
 - Windows embeds the 16-256 px icon in the executable; its windows and notification-area icon reuse it. The MSIX
   names three unqualified scale-100 images because the package has no `resources.pri`; scale and target-size variants
   wait for a PRI step. The rendered monochrome notification-area icons are not used.
-- Linux installs a hicolor theme (16-512 px, scalable and symbolic) under the app ID; the window and tray keep the
-  256 px file.
+- Linux installs a hicolor theme (16-512 px, scalable and symbolic) under the app ID. The window uses the flat 256 px
+  file. The tray names the app ID with the bundle's `Icons/` as its theme path, so a panel may pick a sized theme file
+  or that flat file; which one has not been seen on a real panel.
 - The sammykenny2.dev publisher marks are optional; no store or app uses them.
 
 ### Identity and authorization boundaries

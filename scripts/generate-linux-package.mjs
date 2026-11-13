@@ -26,7 +26,8 @@ if (process.argv.includes('--help')) {
   await cp(path.join(root, 'LICENSE'), path.join(destination, 'Licenses', 'LICENSE'));
   await cp(path.join(root, 'THIRD-PARTY-NOTICES.md'), path.join(destination, 'Licenses', 'THIRD-PARTY-NOTICES.md'));
   // The committed hicolor theme (scripts/render-brand-assets.mjs --install) is renamed to the configured app ID. The DEB
-  // installs the theme; the window, the tray's IconThemePath and the package check use the flat 256 px copy.
+  // installs the theme. The window and the package check use the flat 256 px copy; the tray's IconThemePath (Icons/)
+  // offers both, and a panel may pick either.
   const theme = path.join(root, 'src', 'native', 'linux', 'icons', 'hicolor');
   const sizes = (await readdir(theme, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name);
   for (const size of sizes) for (const name of (await readdir(path.join(theme, size, 'apps'))).filter(name => /^app-icon.*\.(png|svg)$/.test(name))) {

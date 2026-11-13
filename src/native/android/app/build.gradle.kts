@@ -40,7 +40,7 @@ android {
     namespace = "app.workfleet.nativehost"
     compileSdk = 36
     defaultConfig {
-        applicationId = configuredId.ifEmpty { "app.workfleet.preview" }
+        applicationId = configuredId.ifEmpty { "dev.sammykenny2.pinitanywhere" }
         minSdk = 28
         targetSdk = 36
         versionCode = 603

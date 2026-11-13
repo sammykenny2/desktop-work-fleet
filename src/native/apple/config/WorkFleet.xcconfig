@@ -1,5 +1,5 @@
-// Shared preview defaults. Local identities and tool paths stay outside Git.
-WORK_FLEET_APP_ID = app.workfleet.preview
+// Final public app identity. Personal signing settings and tool paths stay outside Git.
+WORK_FLEET_APP_ID = dev.sammykenny2.pinitanywhere
 WORK_FLEET_APP_GROUP_ID = group.$(WORK_FLEET_APP_ID)
 DEVELOPMENT_TEAM =
 // Only the macOS Release app target consumes these; SPM resource bundles must not inherit a profile.

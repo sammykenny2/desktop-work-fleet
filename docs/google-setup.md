@@ -2,31 +2,28 @@
 
 The native hosts on all five platforms contain the sign-in, account workspace and Drive appDataFolder sync code.
 The browser development preview has local data only and offers no Google sign-in.
-On 2026-10-06 the Google Cloud project (consent screen in Testing) and the Desktop client shared by Windows and Linux
-were created;
-real Windows sign-in and Drive upload (including a resumable chunked upload of a 1.9 MB attachment) were accepted.
-On 2026-10-17 the iOS, Android and Web clients were created and stored, together with the existing macOS client, in the
-GitHub repository variables.
-Phone previews currently use `app.workfleet.preview`; the Android client matches the debug signature of the maintainer's
-Mac, and other signatures must be registered separately.
-As of 2026-10-17, phone sign-in is verified only by native compilation and mock-SDK authorization probes, which do not
-mean real sign-in or cross-device download is accepted: real accounts, Drive round trips, process death and
-cross-device sync on phones are not verified. Current status is in [PROGRESS](../PROGRESS.md),
-and verification procedures and evidence are in [testing](testing.md) and the git history.
+New Apple and Android builds use `dev.sammykenny2.pinitanywhere`; Google clients must be registered for that identity
+in the new `pin-it-anywhere` project. Earlier `work-fleet` clients and `app.workfleet.preview` registrations belong to
+the old test identity. Keep their credentials and installations until the applicable transition is accepted.
+Actual configuration and native/provider acceptance are separate: current boundaries are in
+[PROGRESS](../PROGRESS.md), [PLAN-014](plans/014-product-identity-and-distribution.md) and [testing](testing.md).
 
 ## Create the Google Cloud configuration
 
-1. Create one project in the [Google Cloud Console](https://console.cloud.google.com/); all five platforms use this
-   project.
+1. Use the `pin-it-anywhere` project in the [Google Cloud Console](https://console.cloud.google.com/); all five platforms
+   use this project.
 2. Enable the **Google Drive API**.
-3. In Google Auth Platform, set the app name, support email, Audience and public privacy policy URL.
+3. In Google Auth Platform, set the app name to `Pin It Anywhere`, select the support/contact email and External
+   Audience, and add the public privacy policy URL when it is deployed.
    During development use Testing, and add the Google accounts that will sign in as test users.
    As of 2026-10-17 the consent screen is still in Testing. According to Google's documentation, refresh tokens issued in
    Testing expire after 7 days; publishing the app to production removes that limit.
 4. Data Access uses `openid`, `email` and `https://www.googleapis.com/auth/drive.appdata`.
    Read and write access to the whole Drive is not needed. The name and photo in the sidebar come from Drive's
    account information under the app data scope, so no `profile` scope is needed.
-5. Create the OAuth clients from the table below; put the client IDs in the root `.env`, then rebuild the app.
+5. **Before clicking Create for a Desktop client, prepare secure storage for its complete JSON/secret. The complete
+   secret can only be saved when created: save it, verify the file contains the full value, and only then close the
+   creation dialog.** Create the OAuth clients from the table below; put the client IDs in the root `.env`, then rebuild.
    All platforms must use the same project to reach the same app data space.
 
 | Platform | OAuth client type and registration | `.env` field |
@@ -42,12 +39,12 @@ The certificates for the local Android debug build, the upload key and Google Pl
 so register an Android client for each package/SHA-1 combination actually in use.
 A version installed from Play uses the Play Console **app signing certificate**; registering only the upload key is not
 enough.
-Until the final App ID is chosen, the preview package/bundle ID is `app.workfleet.preview`.
+The final Apple/Android package and bundle ID is `dev.sammykenny2.pinitanywhere`.
 The Apple callback scheme is generated from the client ID by the generator script; Info.plist needs no manual edit.
-Sign-in can be verified with the current preview identity first, without waiting for the Play Console or a store
-listing.
-When the final package/bundle ID replaces it, create the matching clients in the same Google Cloud project and rebuild;
-the OS treats the new identifier as a different app, so local data must be moved separately with a backup.
+Apple sign-in needs matching Apple signing/profile setup. Android registration needs the actual signing certificate's
+SHA-1; do not reuse an old-project Android client or guess a fingerprint. A missing new Android client stays empty.
+The OS treats a changed installed identifier as a different app, so any required local-data transfer is a separate
+backup/restore operation. The maintainer's old Google-note preservation waiver is scoped in PLAN-014.
 
 The Android Web client is Credential Manager's `serverClientId` and the ID token audience:
 account selection uses the public Web Client ID, then AuthorizationClient obtains Drive access and the stable sub is
@@ -61,7 +58,7 @@ macOS fields in Google Auth Platform > Clients > Create client:
 |---|---|
 | Application type | iOS, for Google's Apple SDK |
 | Name | for example `Pin It Anywhere macOS`, only for identification in the console |
-| Bundle ID | the same as `WORK_FLEET_APP_ID`; currently `app.workfleet.preview` for previews |
+| Bundle ID | `dev.sammykenny2.pinitanywhere`, the same as `WORK_FLEET_APP_ID` |
 | App Store ID | leave empty for GitHub previews; after a store listing, enter the numeric ID from the App Store URL |
 | Apple Team ID | optional; with an Apple team, enter the value of `WORK_FLEET_APPLE_TEAM_ID`, and use the same value when iOS and macOS share the team |
 | Firebase App Check | this project has not configured that check, so keep it off when creating the client; turning it on requires a Team ID |
@@ -84,7 +81,9 @@ Copy [.env.example](../.env.example) to `.env` and fill in `WORK_FLEET_GOOGLE_PR
 and the clients of the platforms to build. `.env` is ignored by Git; values of the same name from the shell or CI take
 precedence.
 If only Windows and Linux sign-in is needed, no client is needed for the other platforms.
-The Apple and Android `WORK_FLEET_APP_ID` must match that Cloud registration; for now the preview identity is used.
+Set `WORK_FLEET_APP_ID=dev.sammykenny2.pinitanywhere` and
+`WORK_FLEET_APP_GROUP_ID=group.dev.sammykenny2.pinitanywhere`; Apple profiles and Google registration must match them.
+Windows uses `WORK_FLEET_WINDOWS_PACKAGE_ID` independently; changing the mobile ID does not choose a Windows identity.
 GitHub Variables reach only the Actions that reference them; local Xcode and Gradle do not download them,
 so the public client IDs and the project ID must still be entered in the Git-ignored `.env` locally. The Web Client
 Secret does not go into `.env`.
@@ -102,7 +101,10 @@ with the Windows and Linux apps. Windows and Linux send this optional client sec
 token refresh (2026-10-06).
 The build writes it only into that platform's `Config/public.json` next to the app, not into the UI assets and not into
 the Android or Apple packages.
-Google does not show the full secret again later, so download the JSON when creating the Desktop client and keep it.
+If the creation dialog was closed before saving the full secret, open that same Desktop client and use **Add Secret**.
+Prepare storage before clicking it; save the complete new value immediately and confirm it is stored before closing.
+The Client ID stays the same. Validate the new secret before retiring an old one; the console permits at most two
+secrets per client. See [Google's secret handling and rotation instructions](https://support.google.com/cloud/answer/15549257?hl=en).
 The program asks for no Web client secret, service-account JSON or sign-in token.
 Access and refresh tokens are managed by native secure storage or the Google SDK; they are never written to `.env` or
 handed to the renderer.

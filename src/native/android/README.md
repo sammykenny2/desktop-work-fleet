@@ -84,7 +84,8 @@ bash scripts/linux/build-android-app.sh --release
 bash scripts/linux/build-android-app.sh --signed
 ```
 
-The default Debug application ID is `app.workfleet.preview`. Release requires the final public settings.
+The default application ID is `dev.sammykenny2.pinitanywhere`. Release requires the matching public settings and
+an Android OAuth client registered for the actual distribution certificate. The Web client alone is insufficient.
 Signing comes from four process/CI variables, `WORK_FLEET_ANDROID_KEYSTORE` (absolute path),
 `WORK_FLEET_ANDROID_KEY_ALIAS`, `WORK_FLEET_ANDROID_STORE_PASSWORD` and `WORK_FLEET_ANDROID_KEY_PASSWORD`,
 which are never written to the repository, `.env` or the public JSON. `-Signed`/`--signed` requires all inputs and stops

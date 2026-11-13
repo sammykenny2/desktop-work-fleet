@@ -29,7 +29,9 @@ generates the shared UI, the public configuration and Info.plist automatically; 
 npm/SPM dependencies, and there is no need to run `npm run build` first.
 The assets are in this directory's `.generated/<target>/`, which Git ignores.
 
-The default Debug app ID is `app.workfleet.preview`, and a local preview builds without Google settings.
+The default app ID is `dev.sammykenny2.pinitanywhere`, with extension ID
+`dev.sammykenny2.pinitanywhere.share` and App Group `group.dev.sammykenny2.pinitanywhere`.
+A local Debug preview builds without Google settings; real signing needs matching Apple registrations and profiles.
 For devices or the final identity, copy `config/Local.xcconfig.example` to the Git-ignored `config/Local.xcconfig`
 and fill in WORK_FLEET_APP_ID, WORK_FLEET_APP_GROUP_ID and DEVELOPMENT_TEAM; the main app and the extension use the same
 settings.

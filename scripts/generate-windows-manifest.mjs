@@ -16,7 +16,8 @@ if (args.length === 1 && args[0] === '--help') {
   const relative = path.relative(parent, stage);
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Stage must be under build/windows.');
   const config = await readBuildConfig(new URL('../', import.meta.url));
-  const name = config.windows.packageId || config.appId || 'app.workfleet.preview';
+  // ADR-069: the Windows identity is set independently of the Apple/Android app ID and the eventual Certum publisher.
+  const name = config.windows.packageId || 'app.workfleet.preview';
   if (!/^[a-zA-Z0-9.-]{3,50}$/.test(name)) throw new Error('Set WORK_FLEET_WINDOWS_PACKAGE_ID.');
   const version = await readPlatformVersion('windows');
   const displayName = common['common.appName'];

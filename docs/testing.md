@@ -33,6 +33,11 @@ and startup names. Build the native Apple targets and inspect the resulting `.lp
 assuming a source resource reached the bundle. Native launcher/share selection, Windows package localization,
 new-ID signing and Google authorization still require separate acceptance.
 
+Identity configuration checks also compare the final Apple/Android defaults with `.env.example`. Generated MSIX
+fixtures verify that a mobile-ID change cannot silently select the Windows package identity and that an explicit
+Windows package ID still wins. `config:check -- --google` reports missing platform clients; it does not validate
+consent-screen settings, API enablement, registered bundle IDs/fingerprints, profiles or real authorization.
+
 ## Reset deletion and native batch transport
 
 `node --test tests/drive-batch.test.js tests/dataset-reset.test.js tests/dataset-native.test.js tests/google-drive.test.js`

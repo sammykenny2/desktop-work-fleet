@@ -4,10 +4,11 @@ import { execFile } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { readAppleVersion, readPlatformVersion, readReleaseVersion, versionRecords } from '../scripts/platform-version.mjs';
 import { prepareAppleBuild } from '../scripts/prepare-apple-build.mjs';
+import { readBuildConfig } from '../scripts/config.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const execute = promisify(execFile);
@@ -22,6 +23,21 @@ async function checkout(records) {
   }
   return directory;
 }
+
+test('final Apple and Android default identities agree with the example build settings', async () => {
+  const directory = await checkout({ '.env': await readFile(path.join(root, '.env.example'), 'utf8') });
+  try {
+    const config = await readBuildConfig(pathToFileURL(directory + path.sep), {});
+    assert.equal(config.appId, 'dev.sammykenny2.pinitanywhere');
+    assert.equal(config.appleAppGroupId, `group.${config.appId}`);
+    const apple = await readFile(path.join(root, versionRecords.apple), 'utf8');
+    assert.equal(apple.match(/^WORK_FLEET_APP_ID\s*=\s*(\S+)/m)?.[1], config.appId);
+    const android = await readFile(path.join(root, versionRecords.android), 'utf8');
+    assert.equal(android.match(/applicationId = configuredId\.ifEmpty \{ "([^"]+)" \}/)?.[1], config.appId);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('each platform reads its own version record', async () => {
   const directory = await checkout({
@@ -107,7 +123,7 @@ test('packaging work directories are fixed and release files go directly in buil
   assert.ok((await read('scripts/windows/Build-AndroidApp.ps1')).includes("$Delivery = Join-Path $ProjectRoot 'build'"));
 });
 
-test('MSIX uses the Windows version record and includes early Windows 11 while excluding Windows 10', async () => {
+test('MSIX keeps Windows identity independent of the mobile ID and includes early Windows 11 while excluding Windows 10', async () => {
   const directory = await checkout({ [versionRecords.windows]: '<Project><PropertyGroup><Version>2.4.6</Version></PropertyGroup></Project>\n' });
   try {
     for (const file of ['generate-windows-manifest.mjs', 'config.mjs', 'apple-icons.mjs', 'platform-version.mjs']) {
@@ -120,13 +136,19 @@ test('MSIX uses the Windows version record and includes early Windows 11 while e
     await mkdir(path.dirname(path.join(directory, locale)), { recursive: true });
     await copyFile(path.join(root, locale), path.join(directory, locale));
     const stage = path.join(directory, 'build', 'windows', 'stage');
-    await execute(process.execPath, [path.join(directory, 'scripts', 'generate-windows-manifest.mjs'), '--stage', stage],
-      { env: { PATH: process.env.PATH } });
-    const manifest = await readFile(path.join(stage, 'AppxManifest.xml'), 'utf8');
-    assert.match(manifest, /<Identity [^>]*Version="2\.4\.6\.0"/);
-    assert.match(manifest, /<DisplayName>Pin It Anywhere<\/DisplayName>/);
-    assert.match(manifest, /<Identity Name="app\.workfleet\.preview"[^>]*Publisher="CN=Work Fleet Preview"/);
-    assert.match(manifest, /<TargetDeviceFamily Name="Windows\.Desktop" MinVersion="10\.0\.22000\.0" MaxVersionTested="10\.0\.26200\.0"\s*\/>/);
+    for (const [mobileId, windowsId, expected] of [
+      ['', '', 'app.workfleet.preview'],
+      ['dev.sammykenny2.pinitanywhere', '', 'app.workfleet.preview'],
+      ['dev.sammykenny2.pinitanywhere', 'Fixture.Windows', 'Fixture.Windows'],
+    ]) {
+      await execute(process.execPath, [path.join(directory, 'scripts', 'generate-windows-manifest.mjs'), '--stage', stage],
+        { env: { PATH: process.env.PATH, WORK_FLEET_APP_ID: mobileId, WORK_FLEET_WINDOWS_PACKAGE_ID: windowsId } });
+      const manifest = await readFile(path.join(stage, 'AppxManifest.xml'), 'utf8');
+      assert.match(manifest, /<Identity [^>]*Version="2\.4\.6\.0"/);
+      assert.match(manifest, /<DisplayName>Pin It Anywhere<\/DisplayName>/);
+      assert.ok(manifest.includes(`<Identity Name="${expected}" Version="2.4.6.0" Publisher="CN=Work Fleet Preview"`));
+      assert.match(manifest, /<TargetDeviceFamily Name="Windows\.Desktop" MinVersion="10\.0\.22000\.0" MaxVersionTested="10\.0\.26200\.0"\s*\/>/);
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

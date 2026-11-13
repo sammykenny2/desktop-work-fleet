@@ -22,8 +22,10 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   [ADR-069](docs/decisions/069-pin-it-anywhere-product-identity.md) and
   [ADR-070](docs/decisions/070-release-channels-and-architecture.md). The repository and generated update source use
   `sammykenny2/pin-it-anywhere`. Renderer/native display names and Apple/Android system-name resources use the final
-  localized names; Apple/Android IDs, service registrations, Windows localized package resources and distribution
-  changes remain pending under [PLAN-014](docs/plans/014-product-identity-and-distribution.md).
+  localized names. Apple/Android build defaults use the final IDs, and local build settings contain the new project's
+  Desktop, Apple and Web OAuth clients and support contact. Android OAuth, Apple registrations/profiles, CI service
+  configuration, Windows localized package resources and distribution changes remain pending under
+  [PLAN-014](docs/plans/014-product-identity-and-distribution.md).
 
 ## Status by area
 
@@ -84,7 +86,8 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   confirmed safety backup. Seeded cloud replacement uploads retained history before readiness in bounded background
   units; new edits follow afterwards. Portable backups declare complete or current-only coverage. Protocol and
   Chromium/WebKit UI fixtures pass; independent assessment and real-provider verification remain open in PLAN-011.
-- The OAuth consent screen is still in Testing: only listed test users can sign in, and refresh tokens expire after 7 days.
+- The old project's OAuth consent screen was in Testing. The new project's consent settings, Drive API enablement and
+  actual new-client sign-in remain unverified; Testing requires listed users and refresh tokens expire after 7 days.
 
 ### Backup and restore
 

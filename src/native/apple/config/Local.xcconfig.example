@@ -1,7 +1,7 @@
 // Copy to Local.xcconfig for personal signing and app identity.
-// Replace these examples with your registered Apple identifiers.
-WORK_FLEET_APP_ID = app.workfleet.example
-WORK_FLEET_APP_GROUP_ID = group.app.workfleet.example
+// Register these public identifiers in your Apple team before signing.
+WORK_FLEET_APP_ID = dev.sammykenny2.pinitanywhere
+WORK_FLEET_APP_GROUP_ID = group.dev.sammykenny2.pinitanywhere
 DEVELOPMENT_TEAM = ABCDE12345
 // Optional when Node/npm are not on Xcode's PATH:
 // WORK_FLEET_NODE = /opt/homebrew/bin/node

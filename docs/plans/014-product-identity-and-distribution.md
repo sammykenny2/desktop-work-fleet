@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress; repository source and localized display names updated, service/application-ID cutover pending |
+| Status | In progress; final build IDs and local Google settings applied, native signing and service acceptance pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Independent implementation reviewer and maintainer on real devices |
@@ -47,10 +47,16 @@ supplied for the same action.
   - [x] Update renderer/native names, window titles, Apple/Android localized system-name resources, Linux desktop/startup
     names, Windows English package display names, DMG application names and store/privacy drafts. Keep technical IDs,
     storage paths, signing subjects and existing public artifact filenames until their cutover is ready.
-  - [ ] Apply final Apple/Android IDs with actual matching OAuth clients and Apple registrations/profiles; complete
-    localized Windows package resources and native installed acceptance. The new Cloud project has not been created.
+  - [x] Set final Apple/Android build defaults and Apple local configuration; keep Windows package identity independent
+    of the shared mobile ID. Preserve internal storage names and installed data.
+  - [ ] Complete Android OAuth, Apple registrations/profiles, localized Windows package resources and native installed
+    acceptance. The new Google project exists; new-client live acceptance is pending.
 - [ ] Register the new Google project/clients and Apple IDs/profiles when authorized. Derive callbacks from actual
   clients, and register each Android distribution fingerprint, including the Play app-signing fingerprint.
+  - [x] Apply the maintainer-supplied new-project Desktop, macOS, iOS and Web clients to ignored local settings. Validate
+    the Desktop JSON's project/client/full secret and use it for Windows/Linux without exposing its value.
+  - [ ] Configure the missing new Android client and Apple IDs/App Group/profiles; switch CI service settings as a
+    separate external configuration step. Verify Google API/consent settings and real sign-in.
 - [ ] Configure OAuth branding, privacy/support pages and contacts; keep private keys and tokens out of public config.
 - [ ] Rename the GitHub repo when authorized; update remotes, links, update source, workflow assumptions and future asset
   names together. Verify how an already installed old build reaches the new source before relying on redirects.

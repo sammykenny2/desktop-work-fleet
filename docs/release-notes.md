@@ -9,6 +9,92 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 omitted for an explicitly requested desktop-only preview, even though all version records advance together.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.7.1
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Cat Note icons and complete Pin It Anywhere naming across apps and downloads. Install manually with fresh test data; Windows uses a new preview certificate.
+
+- Branding: Cat Note is the app icon on every platform, with matching desktop tray/menu-bar artwork, sidebar branding and corrected wordmark proportions. macOS declares the Productivity category; actual launcher placement still needs an installed-app check.
+- Complete naming: native projects, executable and source names, namespaces, assets, build settings, installer names and update manifests now use Pin It Anywhere consistently. Desktop manifests are `pin-it-anywhere-update-windows.json`, `pin-it-anywhere-update-macos.json` and `pin-it-anywhere-update-linux.json`.
+- Manual transition and data: download the installer manually once. Windows now uses package identity `dev.sammykenny2.pinitanywhere` and Publisher `CN=Pin It Anywhere Preview`; Linux uses package/command `pin-it-anywhere`. Earlier installations are separate. V1 format identifiers, storage filenames and credential labels also change: use fresh test data, sign in again, and keep any earlier app/data/backups you still need. Earlier backups and cloud formats are not automatically converted or claimed compatible. No installer deletes the earlier notes or cloud data for you.
+- Apple and Android: registered application IDs, Apple groups/profiles, Google clients and the Android Release signer stay the same as 0.7.0. Shared Apple and Android build numbers advance to 701; no iOS download or store/beta submission is included.
+- Windows trust: this preview uses a new test-signing certificate. Follow the certificate transition below before installing the new MSIX; trusting an older CER is insufficient. Trusted CA signing and native Windows ARM64/MSIX bundles remain separate work.
+- Compatibility and verification: shared regressions, native compilation, actual Android Release inspection, Windows package checks and isolated Linux desktop/package probes cover this change. Real-provider sign-in, installed desktop updates and independent review remain unverified.
+
+### Windows: remove the old CER and trust the new one
+
+These steps apply to each Windows computer where you trusted the earlier preview certificate. Deleting the downloaded
+`.cer` file alone does not remove Windows trust. Retire the old certificate only when you no longer need to install
+packages signed by it; retain any earlier app/data you still need.
+
+The old certificate included with 0.7.0 has Subject **`CN=Work Fleet Preview`** and SHA-1 thumbprint
+**`A6:46:FA:7F:1E:38:E5:E9:9C:7F:1D:5B:C9:C1:47:A1:D5:1C:60:8D`**.
+The new certificate has Subject **`CN=Pin It Anywhere Preview`** and thumbprint
+**`2C:59:63:AE:F3:7E:59:50:57:02:D1:75:00:95:7A:52:8F:0A:54:1F`**.
+Match the thumbprint, not just the display name; a separately created local certificate may have the same old name.
+
+1. Open Start, search for **PowerShell**, right-click it and select **Run as administrator**. Run this preview block.
+   It looks for only the exact old certificate in the current-user and local-machine Trusted People/Trusted Root
+   stores, lists any matches, and previews their removal:
+
+   ```powershell
+   $oldThumbprint = 'A6:46:FA:7F:1E:38:E5:E9:9C:7F:1D:5B:C9:C1:47:A1:D5:1C:60:8D'.Replace(':', '')
+   $oldSubject = 'CN=Work Fleet Preview'
+   $stores = @(
+       'Cert:\LocalMachine\TrustedPeople', 'Cert:\CurrentUser\TrustedPeople',
+       'Cert:\LocalMachine\Root', 'Cert:\CurrentUser\Root'
+   )
+   $oldCertificates = @(
+       foreach ($store in $stores) {
+           $certificate = Get-Item -Path "$store\$oldThumbprint" -ErrorAction SilentlyContinue
+           if ($null -ne $certificate) {
+               if ($certificate.Subject -ne $oldSubject) { throw 'Unexpected certificate; stop.' }
+               $certificate
+           }
+       }
+   )
+   $oldCertificates | Select-Object Subject, Thumbprint, PSParentPath | Format-List
+   $oldCertificates | ForEach-Object { Remove-Item -Path $_.PSPath -WhatIf }
+   if ($oldCertificates.Count -eq 0) { Write-Host 'No matching old trust entries found.' }
+   ```
+
+2. Check that every listed thumbprint is the old one above. In the **same PowerShell window**, run the removal block
+   and confirm each matching entry. An empty match list requires no removal. This does not use `-DeleteKey` and does
+   not target personal signing-key stores or unrelated certificates:
+
+   ```powershell
+   $oldCertificates | ForEach-Object {
+       if ($_.Thumbprint -ne $oldThumbprint -or $_.Subject -ne $oldSubject) {
+           throw 'Unexpected certificate; stop.'
+       }
+       Remove-Item -Path $_.PSPath -Confirm
+   }
+   ```
+
+3. Download **`PinItAnywhere-preview.cer` from this version's assets**. In that administrator PowerShell window,
+   verify its identity and import it into Local Machine / Trusted People. Change the file path if needed:
+
+   ```powershell
+   $newCer = Join-Path $HOME 'Downloads\PinItAnywhere-preview.cer'
+   $newThumbprint = '2C:59:63:AE:F3:7E:59:50:57:02:D1:75:00:95:7A:52:8F:0A:54:1F'.Replace(':', '')
+   $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($newCer)
+   try {
+       if ($certificate.Thumbprint -ne $newThumbprint -or $certificate.Subject -ne 'CN=Pin It Anywhere Preview') {
+           throw 'Unexpected new certificate; stop and check the download.'
+       }
+       Import-Certificate -FilePath $newCer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+   } finally {
+       $certificate.Dispose()
+   }
+   ```
+
+4. Open **`PinItAnywhere-0.7.1-x64.msix`**. This is a manual identity transition; later versions with the same new
+   identity, Publisher and signer can use that installation's update path. Installing or uninstalling an application
+   is separate from removing its certificate trust.
+
+PowerShell reference: [Microsoft Certificate provider](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/about/about_certificate_provider).
+
 ## 0.7.0
 
 Platforms: Windows, Linux, macOS, Android.

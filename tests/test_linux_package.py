@@ -234,8 +234,8 @@ class LinuxPackageTests(unittest.TestCase):
         # Release files sit directly in build/, at the same depth as every other platform's.
         self.assertEqual(
             sorted(p.name for p in build.iterdir() if p.is_file()),
-            ["keep.txt", "pin-it-anywhere-9.8.7.tar.gz", "pin-it-anywhere-9.8.7.tar.gz.sha256",
-             "pin-it-anywhere_9.8.7_all.deb", "pin-it-anywhere_9.8.7_all.deb.sha256", "pin-it-anywhere-update-linux.json"],
+            sorted(["keep.txt", "pin-it-anywhere-9.8.7.tar.gz", "pin-it-anywhere-9.8.7.tar.gz.sha256",
+                    "pin-it-anywhere_9.8.7_all.deb", "pin-it-anywhere_9.8.7_all.deb.sha256", "pin-it-anywhere-update-linux.json"]),
         )
         self.assertEqual([p.name for p in (build / "linux").iterdir()], ["pin-it-anywhere-9.8.7"])
 

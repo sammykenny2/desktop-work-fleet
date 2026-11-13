@@ -3,7 +3,6 @@ import { cp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { readBuildConfig } from './config.mjs';
-import { writePaperIcon } from './apple-icons.mjs';
 import { readPlatformVersion } from './platform-version.mjs';
 import common from '../src/i18n/locales/en/common.js';
 import traditionalChinese from '../src/i18n/locales/zh-TW/common.js';
@@ -26,7 +25,15 @@ if (process.argv.includes('--help')) {
   await writeFile(path.join(destination, 'Config', 'public.json'), JSON.stringify(config, null, 2) + '\n');
   await cp(path.join(root, 'LICENSE'), path.join(destination, 'Licenses', 'LICENSE'));
   await cp(path.join(root, 'THIRD-PARTY-NOTICES.md'), path.join(destination, 'Licenses', 'THIRD-PARTY-NOTICES.md'));
-  await writePaperIcon(path.join(destination, 'Icons', `${appId}.png`));
+  // The committed hicolor theme (scripts/render-brand-assets.mjs --install) is renamed to the configured app ID. The DEB
+  // installs the theme; the window, the tray's IconThemePath and the package check use the flat 256 px copy.
+  const theme = path.join(root, 'src', 'native', 'linux', 'icons', 'hicolor');
+  const sizes = (await readdir(theme, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name);
+  for (const size of sizes) for (const name of (await readdir(path.join(theme, size, 'apps'))).filter(name => /^app-icon.*\.(png|svg)$/.test(name))) {
+    await mkdir(path.join(destination, 'Icons', 'hicolor', size, 'apps'), { recursive: true });
+    await cp(path.join(theme, size, 'apps', name), path.join(destination, 'Icons', 'hicolor', size, 'apps', name.replace(/^app-icon/, appId)));
+  }
+  await cp(path.join(theme, '256x256', 'apps', 'app-icon.png'), path.join(destination, 'Icons', `${appId}.png`));
   await writeFile(path.join(destination, 'run-work-fleet.sh'), `#!/bin/bash
 # Launch the packaged native app using the distribution's Python/GI runtime.
 # Uses /usr/bin/python3 when present; WORK_FLEET_PYTHON selects another interpreter with the same GI bindings.

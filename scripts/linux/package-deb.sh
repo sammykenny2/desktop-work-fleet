@@ -21,7 +21,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 [[ -n "$BUNDLE" && -n "$OUTPUT" && "$APP_ID" =~ ^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*)+$ ]] || { usage >&2; exit 2; }
-[[ -f "$BUNDLE/Native/host.py" && -f "$BUNDLE/package.json" && -f "$BUNDLE/Desktop/$APP_ID.desktop" && -f "$BUNDLE/Icons/$APP_ID.png" ]] || { echo 'Run the Linux package generator first.' >&2; exit 1; }
+[[ -f "$BUNDLE/Native/host.py" && -f "$BUNDLE/package.json" && -f "$BUNDLE/Desktop/$APP_ID.desktop" && -f "$BUNDLE/Icons/$APP_ID.png" && -f "$BUNDLE/Icons/hicolor/256x256/apps/$APP_ID.png" ]] || { echo 'Run the Linux package generator first.' >&2; exit 1; }
 VERSION_PATTERN='"version": "([0-9]+\.[0-9]+\.[0-9]+)"'
 [[ "$(<"$BUNDLE/package.json")" =~ $VERSION_PATTERN ]] || { echo 'Bundle package.json has no x.y.z version.' >&2; exit 1; }
 VERSION="${BASH_REMATCH[1]}"
@@ -33,10 +33,11 @@ mkdir -p "$OUTPUT"
 OUTPUT="$(cd "$OUTPUT" && pwd)"; BUNDLE="$(cd "$BUNDLE" && pwd)"
 STAGE="$(mktemp -d "$OUTPUT/deb-stage-XXXXXXXX")"
 trap 'rm -rf -- "$STAGE"' EXIT
-mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/lib/work-fleet" "$STAGE/usr/bin" "$STAGE/usr/share/applications" "$STAGE/usr/share/icons/hicolor/256x256/apps" "$STAGE/usr/share/doc/work-fleet"
+mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/lib/work-fleet" "$STAGE/usr/bin" "$STAGE/usr/share/applications" "$STAGE/usr/share/icons" "$STAGE/usr/share/doc/work-fleet"
 cp -R "$BUNDLE/." "$STAGE/usr/lib/work-fleet/"
 cp "$BUNDLE/Desktop/$APP_ID.desktop" "$STAGE/usr/share/applications/"
-cp "$BUNDLE/Icons/$APP_ID.png" "$STAGE/usr/share/icons/hicolor/256x256/apps/"
+# Every size, the scalable SVG and the symbolic glyph, already named after the app ID.
+cp -R "$BUNDLE/Icons/hicolor" "$STAGE/usr/share/icons/"
 cp "$BUNDLE/Licenses/LICENSE" "$STAGE/usr/share/doc/work-fleet/copyright"
 cp "$BUNDLE/Licenses/THIRD-PARTY-NOTICES.md" "$STAGE/usr/share/doc/work-fleet/"
 cat > "$STAGE/usr/bin/work-fleet" <<'LAUNCHER'

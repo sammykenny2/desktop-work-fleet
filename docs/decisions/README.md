@@ -5,7 +5,7 @@ Updated: 2026-11-13.
 | Record | Status | Scope |
 |---|---|---|
 | [ADR-070](070-release-channels-and-architecture.md) | Accepted policy; implementation pending (2026-11-13) | Release-only external delivery, no public CER, signed MSIX with future native ARM64/bundle, DMG/Sparkle ZIP, DEB first and later AppImage, Play/TestFlight feedback |
-| [ADR-069](069-pin-it-anywhere-product-identity.md) | Accepted names; cutover pending (2026-11-13) | Final product, repo, Cloud and Apple/Android identifiers; naming family, OAuth/data boundaries and unresolved external identities |
+| [ADR-069](069-pin-it-anywhere-product-identity.md) | Accepted names; cutover pending (2026-11-13) | Final product, repo, Cloud and Apple/Android identifiers; naming family, the Cat Note app icon, OAuth/data boundaries and unresolved external identities |
 | [ADR-068](068-operation-results-use-toasts.md) | Accepted (2026-11-05) | Session-only toasts for operation results, errors and progress; modal ownership, action lifetime and no replay of completed cleanup |
 | [ADR-067](067-sections-may-be-empty-and-groups-can-be-deleted.md) | Accepted (2026-11-04) | A section may hold no group and never refills itself; only starting a note with no group anywhere makes one; any group can be deleted, with its notes in Trash |
 | [ADR-066](066-cloud-and-local-notes-side-by-side.md) | Accepted (2026-11-04); implementation in progress | Cloud and local notes open side by side as one Workspace per profile; a per-device desk holds regions and shortcuts; moves across use a journal and leave the original in Trash |

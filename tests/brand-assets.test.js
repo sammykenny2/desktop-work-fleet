@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { compose, groups, iconDocument, listConcepts, loadConcept } from '../scripts/brand-assets.mjs';
 import { company } from '../scripts/brand-company.mjs';
 
@@ -54,6 +56,55 @@ test('tray glyphs are filled black shapes that hosts can recolour', () => {
     assert.deepEqual([...colours], ['#000'], concept.id);
     assert.match(compose.tray(concept, '#FFFFFF'), /fill="#FFFFFF"/);
   }
+});
+
+test('the installed app and tray icons are complete at the sizes each project reads', async () => {
+  const at = relative => fileURLToPath(new URL(`../${relative}`, import.meta.url));
+  const pixels = async relative => {
+    const data = await readFile(at(relative));
+    assert.equal(data.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `${relative} is a PNG`);
+    return [data.readUInt32BE(16), data.readUInt32BE(20)];
+  };
+  // Apple asset catalogs: every listed file exists at size x scale; iOS carries the dark and tinted appearances.
+  const apple = 'src/native/apple/resources';
+  for (const [platform, count] of [['ios', 3], ['macos', 10]]) {
+    const set = `${apple}/${platform}-Icons.xcassets/AppIcon.appiconset`, { images } = JSON.parse(await readFile(at(`${set}/Contents.json`), 'utf8'));
+    assert.equal(images.length, count, platform);
+    for (const image of images) {
+      const side = Number(image.size.split('x')[0]) * Number((image.scale ?? '1x').replace('x', ''));
+      assert.deepEqual(await pixels(`${set}/${image.filename}`), [side, side], `${platform} ${image.filename}`);
+    }
+    if (platform === 'ios') assert.deepEqual(images.map(image => image.appearances?.[0].value ?? 'any'), ['any', 'dark', 'tinted']);
+  }
+  const status = `${apple}/macos-Icons.xcassets/StatusItem.imageset`, statusSet = JSON.parse(await readFile(at(`${status}/Contents.json`), 'utf8'));
+  assert.equal(statusSet.properties['template-rendering-intent'], 'template');
+  assert.doesNotMatch(await readFile(at(`${status}/${statusSet.images[0].filename}`), 'utf8'), /stroke/);
+  assert.match(await readFile(at('src/native/apple/macos/Main.swift'), 'utf8'), /NSImage\(named: "StatusItem"\)/);
+  // Android adaptive icon: the manifest's mipmaps exist, with every layer at 108 dp in each density.
+  const res = 'src/native/android/app/src/main/res', manifest = await readFile(at('src/native/android/app/src/main/AndroidManifest.xml'), 'utf8');
+  assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/); assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
+  for (const name of ['ic_launcher', 'ic_launcher_round']) {
+    const adaptive = await readFile(at(`${res}/mipmap-anydpi/${name}.xml`), 'utf8');
+    assert.deepEqual([...adaptive.matchAll(/@mipmap\/(\w+)/g)].map(match => match[1]), ['ic_launcher_background', 'ic_launcher_foreground', 'ic_launcher_monochrome']);
+  }
+  for (const [density, factor] of Object.entries({ mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 }))
+    for (const layer of ['background', 'foreground', 'monochrome'])
+      assert.deepEqual(await pixels(`${res}/mipmap-${density}/ic_launcher_${layer}.png`), [108 * factor, 108 * factor], `${density} ${layer}`);
+  // Windows: the embedded icon (executable, windows and tray) and the unqualified scale-100 MSIX images.
+  const ico = await readFile(at('src/native/windows/app/WorkFleet.ico')), entries = ico.readUInt16LE(4);
+  const sizes = Array.from({ length: entries }, (_, index) => {
+    const entry = 6 + 16 * index, offset = ico.readUInt32LE(entry + 12);
+    assert.equal(ico.subarray(offset, offset + 4).toString('hex'), '89504e47');
+    return ico[entry] || 256;
+  });
+  assert.deepEqual(sizes, [16, 20, 24, 32, 40, 48, 64, 256]);
+  for (const [name, side] of [['Square44x44Logo', 44], ['Square150x150Logo', 150], ['StoreLogo', 50]])
+    assert.deepEqual(await pixels(`src/native/windows/package-assets/${name}.png`), [side, side], name);
+  // Linux: a hicolor theme under the fixed name that packaging renames to the app ID.
+  const theme = 'src/native/linux/icons/hicolor';
+  for (const side of [16, 22, 24, 32, 48, 64, 128, 256, 512]) assert.deepEqual(await pixels(`${theme}/${side}x${side}/apps/app-icon.png`), [side, side]);
+  assert.match(await readFile(at(`${theme}/scalable/apps/app-icon.svg`), 'utf8'), /^<svg /);
+  assert.doesNotMatch(await readFile(at(`${theme}/symbolic/apps/app-icon-symbolic.svg`), 'utf8'), /stroke/);
 });
 
 test('publisher marks are constructed without fonts', () => {

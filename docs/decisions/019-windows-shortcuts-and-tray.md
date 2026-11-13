@@ -91,12 +91,13 @@ ownership, and saving and exiting still have only the existing transaction path.
 
 IME composition, physical keyboard layouts and Windows shell behaviour still need acceptance on real hardware; the
 conservative focus conditions may require the user to click a card that is already shown.
-The tray currently uses a Windows system app icon; the brand icon comes with the production packaging.
 
 ### Neutral
 
 No runtime package, listener, resident keyboard hook or system setting change is added. The browser preview still
 has only local shortcuts.
+The tray shows the app icon embedded in the executable at notification-area size, and the stock application icon only
+when none is embedded; the icon itself is recorded in [ADR-069](069-pin-it-anywhere-product-identity.md).
 
 ## Alternatives Considered
 

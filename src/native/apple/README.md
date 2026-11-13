@@ -14,7 +14,7 @@ Google timing on macOS or iOS.
 
 ## Open directly after cloning on a Mac
 
-`WorkFleet.xcodeproj`, the workspace, two shared schemes, the default xcconfig and the icons are all in Git.
+`WorkFleet.xcodeproj`, the workspace, two shared schemes, the default xcconfig and the icon catalogs are all in Git.
 All source and entitlements references use relative paths; there is no need to generate the project first, and nothing
 depends on another computer's `build/`.
 In the root of a full repository checkout, run:
@@ -220,7 +220,9 @@ Without configured App Groups the main app can still edit notes, but the Share i
 and file providers have not yet been run.
 
 `scripts/generate-apple-project.mjs` is only for maintaining the project structure or after adding Swift files; it
-rewrites the committed project and icons.
+rewrites the committed project and references the committed icon catalogs.
+The app icon and the macOS menu-bar glyph (`StatusItem`) in `resources/*-Icons.xcassets` come from
+`scripts/render-brand-assets.mjs --install` ([brand icons](../../../assets/brand/README.md)).
 Ordinary opening or building does not need it. The portable project decision is in
 [ADR-029](../../../docs/decisions/029-portable-apple-xcode-project.md).
 

@@ -40,6 +40,11 @@ async function fixture(root) {
     await mkdir(path.dirname(path.join(root, file)), { recursive: true });
     await writeFile(path.join(root, file), 'fixture\n');
   }
+  // The generator references the committed icon catalogs and stops when one is missing.
+  for (const platform of ['ios', 'macos']) {
+    const set = path.join(root, `src/native/apple/resources/${platform}-Icons.xcassets/AppIcon.appiconset`);
+    await mkdir(set, { recursive: true }); await writeFile(path.join(set, 'Contents.json'), '{}\n');
+  }
 }
 
 test('Xcode project is location independent and does not embed local configuration', async () => {

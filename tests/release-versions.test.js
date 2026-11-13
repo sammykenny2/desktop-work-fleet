@@ -126,10 +126,13 @@ test('packaging work directories are fixed and release files go directly in buil
 test('MSIX keeps Windows identity independent of the mobile ID and includes early Windows 11 while excluding Windows 10', async () => {
   const directory = await checkout({ [versionRecords.windows]: '<Project><PropertyGroup><Version>2.4.6</Version></PropertyGroup></Project>\n' });
   try {
-    for (const file of ['generate-windows-manifest.mjs', 'config.mjs', 'apple-icons.mjs', 'platform-version.mjs']) {
+    for (const file of ['generate-windows-manifest.mjs', 'config.mjs', 'platform-version.mjs']) {
       await mkdir(path.join(directory, 'scripts'), { recursive: true });
       await copyFile(path.join(root, 'scripts', file), path.join(directory, 'scripts', file));
     }
+    const tiles = 'src/native/windows/package-assets';
+    await mkdir(path.join(directory, tiles), { recursive: true });
+    for (const name of ['Square44x44Logo', 'Square150x150Logo', 'StoreLogo']) await copyFile(path.join(root, tiles, `${name}.png`), path.join(directory, tiles, `${name}.png`));
     await mkdir(path.join(directory, 'config'), { recursive: true });
     await copyFile(path.join(root, 'config', 'startup.json'), path.join(directory, 'config', 'startup.json'));
     const locale = 'src/i18n/locales/en/common.js';
@@ -148,6 +151,10 @@ test('MSIX keeps Windows identity independent of the mobile ID and includes earl
       assert.match(manifest, /<DisplayName>Pin It Anywhere<\/DisplayName>/);
       assert.ok(manifest.includes(`<Identity Name="${expected}" Version="2.4.6.0" Publisher="CN=Work Fleet Preview"`));
       assert.match(manifest, /<TargetDeviceFamily Name="Windows\.Desktop" MinVersion="10\.0\.22000\.0" MaxVersionTested="10\.0\.26200\.0"\s*\/>/);
+      // MakeAppx packs without resources.pri, so every image the manifest names must exist under that exact name.
+      const images = [...manifest.matchAll(/(?:<Logo>|Logo=")PackageAssets\\([^<"]+)/g)].map(match => match[1]);
+      assert.deepEqual(images.sort(), ['Square150x150Logo.png', 'Square44x44Logo.png', 'StoreLogo.png']);
+      for (const image of images) await readFile(path.join(stage, 'PackageAssets', image));
     }
   } finally {
     await rm(directory, { recursive: true, force: true });

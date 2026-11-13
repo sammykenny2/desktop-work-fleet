@@ -22,10 +22,11 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   [ADR-069](docs/decisions/069-pin-it-anywhere-product-identity.md) and
   [ADR-070](docs/decisions/070-release-channels-and-architecture.md). The repository and generated update source use
   `sammykenny2/pin-it-anywhere`. Renderer/native display names and Apple/Android system-name resources use the final
-  localized names. Apple/Android build defaults use the final IDs; the new Google clients, support settings and Apple
-  registrations/profiles are configured locally and in CI. Windows localized package resources, trusted Windows signing,
-  ARM64 packaging and native/provider acceptance remain pending under
-  [PLAN-014](docs/plans/014-product-identity-and-distribution.md).
+  localized names. Every native project uses the Cat Note app icon, and the macOS menu bar its template glyph;
+  real-device, launcher and shell rendering is unverified. Apple/Android build defaults use the final IDs; the new
+  Google clients, support settings and Apple registrations/profiles are configured locally and in CI. Windows
+  localized package resources, trusted Windows signing, ARM64 packaging and native/provider acceptance remain pending
+  under [PLAN-014](docs/plans/014-product-identity-and-distribution.md).
 
 ## Status by area
 

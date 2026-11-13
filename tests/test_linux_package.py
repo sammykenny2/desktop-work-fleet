@@ -58,6 +58,8 @@ class LinuxPackageTests(unittest.TestCase):
                 "[Desktop Entry]\nType=Application\nName=Pin It Anywhere\nExec=work-fleet\n"
             ),
             f"Icons/{self.app_id}.png": "Packaging fixture\n",
+            f"Icons/hicolor/256x256/apps/{self.app_id}.png": "Packaging fixture\n",
+            f"Icons/hicolor/symbolic/apps/{self.app_id}-symbolic.svg": "Packaging fixture\n",
             "Licenses/LICENSE": "Test fixture license\n",
             "Licenses/THIRD-PARTY-NOTICES.md": "Test fixture notices\n",
         }
@@ -111,6 +113,10 @@ class LinuxPackageTests(unittest.TestCase):
                 self.assertEqual(self.field(packages[0], "Architecture"), "all")
                 self.assertNotIn("gir1.2-secret-1", self.field(packages[0], "Depends"))
                 self.assertIn("gir1.2-secret-1", self.field(packages[0], "Recommends"))
+                contents = subprocess.check_output(["dpkg-deb", "--contents", str(packages[0])], text=True, timeout=10)
+                # The whole hicolor theme is installed, not only the 256 px bitmap.
+                for icon in (f"256x256/apps/{self.app_id}.png", f"symbolic/apps/{self.app_id}-symbolic.svg"):
+                    self.assertIn(f"./usr/share/icons/hicolor/{icon}", contents)
                 # ADR-044: the release's update manifest names exactly this DEB.
                 manifest = json.loads((self.output / "work-fleet-update-linux.json").read_text(encoding="utf-8"))
                 self.assertEqual(manifest, {"schemaVersion": 1, "platform": "linux", "version": "2.3.4", "tag": "v2.3.4", "summary": "",
@@ -152,7 +158,7 @@ class LinuxPackageTests(unittest.TestCase):
         checkout = self.bundle.parent / "checkout with spaces"
         for relative in (
             "package.json", "LICENSE", "THIRD-PARTY-NOTICES.md", "config/startup.json",
-            "scripts/build-web.mjs", "scripts/config.mjs", "scripts/apple-icons.mjs",
+            "scripts/build-web.mjs", "scripts/config.mjs",
             "scripts/platform-version.mjs",
             "scripts/generate-linux-package.mjs", "scripts/package-linux.py",
             "scripts/linux/build-native-app.sh", "scripts/linux/package-deb.sh",
@@ -207,6 +213,14 @@ class LinuxPackageTests(unittest.TestCase):
         self.assertIn("PYTHON=/usr/bin/python3", launcher.read_text(encoding="utf-8"))
         # The host's string table ships beside host.py, which imports it.
         self.assertTrue((launcher.parent / "Native/text.py").is_file())
+        # The committed theme is renamed to the configured app ID; the flat copy serves the window and the tray.
+        icons = launcher.parent / "Icons"
+        self.assertEqual(list(icons.rglob("app-icon*")), [])
+        flat = [p.name for p in icons.glob("*.png")]
+        self.assertEqual(len(flat), 1)
+        for size in ("16x16", "256x256", "512x512"):
+            self.assertTrue((icons / "hicolor" / size / "apps" / flat[0]).is_file(), size)
+        self.assertTrue((icons / "hicolor/scalable/apps" / flat[0].replace(".png", ".svg")).is_file())
         record = checkout / "interpreter-args.txt"
         fake = checkout / "fake-python"
         fake.write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > "{record}"\n', encoding="utf-8")

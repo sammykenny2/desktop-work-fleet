@@ -1,8 +1,7 @@
 /** Maintain the checked-in macOS/iOS Xcode project. Usage: node scripts/generate-apple-project.mjs [--help] */
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateAppleIcons } from './apple-icons.mjs';
 
 export async function generateAppleProject(root = fileURLToPath(new URL('../', import.meta.url))) {
   const output = path.join(root, 'src', 'native', 'apple');
@@ -63,7 +62,9 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
     const product = add({ isa: 'PBXFileReference', explicitFileType: 'wrapper.application', path: `${name}.app`, sourceTree: 'BUILT_PRODUCTS_DIR' }); objects[products].children.push(product);
     const google = add({ isa: 'XCSwiftPackageProductDependency', package: packageId, productName: 'GoogleSignIn' });
     const sourcePhase = add({ isa: 'PBXSourcesBuildPhase', buildActionMask: 2147483647, files: buildFiles([...shared, ...sources]), runOnlyForDeploymentPostprocessing: 0 });
-    const icon = file(await generateAppleIcons(path.join(output, 'resources'), platform), 'folder.assetcatalog'); objects[group].children.push(icon);
+    // The committed catalog holds the app icon (and the macOS menu-bar glyph) from scripts/render-brand-assets.mjs --install.
+    const catalog = path.join(output, 'resources', `${platform}-Icons.xcassets`); await access(path.join(catalog, 'AppIcon.appiconset', 'Contents.json'));
+    const icon = file(catalog, 'folder.assetcatalog'); objects[group].children.push(icon);
     const generated = ['Assets', 'Config'].map(folder => file(path.join(output, '.generated', name, folder), 'folder')); objects[group].children.push(...generated);
     const resourcePhase = add({ isa: 'PBXResourcesBuildPhase', buildActionMask: 2147483647, files: buildFiles([...resources, ...generated, icon]), runOnlyForDeploymentPostprocessing: 0 });
     const sparkle = platform === 'macos' ? add({ isa: 'XCSwiftPackageProductDependency', package: sparkleId, productName: 'Sparkle' }) : null;
@@ -109,7 +110,7 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.includes('--help')) {
-    console.log('Usage: node scripts/generate-apple-project.mjs\nMaintains src/native/apple/WorkFleet.xcodeproj and icons. Not required to open or build a checkout.');
+    console.log('Usage: node scripts/generate-apple-project.mjs\nMaintains src/native/apple/WorkFleet.xcodeproj; it references the committed icon catalogs. Not required to open or build a checkout.');
   } else {
     const { project } = await generateAppleProject();
     console.log(`Updated ${project} (portable macOS and iOS project).`);

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Menu-bar / notification-area / symbolic glyph on a 16 pt grid drawn at 2x. Filled shapes only, black on
+       transparent, because GNOME recolours symbolic icons through their fill. -->
+  <path fill="#000" fill-rule="evenodd" d="M6 28L6 7.414L8.933 4.481L13.532 10L18.468 10L23.067 4.481L26 7.414L26 22.586L20.586 28ZM21.414 30L28 23.414L28 6.586L22.933 1.519L17.532 8L14.468 8L9.067 1.519L4 6.586L4 30Z"/>
+  <path fill="#000" d="M20 22H28V24H22V29H20Z"/>
+  <path fill="#000" d="M10 14H12V18H10ZM20 14H22V18H20Z"/>
+  <path fill="#000" d="M14 20H18V22H14Z"/>
+</svg>

@@ -35,6 +35,10 @@ Explorer's desktop window keeps its DPI, and the attached scenes inside it take 
 - `WorkFleet.sln`: the Windows solution, the counterpart of Apple's `WorkFleet.xcodeproj` and Android's Gradle root.
 - `app/`: `WorkFleet.Windows.csproj`, the WPF main program, desktop scenes, shortcuts, tray and Google sign-in.
 - `core/`: `WorkFleet.Windows.Core.csproj`, SQLite/DPAPI, the bridge, backup files and scene transport.
+- `app/WorkFleet.ico` and `package-assets/`: the app icon embedded in the executable (also used by its windows and the
+  tray) and the MSIX tile images, written by `scripts/render-brand-assets.mjs --install`. The package has no
+  `resources.pri`, so the manifest names unqualified scale-100 images and Windows scales them for other DPIs and the
+  taskbar.
 - The test projects are in `tests/native/windows/core` and `tests/native/windows/ui`, under the solution's `tests` folder.
 
 ## Open

@@ -88,7 +88,8 @@ The Linux version is recorded in `VERSION` in the same directory, and the DEB, t
 early versions get no extra `~preview`;
 a release still needs the final public app settings and a support email as the maintainer contact.
 The shared `scripts/linux/package-deb.sh` uses a new staging directory each time and installs the launcher, desktop
-entry, icons and notices.
+entry, icons and notices. The icons are the hicolor theme committed in `icons/` under a fixed name; the package
+generator renames it to the app ID, and the window and tray use the 256 px copy in the bundle's `Icons/`.
 The desktop entry passes validation but has both Office and Utility as main categories, so some menus may list it twice
 (2026-10-05).
 The Linux and Windows build entry points produce `build/pin-it-anywhere_<version>_all.deb` and a `.sha256` of the same name

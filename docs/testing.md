@@ -33,6 +33,17 @@ and startup names. Build the native Apple targets and inspect the resulting `.lp
 assuming a source resource reached the bundle. Native launcher/share selection, Windows package localization,
 new-ID signing and Google authorization still require separate acceptance.
 
+App icon checks ([ADR-069](decisions/069-pin-it-anywhere-product-identity.md)): `tests/brand-assets.test.js` checks
+the layered sources and reads the committed bitmaps without a browser. Every Apple catalog entry and Android layer
+must exist at its size, the Windows icon must hold its eight PNG sizes, and the hicolor theme must be complete.
+`tests/release-versions.test.js` requires that every image the generated MSIX manifest names is staged, and
+`tests/test_linux_package.py` checks that the DEB installs the whole theme under the app ID. After changing a source,
+run `node scripts/render-brand-assets.mjs --concept cat-note --install`. Then compile the catalogs with `actool` (or
+build the Apple targets), build the Android APK, and compare the committed files before committing them. Unverified:
+real iPhone, iPad and Mac Dock, Liquid Glass and menu-bar rendering; Android launcher masks and themed icons on
+devices; the Windows Start menu, taskbar and notification area at each scale; GNOME, KDE and Pi panels; store-console
+uploads.
+
 Identity configuration checks also compare the final Apple/Android defaults with `.env.example`. Generated MSIX
 fixtures verify that a mobile-ID change cannot silently select the Windows package identity and that an explicit
 Windows package ID still wins. `config:check -- --google` reports missing platform clients; it does not validate

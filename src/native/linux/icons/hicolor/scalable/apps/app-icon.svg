@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><defs><filter id="cat-note-free-outline" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB"><feMorphology in="SourceAlpha" operator="dilate" radius="14" result="grown"/><feFlood flood-color="#0F6359"/><feComposite in2="grown" operator="in" result="edge"/><feMerge><feMergeNode in="edge"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="cat-note-free-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000" flood-opacity="0.28"/></filter></defs><g filter="url(#cat-note-free-shadow)"><g filter="url(#cat-note-free-outline)"><g transform="translate(512 472) scale(1.24) translate(-512 -512)">
+  <g id="cat-note-fg-note" transform="rotate(4 512 540)">
+    <path fill="#FFF4D9" d="M262 420L284 236Q290 196 322 220L446 330H578L702 220Q734 196 740 236L762 420V720L652 830H318Q262 830 262 774Z"/>
+    <path fill="#EBD3A0" d="M762 720L652 830V748A28 28 0 0 1 680 720Z"/>
+    <path fill="#F6B7A6" d="M304 300L318 254L380 310Z"/>
+    <path fill="#F6B7A6" d="M720 300L706 254L644 310Z"/>
+    <ellipse cx="420" cy="520" rx="28" ry="38" fill="#1E3A3A"/>
+    <ellipse cx="604" cy="520" rx="28" ry="38" fill="#1E3A3A"/>
+    <rect x="352" y="652" width="320" height="32" rx="16" fill="#B7D3CC"/>
+    <rect x="352" y="724" width="210" height="32" rx="16" fill="#B7D3CC"/>
+  </g>
+  
+  <g id="cat-note-fg-pin">
+    <circle cx="508" cy="590" r="36" fill="#EE5A3C"/>
+    <circle cx="496" cy="578" r="12" fill="#FF9F86"/>
+  </g></g></g></g></svg>

@@ -43,6 +43,28 @@ Future personal products follow the same Traditional Chinese family rule: three 
 character U+8C93 and followed by two playful characters. The independent `cats-inc` ecosystem is outside this rule.
 Localized display names may change later without changing permanent application identifiers.
 
+### App icon (2026-11-13)
+
+The maintainer chose **Cat Note** from three candidates drawn in this repository. It is a cream note with cat ears, a
+coral pin for its nose, on a teal gradient. It follows the Traditional Chinese name and the cat-led family rule, and it
+stays recognisable at 16 px and as a one-colour menu-bar or tray glyph. Paper Pin (one tilted paper on ink blue) and
+Scatter (two papers on amber) were not selected; their sources stay in `assets/brand/concepts/` for reference.
+
+- The layered SVG in `assets/brand/concepts/cat-note/` is the source. `node scripts/render-brand-assets.mjs --concept
+  cat-note --install` renders it with Playwright at design time and replaces the committed bitmaps each native project
+  reads. Packaging only copies those files and never needs a browser.
+- Apple uses asset catalogs: one 1024 px iOS image with dark and tinted appearances, and macOS 16-1024 px. The Icon
+  Composer `.icon` document is not wired in while CI builds with the `macos-15` image's default Xcode; adopt it once the
+  Apple builds use Xcode 26 or later. The macOS menu bar shows the template glyph `StatusItem` instead of the
+  `note.text` SF Symbol.
+- Android uses an adaptive icon of bitmap layers, including the monochrome layer for themed icons.
+- Windows embeds the 16-256 px icon in the executable; its windows and notification-area icon reuse it. The MSIX
+  names three unqualified scale-100 images because the package has no `resources.pri`; scale and target-size variants
+  wait for a PRI step. The rendered monochrome notification-area icons are not used.
+- Linux installs a hicolor theme (16-512 px, scalable and symbolic) under the app ID; the window and tray keep the
+  256 px file.
+- The sammykenny2.dev publisher marks are optional; no store or app uses them.
+
 ### Identity and authorization boundaries
 
 - Renaming a repository, Cloud project display name or OAuth branding is different from replacing an OAuth client.
@@ -64,8 +86,8 @@ Localized display names may change later without changing permanent application 
 
 The Windows Package Identity Name, Publisher and PublisherDisplayName must be reconciled with the issued Certum
 certificate and any future Partner Center reservation. They are not inferred from the Apple/Android ID.
-Linux package/desktop IDs, release asset and updater metadata names, deep links, store SKU, final icon, public support
-contact and privacy/support URL paths remain implementation choices to settle together. Suggestions such as a
+Linux package/desktop IDs, release asset and updater metadata names, deep links, store SKU, public support contact and
+privacy/support URL paths remain implementation choices to settle together. Suggestions such as a
 `support@` mailbox are not configured services or confirmed names.
 
 ## Consequences

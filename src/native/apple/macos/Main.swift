@@ -61,9 +61,14 @@ import AppKit
                     await self?.updates?.showMessage(title: FleetText.text("dialog.quitCancelled"), message: message, warning: true, on: area)
                 }
             }
-            // SF Symbols are template images, so the menu-bar icon follows light/dark and highlight states.
+            // The catalog's StatusItem glyph is a template image, so the menu-bar icon follows light/dark and highlight
+            // states. Its vector is drawn on a 32-unit grid; 16 pt matches the height of the system menu-bar symbols.
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-            if let image = NSImage(systemSymbolName: "note.text", accessibilityDescription: FleetText.text("common.appName")) { statusItem?.button?.image = image } else { statusItem?.button?.title = "p." }
+            let glyph = NSImage(named: "StatusItem").map { image -> NSImage in
+                image.size = NSSize(width: 16, height: 16); image.isTemplate = true
+                image.accessibilityDescription = FleetText.text("common.appName"); return image
+            } ?? NSImage(systemSymbolName: "note.text", accessibilityDescription: FleetText.text("common.appName"))
+            if let glyph { statusItem?.button?.image = glyph } else { statusItem?.button?.title = "p." }
             statusItem?.button?.target = self
             statusItem?.button?.action = #selector(statusItemClicked(_:))
             statusItem?.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])

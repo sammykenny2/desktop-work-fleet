@@ -141,10 +141,12 @@ or compatibility maintenance for unreleased test formats. Revisit format freezin
 and migrations when the maintainer starts store-launch planning. This does not
 authorize deleting existing user data or changing published application versions.
 
-The user has authorized direct Conventional Commit and push to origin/main for this
-project. Do not create feature branches or PRs, and never force push. Preserve unrelated
-changes. Plan, implement only the authorized scope, run appropriate checks, and record
-independent-review status. Do not interpret a review request as permission to edit.
+The user has authorized direct Conventional Commits on main for this project. Commit
+changes locally; push to origin/main only when the user explicitly asks, so several
+commits can accumulate before a push. Do not create feature branches or PRs, and never
+force push. Preserve unrelated changes. Plan, implement only the authorized scope,
+run appropriate checks, and record independent-review status. Do not interpret a
+review request as permission to edit.
 
 Ordinary implementation, commit and push requests do not authorize a version bump or
 publication. Every version bump requires explicit user approval of the target version;

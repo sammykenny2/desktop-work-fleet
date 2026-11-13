@@ -502,10 +502,10 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
   From the tray you can reopen the main window, use Quick capture, adjust notes or quit.
 - The Windows tray menu starts with "Open Pin It Anywhere" in bold, which is also what clicking the icon does, and "Hide
   main window" while the main window shows. Then come "Quick capture", "Show or hide desktop notes" and "Adjust all
-  notes" ("Done adjusting" instead while notes are being adjusted), each with its global shortcut when that key is
+  note positions" ("Done adjusting" instead while notes are being adjusted), each with its global shortcut when that key is
   registered, then "Check for updates…" (where in-app updates are available) and last "Exit Pin It Anywhere". The menu
   has the Windows 11 look and follows the Windows light or dark mode.
-- The Linux tray and the macOS menu bar have "Open Pin It Anywhere", "Quick capture", "Adjust all groups", "Show or hide
+- The Linux tray and the macOS menu bar have "Open Pin It Anywhere", "Quick capture", "Adjust all note positions", "Show or hide
   desktop notes", "Check for updates…" (where in-app updates are available) and "Save and quit". The macOS
   application menu also has "Save and quit Pin It Anywhere".
 - The tray and menu labels follow Settings > General > Display language.

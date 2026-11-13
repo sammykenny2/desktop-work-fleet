@@ -143,7 +143,7 @@ class LinuxTrayTests(unittest.TestCase):
     def test_the_menu_follows_the_display_language(self):
         self.addCleanup(text.set_locale, "en")
         tray = self.module.Tray("dev.sammykenny2.pinitanywhere.test", Window(), None, None, None, update=lambda: None)
-        self.assertEqual(self.labels(tray), ["Open Pin It Anywhere", "Quick capture", "Adjust all groups", "Show or hide desktop notes",
+        self.assertEqual(self.labels(tray), ["Open Pin It Anywhere", "Quick capture", "Adjust all note positions", "Show or hide desktop notes",
                                              "Check for updates…", "Save and quit"])
         text.set_locale("zh-TW")
         tray.relabel()

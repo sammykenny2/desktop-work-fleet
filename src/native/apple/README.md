@@ -145,7 +145,7 @@ The native three-layer check on a Mac is `bash scripts/macos/test-desktop-layers
 the Xcode CLI tools.
 Shortcuts are registered with Carbon RegisterEventHotKey, and the global keys are released while the app or the editor
 is in use; conflicts are shown in settings.
-The menu bar has "Open Pin It Anywhere", "Quick capture", "Adjust all groups", "Show or hide desktop notes", "Check for
+The menu bar has "Open Pin It Anywhere", "Quick capture", "Adjust all note positions", "Show or hide desktop notes", "Check for
 updates…" (only when in-app updates are available) and "Save and quit"; the application menu has "Save and quit Work
 PinItAnywhere". Left-click opens the main window; right-click or Control-click opens the menu. The menu stays separate from
 NSStatusItem so AppKit does not consume primary clicks as menu requests. Display, Space and sleep

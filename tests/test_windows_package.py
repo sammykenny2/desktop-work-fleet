@@ -26,12 +26,16 @@ class WindowsPackageTests(unittest.TestCase):
         if not tools:
             raise unittest.SkipTest("Windows SDK required by existing signing-option guards")
         cls.makeappx = tools[-1]
+        cls.makepri = cls.makeappx.parent / "makepri.exe"
+        if not cls.makepri.is_file():
+            raise unittest.SkipTest("Windows SDK MakePri is required for the package resource index")
         build = ET.parse(ROOT / "src/native/windows/Directory.Build.props")
         cls.version = build.findtext(".//Version") + ".0"
         cls.runtime_version = build.findtext(".//WindowsRuntimeVersion")
 
     def inspect(self, *, minimum="10.0.22000.0", tested="10.0.26200.0", family="Windows.Desktop",
-                version=None, unsigned=True, extra=None, missing_runtime=None, missing_notice=None, startup=STARTUP):
+                version=None, unsigned=True, extra=None, missing_runtime=None, missing_notice=None, startup=STARTUP,
+                images=True, resource_index=True):
         manifest = f"""<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap uap5 rescap">
   <Identity Name="dev.sammykenny2.pinitanywhere" Publisher="CN=Pin It Anywhere Preview" Version="{version or self.version}" ProcessorArchitecture="x64" />
@@ -79,6 +83,19 @@ class WindowsPackageTests(unittest.TestCase):
                 target = source / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(content, encoding="utf-8")
+            # The committed package images and a real resources.pri indexed from them, as Build-WindowsPackage.ps1 does.
+            assets = ROOT / "src/native/windows/package-assets"
+            if images:
+                shutil.copytree(assets, source / "PackageAssets")
+            if resource_index:
+                project = Path(directory) / "pri" / "project"
+                shutil.copytree(assets, project / "PackageAssets")
+                config = Path(directory) / "pri" / "priconfig.xml"
+                for arguments in (["createconfig", "/cf", str(config), "/dq", "en-US", "/pv", "10.0.0", "/o"],
+                                  ["new", "/pr", str(project), "/cf", str(config), "/mn", str(source / "AppxManifest.xml"),
+                                   "/of", str(source / "resources.pri"), "/o"]):
+                    indexed = subprocess.run([str(self.makepri), *arguments], capture_output=True, timeout=60)
+                    self.assertEqual(indexed.returncode, 0, indexed.stdout.decode("utf-16", "replace"))
             # Real container/block map, with deliberately variable manifest semantics for rejection tests.
             packed = subprocess.run([str(self.makeappx), "pack", "/d", str(source), "/p", str(package), "/nv"],
                                     capture_output=True, encoding="utf-8", errors="replace", timeout=60)
@@ -94,6 +111,7 @@ class WindowsPackageTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("contents only", result.stdout)
         self.assertIn("bundled .NET 10/WPF", result.stdout)
+        self.assertIn("resources.pri and every committed package image", result.stdout)
         result = self.inspect(unsigned=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("signature is not trusted and valid", result.stderr)
@@ -183,6 +201,15 @@ class WindowsPackageTests(unittest.TestCase):
         result = self.inspect(missing_notice="Licenses/dotnet/THIRD-PARTY-NOTICES.TXT")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Missing bundled runtime notice", result.stderr)
+
+    def test_taskbar_images_need_the_resource_index_and_every_package_image(self):
+        # Without resources.pri or the unplated images, the taskbar plates the icon in the accent colour.
+        result = self.inspect(resource_index=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Missing resources.pri", result.stderr)
+        result = self.inspect(images=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Package image missing or different", result.stderr)
 
 
 if __name__ == "__main__":

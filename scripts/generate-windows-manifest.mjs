@@ -1,5 +1,5 @@
 /** Generate MSIX identity and owned artwork. Usage: node scripts/generate-windows-manifest.mjs --stage PATH */
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readBuildConfig } from './config.mjs';
@@ -8,7 +8,7 @@ import common from '../src/i18n/locales/en/common.js';
 
 const args = process.argv.slice(2);
 if (args.length === 1 && args[0] === '--help') {
-  console.log('Usage: node scripts/generate-windows-manifest.mjs --stage PATH\nStage must be under build/windows. Generates an x64 MSIX manifest and copies the committed tile images; the version comes from src/native/windows/Directory.Build.props.');
+  console.log('Usage: node scripts/generate-windows-manifest.mjs --stage PATH\nStage must be under build/windows. Generates an x64 MSIX manifest and copies the committed package images; the version comes from src/native/windows/Directory.Build.props.');
 } else {
   if (args.length !== 2 || args[0] !== '--stage') throw new Error('Use --help.');
   const root = fileURLToPath(new URL('../', import.meta.url)), parent = path.join(root, 'build', 'windows'), stage = path.resolve(args[1]);
@@ -26,10 +26,12 @@ if (args.length === 1 && args[0] === '--help') {
   const minimumWindows = '10.0.22000.0', testedWindows = '10.0.26200.0';
   const escape = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const images = path.join(stage, 'PackageAssets'); await mkdir(images, { recursive: true });
-  // Unqualified scale-100 images from scripts/render-brand-assets.mjs --install: the package has no resources.pri, so
-  // Windows scales these for other DPIs and target sizes.
-  for (const name of ['Square44x44Logo', 'Square150x150Logo', 'StoreLogo'])
-    await copyFile(path.join(root, 'src', 'native', 'windows', 'package-assets', `${name}.png`), path.join(images, `${name}.png`));
+  // Images from scripts/render-brand-assets.mjs --install. The manifest names the three unqualified ones; the qualified
+  // Square44x44Logo target sizes are found through the resources.pri that Build-WindowsPackage.ps1 indexes from them.
+  const committed = path.join(root, 'src', 'native', 'windows', 'package-assets'), files = (await readdir(committed)).filter(name => name.endsWith('.png'));
+  for (const name of ['Square44x44Logo.png', 'Square150x150Logo.png', 'StoreLogo.png'])
+    if (!files.includes(name)) throw new Error(`Missing src/native/windows/package-assets/${name}.`);
+  for (const name of files) await copyFile(path.join(committed, name), path.join(images, name));
   await writeFile(path.join(stage, 'AppxManifest.xml'), `<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5" xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap uap5 uap10 rescap">
   <Identity Name="${escape(name)}" Version="${version}.0" Publisher="${escape(publisher)}" ProcessorArchitecture="x64" />
@@ -42,5 +44,5 @@ if (args.length === 1 && args[0] === '--help') {
     <Extensions><uap5:Extension Category="windows.startupTask" Executable="PinItAnywhere.exe" EntryPoint="Windows.FullTrustApplication"><uap5:StartupTask TaskId="PinItAnywhereStartup" Enabled="false" DisplayName="${escape(displayName)}" /></uap5:Extension></Extensions>
   </Application></Applications>
 </Package>\n`);
-  console.log('Generated x64 MSIX manifest and copied its tile images.');
+  console.log('Generated x64 MSIX manifest and copied its package images.');
 }

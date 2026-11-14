@@ -28,10 +28,11 @@ Each `concepts/<id>/` directory holds:
   Groups must not nest other `<g>` elements.
 - `monochrome.svg`: one-colour silhouette for Android themed icons and the tinted appearance.
 - `small.svg`: a 32-unit drawing simplified by hand for 16-32 px, with edges on even units.
-- `pixel-16.svg`, `pixel-20.svg` and `pixel-24.svg` (optional, `cat-note` has all three): the small drawing redrawn on a
-  16, 20 and 24 px grid with every edge on a whole pixel, filling the cell from top to bottom like other
-  notification-area icons. They use `small.svg`'s colours. The Windows icon's 16, 20, 24 and 32 px frames come from them
-  (32 px doubles the 16 px drawing), so the tray is sharp at 100, 125, 150 and 200% scaling.
+- `pixel-16.svg`, `pixel-20.svg`, `pixel-24.svg`, `pixel-30.svg` and `pixel-36.svg` (optional; `cat-note` has all
+  five): the small drawing redrawn on a 16, 20, 24, 30 and 36 px grid with every edge on a whole pixel, filling the cell
+  from top to bottom like other notification-area and taskbar icons. They use `small.svg`'s colours. Windows images up
+  to 96 px use the largest grid that divides their size, so 32 px doubles the 16 px drawing: the icon's 16-64 px frames
+  (the tray at 100-300% scaling) and the taskbar target sizes (24 px at 100%, 30 px at 125%, 36 px at 150%).
 - `tray.svg`: a 32-unit (16 pt at 2x) black glyph of filled shapes for the macOS menu bar, the Windows notification
   area and the GNOME symbolic icon.
 
@@ -48,7 +49,8 @@ as usual and then replaces the committed files that the native projects and pack
   plus the menu-bar template `macos-Icons.xcassets/StatusItem.imageset`.
 - `src/native/android/app/src/main/res/mipmap-*`: the adaptive icon layers and `mipmap-anydpi/ic_launcher*.xml`.
 - `src/native/windows/app/PinItAnywhere.ico`, embedded in the executable and reused by its windows and the tray, and the
-  three MSIX images in `src/native/windows/package-assets/`.
+  MSIX images in `src/native/windows/package-assets/`: the three scale-100 images the manifest names, and every
+  `Square44x44Logo` target size in its `altform-unplated` and `altform-lightunplated` forms.
 - `src/native/linux/icons/hicolor/`, named `app-icon`; the package generator renames it to the configured app ID.
 
 Only the named files are replaced. Check the catalogs with `actool` or an Apple build, build the Android APK, look at
@@ -63,10 +65,10 @@ Per concept the output contains:
   and `AppIcon.icns`: the asset-catalog route.
 - `apple/macos/StatusItem.imageset`: a vector template image for the menu bar, plus 1x and 2x PNGs.
 - `android/res`: the adaptive icon with background, foreground and monochrome layers at every density, as bitmaps.
-- `windows/AppIcon.ico` (16-256 px; 16-32 px from the pixel-grid drawings when the concept has them), and
+- `windows/AppIcon.ico` (16-256 px; 16-64 px from the pixel-grid drawings when the concept has them), and
   `windows/Assets` with the MSIX tiles at scale 100-400, the target sizes 16-256 and both unplated alternates. Two
   monochrome notification-area icons: `tray-light-theme.ico` and `tray-dark-theme.ico`.
-  The package installs only three scale-100 tiles until it gains a `resources.pri`, and the tray uses the app icon.
+  The package installs the three scale-100 tiles and the unplated target sizes, and the tray uses the app icon.
 - `linux/hicolor`: 16-512 px bitmaps, a scalable SVG and `<app-id>-symbolic.svg`.
 - `store/`:
   - App Store: the 1024 marketing icon.

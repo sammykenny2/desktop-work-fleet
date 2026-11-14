@@ -22,6 +22,8 @@ const SCALES = [100, 125, 150, 200, 400];
 const TARGET_SIZES = [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256];
 const ANDROID_DENSITIES = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 const SMALL_LIMIT = 32;
+// Windows icons up to this size use a concept's pixel-grid drawings: the notification area, title bars and taskbar.
+const WINDOWS_PIXEL_LIMIT = 96;
 const USAGE = `Usage: node scripts/render-brand-assets.mjs [--concept ID|all] [--output DIR] [--app-id ID] [--no-company] [--install]
   --concept   one directory under assets/brand/concepts, or all (default)
   --output    destination, default build/brand (Git-ignored)
@@ -52,8 +54,11 @@ const INSTALLED = {
   windowsPackageAssets: 'src/native/windows/package-assets',
   linuxTheme: 'src/native/linux/icons/hicolor',
 };
-// MakeAppx packs without resources.pri, so the manifest names unqualified scale-100 files and Windows scales them.
+// The manifest names these three scale-100 files. Build-WindowsPackage.ps1 indexes the folder into resources.pri, so the
+// taskbar and Start find the unplated target-size variants of Square44x44Logo; without them Windows draws the icon on a
+// plate filled with the accent colour, because the manifest's BackgroundColor is transparent.
 const WINDOWS_PACKAGE_ASSETS = ['Square44x44Logo', 'Square150x150Logo', 'StoreLogo'];
+const WINDOWS_UNPLATED = ['_altform-unplated', '_altform-lightunplated'];
 
 /**
  * Copy one rendered concept into the native projects. Only named files are replaced: an asset-catalog set loses the
@@ -79,6 +84,10 @@ async function install(rendered, appId) {
   await place(path.join(rendered, 'windows', 'AppIcon.ico'), at(INSTALLED.windowsIcon));
   for (const name of WINDOWS_PACKAGE_ASSETS)
     await place(path.join(rendered, 'windows', 'Assets', `${name}.scale-100.png`), path.join(at(INSTALLED.windowsPackageAssets), `${name}.png`));
+  for (const size of TARGET_SIZES) for (const suffix of WINDOWS_UNPLATED) {
+    const name = `Square44x44Logo.targetsize-${size}${suffix}.png`;
+    await place(path.join(rendered, 'windows', 'Assets', name), path.join(at(INSTALLED.windowsPackageAssets), name));
+  }
   // Linux names follow the configured app ID, so the theme is committed under a fixed name and renamed when packaged.
   const theme = path.join(rendered, 'linux', 'hicolor');
   for (const size of await readdir(theme)) for (const name of await readdir(path.join(theme, size, 'apps')))
@@ -137,9 +146,9 @@ async function main() {
       };
       for (const [name, svg] of Object.entries(art)) await write(path.join(root, 'sources', `${name}.svg`), svg);
       const appIcon = size => size <= SMALL_LIMIT ? art.small : art.freeform;
-      // Windows small frames (notification area, title bars, small taskbar targets) use the pixel-grid drawings, which
-      // fill the cell with whole-pixel edges; other sizes fall back to the shared art.
-      const windowsIcon = size => (size <= SMALL_LIMIT && compose.pixel(concept, size)) || appIcon(size);
+      // Windows icons (notification area, title bars, taskbar, Start) use the pixel-grid drawings where one lands on whole
+      // pixels: they fill the cell and keep a solid outline. Other sizes fall back to the shared art.
+      const windowsIcon = size => (size <= WINDOWS_PIXEL_LIMIT && compose.pixel(concept, size)) || appIcon(size);
 
       // Apple: Icon Composer document (Xcode 26+ builds fallbacks from it) and the asset-catalog route.
       const iconPath = path.join(root, 'apple', 'AppIcon.icon');

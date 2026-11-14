@@ -185,8 +185,8 @@ certificates stay in Xcode and the Keychain.
 
 Windows x64 packaging uses a self-contained .NET 10 Desktop by default, so MSIX and ZIP recipients do not install .NET
 separately; WebView2 is still a runtime prerequisite.
-The build machine needs the .NET SDK, and the Windows SDK provides MakeAppx and SignTool. The first packaging run
-restores the win-x64 runtime packs; only after that can `-SkipRestore` be used.
+The build machine needs the .NET SDK, and the Windows SDK provides MakePri, MakeAppx and SignTool. The first packaging
+run restores the win-x64 runtime packs; only after that can `-SkipRestore` be used.
 The public identity and publisher are configured from `.env.example`; a preview can do without a formal Google
 account for now.
 

@@ -66,11 +66,14 @@ different green from the app's buttons. Moving the app to that teal was rejected
   Xcode 16.4, which predates Icon Composer. Adopt it once the Apple builds use Xcode 26 or later. The macOS menu bar
   shows the template glyph `StatusItem` instead of the `note.text` SF Symbol.
 - Android uses an adaptive icon of bitmap layers, including the monochrome layer for themed icons.
-- Windows embeds the 16-256 px icon in the executable; its windows and notification-area icon reuse it. Its 16, 20, 24
-  and 32 px frames are drawn on the pixel grid (`pixel-*.svg`, 2026-11-14): scaled down from the free-form art, the
-  icon was smaller than its neighbours in the notification area and its outline blurred away. The MSIX
-  names three unqualified scale-100 images because the package has no `resources.pri`; scale and target-size variants
-  wait for a PRI step. The rendered monochrome notification-area icons are not used.
+- Windows embeds the 16-256 px icon in the executable; its windows and notification-area icon reuse it. Images up to
+  96 px are drawn on the pixel grid (`pixel-*.svg`, 2026-11-14): scaled down from the free-form art, the icon was
+  smaller than its neighbours in the notification area and its outline blurred away.
+- The MSIX manifest names three unqualified scale-100 images and keeps `BackgroundColor="transparent"`, so App Installer
+  shows its tile on the user's accent colour, which is accepted. The package also carries every `Square44x44Logo`
+  target size in its unplated and light-unplated forms, and `Build-WindowsPackage.ps1` indexes them into
+  `resources.pri` (2026-11-14). Without that index the taskbar drew the icon on a square plate in the accent colour.
+  Scale variants of the other tiles are not packaged. The rendered monochrome notification-area icons are not used.
 - Linux installs a hicolor theme (16-512 px, scalable and symbolic) under the app ID. The window uses the flat 256 px
   file. The tray names the app ID with the bundle's `Icons/` as its theme path, so a panel may pick a sized theme file
   or that flat file; which one has not been seen on a real panel.

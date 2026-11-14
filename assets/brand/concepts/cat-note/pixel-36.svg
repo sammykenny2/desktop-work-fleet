@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36">
+  <!-- Free-form colour icon on the 36 px grid (taskbar at 150%), with a 3 px outline; every edge sits on a whole pixel. -->
+  <path fill="#1A493D" d="M3 36V4L7 0L15 8H21L29 0L33 4V28L25 36Z"/>
+  <path fill="#FFE98A" d="M6 33V7L7 6L12 11H24L29 6L30 7V25H25A3 3 0 0 0 22 28V33Z"/>
+  <path fill="#E9C75C" d="M25 28H30L25 33Z"/>
+  <rect x="10" y="15" width="3" height="4" fill="#1E3A3A"/>
+  <rect x="23" y="15" width="3" height="4" fill="#1E3A3A"/>
+  <rect x="16" y="21" width="4" height="3" fill="#EE5A3C"/>
+  <rect x="10" y="27" width="9" height="3" fill="#2E7A66"/>
+</svg>

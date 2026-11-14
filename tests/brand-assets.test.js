@@ -90,9 +90,9 @@ test('the installed app and tray icons are complete at the sizes each project re
   for (const [density, factor] of Object.entries({ mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 }))
     for (const layer of ['background', 'foreground', 'monochrome'])
       assert.deepEqual(await pixels(`${res}/mipmap-${density}/ic_launcher_${layer}.png`), [108 * factor, 108 * factor], `${density} ${layer}`);
-  // Windows: the embedded icon (executable, windows and tray) and the unqualified scale-100 MSIX images. Each frame's
-  // PNG must be drawn at the size its directory entry declares: Windows takes the 16-32 px frame for the notification
-  // area and scales whatever it finds there, so a 256 px image in every slot draws a shrunken, blurred icon.
+  // Windows: the embedded icon (executable, windows and tray) and the MSIX images. Each frame's PNG must be drawn at the
+  // size its directory entry declares: Windows takes the 16-32 px frame for the notification area and scales whatever
+  // it finds there, so a 256 px image in every slot draws a shrunken, blurred icon.
   const ico = await readFile(at('src/native/windows/app/PinItAnywhere.ico')), entries = ico.readUInt16LE(4);
   const frames = Array.from({ length: entries }, (_, index) => {
     const entry = 6 + 16 * index, length = ico.readUInt32LE(entry + 8), offset = ico.readUInt32LE(entry + 12), size = ico[entry] || 256;
@@ -105,6 +105,12 @@ test('the installed app and tray icons are complete at the sizes each project re
   assert.equal(new Set(frames.map(frame => frame.data)).size, frames.length, 'every ICO frame is its own image');
   for (const [name, side] of [['Square44x44Logo', 44], ['Square150x150Logo', 150], ['StoreLogo', 50]])
     assert.deepEqual(await pixels(`src/native/windows/package-assets/${name}.png`), [side, side], name);
+  // The taskbar and Start take these through resources.pri; without an unplated image Windows plates the icon in the
+  // accent colour. Light-theme surfaces look for the lightunplated form first.
+  for (const size of [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256]) for (const form of ['unplated', 'lightunplated']) {
+    const name = `Square44x44Logo.targetsize-${size}_altform-${form}.png`;
+    assert.deepEqual(await pixels(`src/native/windows/package-assets/${name}`), [size, size], name);
+  }
   // Linux: a hicolor theme under the fixed name that packaging renames to the app ID.
   const theme = 'src/native/linux/icons/hicolor';
   for (const side of [16, 22, 24, 32, 48, 64, 128, 256, 512]) assert.deepEqual(await pixels(`${theme}/${side}x${side}/apps/app-icon.png`), [side, side]);
@@ -115,7 +121,7 @@ test('the installed app and tray icons are complete at the sizes each project re
 test('pixel-grid icons fill their grid on whole pixels in the small icon\'s palette', () => {
   const fills = svg => new Set([...svg.matchAll(/fill="([^"]+)"/g)].map(match => match[1].toUpperCase()));
   const selected = concepts.find(concept => concept.id === 'cat-note');
-  assert.deepEqual(Object.keys(selected.pixel).map(Number), [16, 20, 24], 'the selected concept draws every Windows small grid');
+  assert.deepEqual(Object.keys(selected.pixel).map(Number), [16, 20, 24, 30, 36], 'the selected concept draws every Windows grid');
   for (const concept of concepts) for (const [grid, svg] of Object.entries(concept.pixel)) {
     const name = `${concept.id} pixel-${grid}`;
     assert.match(svg, new RegExp(`viewBox="0 0 ${grid} ${grid}" width="${grid}" height="${grid}"`), name);
@@ -131,7 +137,9 @@ test('pixel-grid icons fill their grid on whole pixels in the small icon\'s pale
     assert.equal(compose.pixel(concept, Number(grid)), svg);
   }
   assert.equal(compose.pixel(selected, 32), selected.pixel[16], '32 px doubles the 16 px drawing');
-  assert.equal(compose.pixel(selected, 30), undefined);
+  assert.equal(compose.pixel(selected, 60), selected.pixel[30], 'the largest dividing grid wins');
+  assert.equal(compose.pixel(selected, 72), selected.pixel[36]);
+  assert.equal(compose.pixel(selected, 28), undefined);
 });
 
 test('the app sidebar mark is the selected concept\'s small icon', async () => {

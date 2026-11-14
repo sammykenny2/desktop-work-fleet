@@ -2,7 +2,7 @@
 .SYNOPSIS
     Build an x64 MSIX and portable ZIP from the native Windows application.
 .DESCRIPTION
-    Uses .NET 10, Windows SDK MakeAppx and public .env settings. Produces a
+    Uses .NET 10, Windows SDK MakePri and MakeAppx and public .env settings. Produces a
     self-contained app bundling the .NET 10 Desktop runtime. WebView2 is required
     separately; an installed .NET Desktop runtime is not required.
     File names use the version in src/native/windows/Directory.Build.props.
@@ -24,7 +24,7 @@
 .PARAMETER TimestampUrl
     HTTPS RFC3161 timestamp service; required for signing outside LocalTestSign.
 .PARAMETER SdkBin
-    Directory containing MakeAppx.exe and SignTool.exe, or auto-detect Windows SDK.
+    Directory containing MakeAppx.exe, MakePri.exe and SignTool.exe, or auto-detect Windows SDK.
 .PARAMETER UpdateSummary
     Plain-text release summary (at most 500 characters) written into build/pin-it-anywhere-update-windows.json, the
     in-app update manifest (ADR-044) that the vX.Y.Z GitHub release carries beside the MSIX.
@@ -67,6 +67,7 @@ if ($LocalTestSign -and $TimestampUrl) { throw 'LocalTestSign does not use a tim
 if ($CertificateThumbprint -and $CertificateThumbprint -notmatch '^[A-Fa-f0-9]{40}$') { throw 'Invalid certificate thumbprint.' }
 if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [Runtime.InteropServices.Architecture]::X64) { throw 'This package entry builds Windows x64; run on an x64 Windows build machine.' }
 $MakeAppx = Find-SdkTool 'MakeAppx.exe'
+$MakePri = Find-SdkTool 'MakePri.exe'
 $SignTool = $null
 if ($CertificateThumbprint -or $LocalTestSign) {
     if (-not $LocalTestSign) {
@@ -115,6 +116,21 @@ try {
     Copy-Item -LiteralPath (Join-Path $ProjectRoot 'LICENSE'), (Join-Path $ProjectRoot 'THIRD-PARTY-NOTICES.md') -Destination $Stage
     & node scripts/generate-windows-manifest.mjs --stage $Stage
     if ($LASTEXITCODE -ne 0) { throw 'Package manifest generation failed.' }
+    # resources.pri lets the taskbar and Start find the unplated target-size Square44x44Logo images; without it Windows
+    # draws the icon on a plate in the accent colour. Only PackageAssets is indexed: the rest of the stage is not a
+    # resource, and folders such as the web app's locale directories would be read as language qualifiers.
+    $PriWork = Join-Path $Work 'pri'
+    $PriProject = Join-Path $PriWork 'project'
+    New-Item -ItemType Directory -Path $PriProject -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $Stage 'PackageAssets') -Destination $PriProject -Recurse
+    $PriConfig = Join-Path $PriWork 'priconfig.xml'
+    $PriLog = Join-Path $Work 'makepri.log'
+    & $MakePri createconfig /cf $PriConfig /dq en-US /pv 10.0.0 /o > $PriLog
+    if ($LASTEXITCODE -eq 0) { & $MakePri new /pr $PriProject /cf $PriConfig /mn (Join-Path $Stage 'AppxManifest.xml') /of (Join-Path $Stage 'resources.pri') /o >> $PriLog }
+    if ($LASTEXITCODE -ne 0) {
+        Get-Content -LiteralPath $PriLog -Tail 20
+        throw "Package resource index failed. Details: $PriLog"
+    }
     $LocalCertificate = $null
     if ($LocalTestSign) {
         [xml]$Manifest = Get-Content -LiteralPath (Join-Path $Stage 'AppxManifest.xml') -Raw

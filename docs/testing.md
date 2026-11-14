@@ -37,13 +37,18 @@ App icon checks ([ADR-069](decisions/069-pin-it-anywhere-product-identity.md)): 
 the layered sources and reads the committed bitmaps without a browser. Every Apple catalog entry and Android layer
 must exist at its size, the Windows icon must hold eight distinct PNG frames each drawn at its declared size, the
 pixel-grid drawings must keep whole-pixel edges and the small icon's colours, and the hicolor theme must be complete.
-`tests/release-versions.test.js` requires that every image the generated MSIX manifest names is staged, and
+`tests/release-versions.test.js` requires that the generated MSIX stage holds every committed package image, including
+the unplated `Square44x44Logo` target sizes. `Test-WindowsPackage.ps1` requires `resources.pri` and each of those images
+in the MSIX, and `tests/test_windows_package.py` checks that a package without either is rejected.
 `tests/test_linux_package.py` checks that the DEB installs the whole theme under the app ID. After changing a source,
 run `node scripts/render-brand-assets.mjs --concept cat-note --install`. Then compile the catalogs with `actool` (or
 build the Apple targets), build the Android APK, and compare the committed files before committing them. Unverified:
 real iPhone, iPad and Mac Dock, Liquid Glass and menu-bar rendering; Android launcher masks and themed icons on
-devices; the Windows Start menu, taskbar and notification area at each scale; GNOME, KDE and Pi panels, including which tray
-file they pick; store-console uploads.
+devices; the Windows Start menu, the dark taskbar, and the taskbar and notification area at scales other than 150%;
+GNOME, KDE and Pi panels, including which tray file they pick; store-console uploads. On 2026-11-14 the unsigned stage
+was registered as loose test packages in developer mode on a 150% light taskbar: without `resources.pri` the icon sat on
+an accent-coloured plate, with it the 36 px pixel-grid image showed with no plate. The notification area got the 24 px
+frame through `ExtractIconExW`.
 
 Identity configuration checks also compare the final Apple/Android defaults with `.env.example`. Generated MSIX
 fixtures verify that a mobile-ID change cannot silently select the Windows package identity and that an explicit
@@ -1235,7 +1240,7 @@ The first packaging restores the win-x64 self-contained runtime packs; add `-Ski
 Without an existing trusted certificate, use the plain `Build-WindowsPackage.ps1` and
 `Test-WindowsPackage.ps1 -PackagePath build/PinItAnywhere-VERSION-x64.msix -Unsigned` to check the unsigned content;
 this is not signature, install or Store acceptance. Without `-Unsigned` an unsigned package is still rejected, and the option also rejects unknown or damaged signature states.
-`python -m unittest discover -s tests -p 'test_windows_package.py' -v` uses the Windows SDK MakeAppx to produce isolated synthetic containers
+`python -m unittest discover -s tests -p 'test_windows_package.py' -v` uses the Windows SDK MakeAppx and MakePri to produce isolated synthetic containers
 and verifies a too-high or too-low floor, device family and MaxVersionTested, a wrong version, environment and private-key files, the explicit unsigned mode,
 and rejection of missing runtime or notices, an external shared .NET requirement and a wrong deps architecture.
 The fixture runs no app and changes no certificates; without Windows or the SDK it is marked skipped. Subprocesses prefer PowerShell 7, and their output is decoded explicitly as UTF-8.

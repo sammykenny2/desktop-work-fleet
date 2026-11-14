@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -130,9 +130,9 @@ test('MSIX keeps Windows identity independent of the mobile ID and includes earl
       await mkdir(path.join(directory, 'scripts'), { recursive: true });
       await copyFile(path.join(root, 'scripts', file), path.join(directory, 'scripts', file));
     }
-    const tiles = 'src/native/windows/package-assets';
+    const tiles = 'src/native/windows/package-assets', images = (await readdir(path.join(root, tiles))).filter(name => name.endsWith('.png'));
     await mkdir(path.join(directory, tiles), { recursive: true });
-    for (const name of ['Square44x44Logo', 'Square150x150Logo', 'StoreLogo']) await copyFile(path.join(root, tiles, `${name}.png`), path.join(directory, tiles, `${name}.png`));
+    for (const name of images) await copyFile(path.join(root, tiles, name), path.join(directory, tiles, name));
     await mkdir(path.join(directory, 'config'), { recursive: true });
     await copyFile(path.join(root, 'config', 'startup.json'), path.join(directory, 'config', 'startup.json'));
     const locale = 'src/i18n/locales/en/common.js';
@@ -152,10 +152,12 @@ test('MSIX keeps Windows identity independent of the mobile ID and includes earl
       assert.match(manifest, /<DisplayName>Pin It Anywhere<\/DisplayName>/);
       assert.ok(manifest.includes(`<Identity Name="${expected}" Version="2.4.6.0" Publisher="CN=Pin It Anywhere Preview"`));
       assert.match(manifest, /<TargetDeviceFamily Name="Windows\.Desktop" MinVersion="10\.0\.22000\.0" MaxVersionTested="10\.0\.26200\.0"\s*\/>/);
-      // MakeAppx packs without resources.pri, so every image the manifest names must exist under that exact name.
-      const images = [...manifest.matchAll(/(?:<Logo>|Logo=")PackageAssets\\([^<"]+)/g)].map(match => match[1]);
-      assert.deepEqual(images.sort(), ['Square150x150Logo.png', 'Square44x44Logo.png', 'StoreLogo.png']);
-      for (const image of images) await readFile(path.join(stage, 'PackageAssets', image));
+      // The manifest names the unqualified images. Build-WindowsPackage.ps1 indexes every staged image, including the
+      // unplated Square44x44Logo target sizes the taskbar needs, into resources.pri, so all of them must be staged.
+      const named = [...manifest.matchAll(/(?:<Logo>|Logo=")PackageAssets\\([^<"]+)/g)].map(match => match[1]);
+      assert.deepEqual(named.sort(), ['Square150x150Logo.png', 'Square44x44Logo.png', 'StoreLogo.png']);
+      assert.deepEqual((await readdir(path.join(stage, 'PackageAssets'))).sort(), [...images].sort());
+      assert.ok(images.some(name => /^Square44x44Logo\.targetsize-\d+_altform-unplated\.png$/.test(name)));
     }
   } finally {
     await rm(directory, { recursive: true, force: true });

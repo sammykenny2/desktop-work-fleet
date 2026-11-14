@@ -113,10 +113,23 @@ try {
         $BundledNotice = $Archive.GetEntry($RuntimeNotice)
         if (-not $BundledNotice -or $BundledNotice.Length -eq 0) { throw "Missing bundled runtime notice: $RuntimeNotice" }
     }
+    # The taskbar and Start find the unplated Square44x44Logo target sizes through resources.pri; without both they draw
+    # the icon on a plate in the accent colour.
+    $ResourceIndex = $Archive.GetEntry('resources.pri')
+    if (-not $ResourceIndex -or $ResourceIndex.Length -eq 0) { throw 'Missing resources.pri for the package images.' }
+    $PackageImages = @(Get-ChildItem -LiteralPath (Join-Path $ProjectRoot 'src/native/windows/package-assets') -Filter '*.png')
+    if (@($PackageImages | Where-Object Name -Match '^Square44x44Logo\.targetsize-\d+_altform-unplated\.png$').Count -eq 0) {
+        throw 'Expected unplated Square44x44Logo target sizes in src/native/windows/package-assets.'
+    }
+    foreach ($Image in $PackageImages) {
+        $Packed = $Archive.GetEntry("PackageAssets/$($Image.Name)")
+        if (-not $Packed -or $Packed.Length -ne $Image.Length) { throw "Package image missing or different: PackageAssets/$($Image.Name)" }
+    }
 } finally { $Archive.Dispose() }
 Write-Output 'PASS final MSIX x64 identity/version and Windows.Desktop installation floor 22000, MaxVersionTested 26200'
 Write-Output 'PASS bundled .NET 10/WPF runtime files and self-contained win-x64 runtime metadata'
 Write-Output 'PASS bundled runtime licenses, incorporated notices and package provenance'
+Write-Output 'PASS resources.pri and every committed package image, including the unplated taskbar sizes'
 if ($Unsigned) {
     Write-Output 'PASS unsigned preview contents only; installation and trusted signing remain unverified'
 } else {

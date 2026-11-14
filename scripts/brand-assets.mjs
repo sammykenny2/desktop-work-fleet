@@ -8,13 +8,13 @@
  *   monochrome.svg   1024 single-colour silhouette (Android themed icon, tinted appearances)
  *   small.svg        32-unit hand-simplified colour icon for 16-32 px
  *   tray.svg         32-unit black glyph for menu bars, notification areas and symbolic icons
- *   pixel-<N>.svg    optional N-unit colour icon drawn on an N px grid that fills its cell (Windows small frames)
+ *   pixel-<N>.svg    optional N-unit colour icon drawn on an N px grid that fills its cell (Windows icons up to 96 px)
  */
 import { readFile, readdir } from 'node:fs/promises';
 
 export const brandRoot = new URL('../assets/brand/', import.meta.url);
 const LAYERS = ['background', 'foreground', 'monochrome', 'small', 'tray'];
-export const PIXEL_GRIDS = [16, 20, 24];
+export const PIXEL_GRIDS = [16, 20, 24, 30, 36];
 
 export async function listConcepts() {
   const entries = await readdir(new URL('concepts/', brandRoot), { withFileTypes: true });
@@ -114,8 +114,8 @@ export const compose = {
   },
   small: concept => concept.small,
   /**
-   * The pixel-grid drawing that lands on whole pixels at `size` (the largest grid dividing it, so 32 px doubles the
-   * 16 px drawing), or undefined when the concept has none for that size.
+   * The pixel-grid drawing that lands on whole pixels at `size`: the largest grid dividing it, so 32 px doubles the
+   * 16 px drawing and 72 px the 36 px one. Undefined when the concept has none for that size.
    */
   pixel: (concept, size) => PIXEL_GRIDS.filter(grid => size % grid === 0 && concept.pixel?.[grid]).map(grid => concept.pixel[grid]).at(-1),
   tray: (concept, colour = '#000') => concept.tray.replace(/#000\b/g, colour),

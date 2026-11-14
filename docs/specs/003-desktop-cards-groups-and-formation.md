@@ -34,6 +34,10 @@ Passing model tests do not mean that the renderer, the native hosts and sync are
 
 ## Authority and reading rules
 
+The 2026-11-14 design proposal [SPEC-014](014-desktop-note-stacking.md) defines remembered desktop visual order and
+lists the exact temporary-order clauses it would replace. It is a draft, not implemented or an approval to start
+implementation; this document's existing interaction/layer rules otherwise remain in force.
+
 - **U (User confirmed)**: the user has explicitly confirmed it. Implementation must follow it, and answered questions
   are not asked again.
 - **D (Delegated default)**: an implementable default set after the user authorized planning the remaining details by

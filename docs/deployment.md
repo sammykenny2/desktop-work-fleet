@@ -35,8 +35,9 @@ Update these procedures alongside implementation; the CER steps apply only to th
 ## Versions and release file names
 
 The dataset/current-record change in [ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md) defines an
-incompatible persistence boundary with older legacy formats. Keep the current JSON contracts at V1; do not add
-migration jobs. The PLAN-011 provider and independent-review acceptance gates remain open. The maintainer authorized
+incompatible persistence boundary with older legacy formats. That historical boundary is not an exception to the
+current alpha compatibility policy: ADR-073/SPEC-007 allow schema evolution and require compatible round trips or
+validated recoverable migrations for format changes. The PLAN-011 provider and independent-review gates remain open. The maintainer authorized
 interim previews with those limits disclosed; they do not mark the gates passed or establish production readiness.
 Tell users to update every device and retain explicit local/cloud reset choices. Earlier legacy full-workspace
 backups are not silently converted by the current format. Every target version still requires separate approval.

@@ -163,11 +163,13 @@ jobs:
 
           ## Before installing
           Export a complete backup from the old app before changing installations or accounts, and keep the old app until your notes are accessible in the new one.
-          This preview uses the new Pin It Anywhere Google project and Apple application identity. Sign in again; the previous project's Google Drive notes are not imported automatically. Restore a supported backup deliberately if you need those notes.
-          Desktop builds configured with the old repository cannot discover this release through its redirect. Download and install this preview manually once.
+          For an existing current-identity preview, install the higher version over it to retain local data. Follow the version-specific compatibility notes above; signing out, uninstalling or resetting data is not a routine update step.
+          Only when moving from the earlier identity used before 0.7.1: this preview uses the current Pin It Anywhere Google project and Apple application identity. Sign in to that project; the previous project's Google Drive notes are not imported automatically. Restore a supported backup deliberately if you need those notes.
+          Desktop builds configured with the old repository cannot discover this release through its redirect. Only for those earlier builds: Download and install this preview manually once.
 
           ## Windows
           Requires Windows 11 (build 22000 or later). The package includes the .NET 10 Desktop Runtime, so .NET needs no separate installation; it uses the system's Evergreen WebView2 Runtime.
+          If this computer already trusts the certificate included below, continue with step 3; certificate trust is required only once for that signer.
           1. Download \`PinItAnywhere-preview.cer\` from the assets below.
           2. Trust the certificate (once per computer). This needs administrator rights; without them, Windows answers "Access is denied" (E_ACCESSDENIED). Open the Start menu, search for PowerShell, right-click it and choose Run as administrator. Then run this command, changing the path if you saved the file somewhere else:
 
@@ -176,7 +178,7 @@ jobs:
              \`\`\`
           3. Double-click \`PinItAnywhere-${VERSION}-x64.msix\` to install it.
 
-          This identity cutover requires a manual installation. Keep the earlier app and its data until recovery in this app is verified; the Windows package identity, Linux package name, updater manifests and V1 format names have changed. No automatic data conversion is performed.
+          Only an installation from before the 0.7.1 identity cutover requires that manual transition. Keep that earlier app and its data until recovery is verified; its Windows package identity, Linux package name, updater manifests and V1 format names differ. Historical incompatible formats are not automatically converted.
           Subsequent higher versions with the same package identity and publisher install as upgrades and preserve that package's local files. Check the changes above for data-format compatibility before upgrading.
           Uninstalling removes all local data inside the package (including drafts, settings and the Google sign-in); export a ZIP from Settings > Data and backup first.
           Uninstalling does not affect exported ZIPs or Google cloud data. Moving data from a ZIP or Debug build requires a backup format supported by the target version; keep the earlier version available to read an incompatible backup.
@@ -193,9 +195,9 @@ jobs:
           if [ "$INCLUDE_ANDROID" = true ]; then
           cat >> "$RUNNER_TEMP/notes.md" <<EOF
           ## Android
-          The Android application identity has also changed from older Pin It Anywhere previews; keep the old app and its backup until the new installation has the notes you need.
+          Android previews using the current application ID and Release signing key update in place. Only a move from an earlier application identity requires a separate installation; keep that earlier app and its backup until the new installation has the notes you need.
           Requires Android 9 (API 28) or later. Download \`PinItAnywhere-${VERSION}-android-release.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r PinItAnywhere-${VERSION}-android-release.apk\` from a computer.
-          This is a signed Release APK. Updates require the same application ID and signing key and a higher versionCode. It cannot replace a Debug APK signed with the old test key; export a backup before removing an old installation. Google Play signing is configured separately. Check the changes above for data-format compatibility and any required reset before upgrading.
+          This is a signed Release APK. Updates require the same application ID and signing key and a higher versionCode. It cannot replace a Debug APK signed with the old test key; export a backup before removing an old installation. Google Play signing is configured separately. Check the version-specific data compatibility and upgrade instructions above; do not reset data as a routine update step.
 
           EOF
           fi

@@ -3,7 +3,7 @@
 > This directory contains implementation plans that define *how* to build features.
 
 Current interaction plan: [PLAN-003](003-desktop-interaction-implementation.md), based on SPEC-003.
-The schema-upgrade work in [PLAN-007](007-schema-evolution-and-migrations.md) was withdrawn; pre-store testing changes V1 directly.
+[PLAN-007](007-schema-evolution-and-migrations.md) applies installed-data/backup compatibility and recoverable-migration gates to every format change.
 The [Google Drive plan](002-google-drive-notes-mvp.md) supplies source/backup integration work,
 with editor and backup scope reconciliation before contract freeze; it is not an accepted framework decision.
 The [macOS validation handoff](001-validation-version-macos-handoff.md) remains a historical prototype handoff.
@@ -72,7 +72,7 @@ Use [000-template.md](./000-template.md) as the starting point for new plans.
 | [001-validation-version-macos-handoff](001-validation-version-macos-handoff.md) | macOS validation handoff | Validation version implemented; platform matrix incomplete | [SPEC-001](../specs/001-validation-version.md) |
 | [002-google-drive-notes-mvp](002-google-drive-notes-mvp.md) | Google Drive notes with portable backup | In Progress under the full 1.0 authorization | [SPEC-002](../specs/002-portable-backup-and-restore.md) |
 | [006-desktop-window-startup-and-updates](006-desktop-window-startup-and-updates.md) | Main window placement, startup behaviour and in-app updates on three platforms | In Progress: Phases 0–6 implemented, Phase 7 not recorded | [SPEC-006](../specs/006-desktop-window-startup-and-updates.md) |
-| [007-schema-evolution-and-migrations](007-schema-evolution-and-migrations.md) | Schema upgrade plan withdrawn | Cancelled, 2026-10-17 | [SPEC-007](../specs/007-schema-evolution-and-migrations.md) |
+| [007-schema-evolution-and-migrations](007-schema-evolution-and-migrations.md) | Data compatibility and recoverable migrations | Approved ongoing change gates, 2026-11-14 | [SPEC-007](../specs/007-schema-evolution-and-migrations.md) |
 <!-- Add new plans above this line -->
 
 ## For AI Agents

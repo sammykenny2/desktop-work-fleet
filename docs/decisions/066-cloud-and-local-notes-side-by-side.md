@@ -129,7 +129,7 @@ Routing refuses ambiguous ids throughout, while an existing editor's draft keeps
 ### Neutral
 
 - Per-profile `groupColors`, `shortcuts` and display switches remain in the layout format and in backups, but the desk
-  takes precedence. The V1 policy applies: no schema bump.
+  takes precedence. This feature retained V1; future changes follow ADR-073's compatibility/migration requirements.
 - A renderer still uses one page and one action queue for all profiles.
 
 ## Alternatives Considered

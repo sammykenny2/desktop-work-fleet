@@ -163,7 +163,7 @@ as completed components here.
 
 ADR-058 proposes one nonvisual core and disposable graphical clients. Q01/Q02/Q04 are prerequisites to an
 implementation contract, not permission to introduce a preferred JavaScript engine, GUI rewrite or privileged
-service. Use private local IPC and the current secure storage. Keep JSON data at V1 during pre-store testing.
+service. Use private local IPC and the current secure storage. Protect installed data/backups under ADR-073/SPEC-007; version incompatible changes with recoverable migrations.
 
 Remove the dormant Windows reopen path as an independently testable change after implementation approval, while
 retaining crash containment. That small change does not complete the core or readiness phases.

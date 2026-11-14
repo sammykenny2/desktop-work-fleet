@@ -75,13 +75,12 @@ keeps the existing data and adds native capabilities. NTFS child files are opene
 is already held; create-only, Flush and read-back verification, and cleanup through the same handle are in
 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md).
 
-[ADR-051](decisions/051-schema-evolution-and-atomic-migrations.md), as revised by the maintainer: during testing, the
-Workspace, revision and Drive metadata, backup and encryption envelopes, layout and the automatic backup journal all
-stay at V1, with the version constants and basic validation centralized in `core/schema.js`.
-Fields change V1 directly; there is no per-version runner, startup upgrade transaction, migration copy or extra bridge
-API. Ordinary CAS, drafts, attachments, complete backups and account isolation work as usual; the existing internal
-SQLite table versions are not reset by this policy.
-Format freezing and migrations are evaluated when formal store-launch planning starts.
+[ADR-073](decisions/073-alpha-data-compatibility-and-migrations.md) requires compatibility assessment for persisted
+changes as alpha approaches. `core/schema.js` centralizes current constants, which remain V1 today; increases are
+allowed where needed. Compatible optional fields require absence/round-trip tests; incompatible changes need
+validated atomic/staged migrations and failure/restart recovery before their new writer is enabled. Historical
+whole-workspace incompatibilities remain unresolved; no general migration runner is implemented. Native SQLite
+versions and application releases remain independent, with CAS, unsaved changes, attachments and isolation retained.
 Automatic backups ask the native side, by an opaque key ID, to produce a portable encrypted ZIP; the saved password
 never returns to the renderer, and a manual password stays within that export flow.
 The layered and click-through desktop surfaces share the authoritative data with the main window and cannot each write

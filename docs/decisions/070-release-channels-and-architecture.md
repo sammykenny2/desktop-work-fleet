@@ -100,8 +100,8 @@ payload when changing only the first-install container; do not substitute a PKG 
   Use App Store Connect distribution rather than public development IPAs containing registered device identifiers.
   This supplements [ADR-057](057-local-ios-builds-and-device-privacy.md); it does not move local development IPAs to CI.
 - Before external testing, evaluate format freezing and supported backup compatibility under
-  [SPEC-007](../specs/007-schema-evolution-and-migrations.md). Existing formats remain V1 until that review makes a
-  specific decision; this plan does not approve schema bumps, migration jobs or automatic data deletion.
+  [SPEC-007](../specs/007-schema-evolution-and-migrations.md). ADR-073 now allows schema increases with installed-data/backup protection and recoverable migration where needed;
+  this distribution decision never authorizes automatic data deletion.
 - A release, version bump, store submission, credential upload or workflow dispatch still needs the applicable
   authorization. Documentation approval alone does not perform those actions.
 

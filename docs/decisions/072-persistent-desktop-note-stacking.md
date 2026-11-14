@@ -78,13 +78,13 @@ The counter lives with the existing replicated device desk, outside synced note 
 restart, an ambiguous write, profile reopening or backup adoption. Reconcile the highest durable desk/placement
 label before allocation, acknowledge the reservation before publishing, and leave unused reservations as harmless
 gaps. A failed or uncertain reservation cannot be followed by an unfenced allocation. Refuse exhaustion or malformed
-values; do not wrap, round through JavaScript Number, or add a schema-version bump.
+values; do not wrap, round through JavaScript Number, or silently change a schema without a compatibility decision.
 Counter-only receipt changes are bookkeeping, not a new visual layout: validation must not invalidate a valid drag
 or formation preview merely because its own range was reserved. Validate the relevant visual state and commit the
 intent under the shared command barrier; keep storage receipt versions distinct from visual-state fingerprints.
 
 This bounded label avoids rewriting unrelated profiles just to raise one note. Its physical representation is an
-implementation default of this proposal, not a new user-facing concept. All formats remain V1 under ADR-051.
+implementation default of this proposal, not a new user-facing concept. This compatible optional-field addition retains V1 with prior-layout/backup tests under ADR-073.
 
 Cycling reads the stable arrangement sequence, not the changing visual labels. Persisting a cycle step therefore
 cannot change which paper Next or Previous visits next. Formation explicitly establishes a new tidy visual order
@@ -157,7 +157,7 @@ existing confirmation and clearing of layout history; this proposal does not add
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md),
   [ADR-006](006-card-group-and-formation-semantics.md), [ADR-007](007-desktop-scene-and-platform-host.md).
 - [ADR-008](008-portable-interaction-core.md), [ADR-042](042-adjust-overlay-on-every-desktop-host.md),
-  [ADR-051](051-schema-evolution-and-atomic-migrations.md), [ADR-066](066-cloud-and-local-notes-side-by-side.md).
+  [ADR-073](073-alpha-data-compatibility-and-migrations.md), [ADR-066](066-cloud-and-local-notes-side-by-side.md).
 
 ---
 

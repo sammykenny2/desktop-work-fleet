@@ -28,7 +28,7 @@ predictable order too. These are local layout effects that survive Done and rest
 - New Bring to front / Send to back actions, ordering preferences, keyboard shortcuts or a layer-management UI.
 - Changing resident layers, dragging permission, input fallbacks, the quick-move opt-in or its platform key.
 - Syncing visual order, changing shared note revisions, or reordering the main-window board/list or phone screens.
-- Implementing ADR-058, publishing a build, or adding migrations for older V1 test formats.
+- Implementing ADR-058, publishing a build, or claiming unsupported historical formats are already migrated.
 
 ## Authority and changes to earlier contracts
 

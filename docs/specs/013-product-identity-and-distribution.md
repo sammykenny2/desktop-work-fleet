@@ -46,7 +46,7 @@ and format choices; this specification owns the required behavior and acceptance
 | FR10 | Linux DEB installation, system dependencies, startup, desktop entry, uninstall and verified in-app update work on the declared supported environments. The package architecture field accurately describes its contents. |
 | FR11 | Any future AppImage must pass its own startup, stable-path, menu integration and update acceptance before it appears as a supported download. Changing download format must not leave visible actions that cannot complete. |
 | FR12 | Google Play closed testing meets the project's tester target and applicable account rules; iOS TestFlight exercises external distribution. Feedback covers capture/editing, local/cloud notes, sync, sharing, backups and restart, with defects fed back into ordinary development. |
-| FR13 | Evaluate format freeze and backup compatibility before inviting external testers. Existing V1 policy remains until an explicit follow-up decision; no implicit migration or data-discard authorization follows from naming or store preparation. |
+| FR13 | Evaluate format freeze and backup compatibility before inviting external testers. ADR-073 requires installed-data/backup compatibility and recoverable migrations where needed; naming or store preparation never authorizes data discard. |
 
 ## Design Overview
 
@@ -73,8 +73,7 @@ host must validate the one it actually consumes. Mobile stores handle their own 
 
 - Final external identities still listed as unresolved in ADR-069, actual signing credentials, account permissions,
   tester recruitment and available native devices.
-- The format-freeze review must decide what compatibility external testers are promised; the current V1 policy does
-  not already answer that question.
+- The format-freeze review must decide what compatibility external testers are promised; ADR-073 requires explicit supported-version and recoverable-migration decisions for incompatible changes.
 - Decide the tester feedback destination, supported device/OS matrix and any later production release channel.
   Existing preview-feed behavior in SPEC-006 remains until its channel question is resolved.
 

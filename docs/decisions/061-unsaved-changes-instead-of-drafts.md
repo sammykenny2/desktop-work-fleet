@@ -68,7 +68,7 @@ this device, shown by a filled dot like VS Code's unsaved-file marker. There is 
   only where the note has none worth keeping here, the set holds something, and it is not a never-saved note's text
   for a note saved since; otherwise this device's state stays and the backup still holds the other set.
   Backups leave out the desktop positions of notes never saved, which take a new place after a restore.
-- **Data.** Workspace and backup data stay V1 with no migration (AGENTS.md). A stored entry is
+- **Data.** This feature retained Workspace/backup V1 with no migration; future changes follow ADR-073. A stored entry is
   `{ id, cardId, groupId, baseRevision, content }`; `recoveredFrom` is removed. Internal names (`drafts`,
   `saveDraft`, the desktop `draftId`) keep their names; only the UI and documentation stop calling them drafts.
 

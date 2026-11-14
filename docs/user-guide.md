@@ -402,9 +402,10 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
   saving a copy can consume additional Drive space. A future "clear this note's history" operation is not implemented.
 - To work offline, download a Google ZIP and restore it into Local notes. The detailed procedures in both
   directions are in [Google setup](google-setup.md).
-- During the test phase the data formats of notes and backups stay at V1; updated fields do not start a schema
-  upgrade or create extra copies. The data version policy is
-  [SPEC-007](specs/007-schema-evolution-and-migrations.md). The dataset format is incompatible with the older
+- Updates must preserve supported installed data and backups. Format changes require compatibility assessment;
+  incompatible changes need validated, recoverable migration before the new writer is enabled. See
+  [SPEC-007](specs/007-schema-evolution-and-migrations.md). This does not add historical format conversion:
+  the current dataset format is incompatible with the older
   whole-workspace format and its ZIPs. There is no automatic conversion: the first-start screen keeps old data and
   offers Open Settings to reach Data and backup, where you can explicitly discard the old local copy. Closing
   Settings leaves it untouched. Use a compatible older app to inspect/export old data. Local discard never

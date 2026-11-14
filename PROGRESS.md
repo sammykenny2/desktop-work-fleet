@@ -14,9 +14,11 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   Windows, macOS and Linux, native iOS and Android apps, Google Drive app-data sync and portable backups.
   The behaviour contract is [SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md); the order of work is in [ROADMAP](ROADMAP.md).
 - Every build so far is a preview. 1.0 is not reached and no store submission has started.
-- All note, sync and backup JSON formats remain V1. Store preparation requires the pending format-freeze and
-  compatibility review in [SPEC-007](docs/specs/007-schema-evolution-and-migrations.md); the earlier schema-migration
-  work was withdrawn and no replacement migration is authorized.
+- Alpha preparation protects installed data and supported backups under
+  [ADR-073](docs/decisions/073-alpha-data-compatibility-and-migrations.md) and
+  [SPEC-007](docs/specs/007-schema-evolution-and-migrations.md). Schema increases are allowed with compatible
+  round-trip or recoverable migration evidence. Current constants remain V1; historical incompatible formats keep
+  their recovery limits, and no general migration runner is implemented.
 - Current version numbers are in the per-platform version files listed in [deployment](docs/deployment.md).
 - Final identity and distribution targets are accepted in
   [ADR-069](docs/decisions/069-pin-it-anywhere-product-identity.md) and

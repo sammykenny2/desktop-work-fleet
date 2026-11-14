@@ -65,7 +65,7 @@ or earlier look only for those: they keep reporting that they are up to date, or
 or leave the feed, and never offer a `v<version>` release. Each needs one manual install of 0.3.7 or later; after that,
 in-app updates find the shared releases.
 The shared Apple configuration raises the iOS record together with macOS, also when iOS is not released.
-The data schema stays at V1 and does not follow the app version.
+Data schemas evolve independently of the app version; follow ADR-073/SPEC-007 for installed-data/backup compatibility.
 Apple `CURRENT_PROJECT_VERSION` and Android `versionCode` are raised with each bump of that platform. The build number is
 minor × 100 + patch while the major version is 0 (0.2.7 is 207, 0.3.0 is 300).
 File names never come from the build machine's architecture, certificates or environment: the same commit produces the

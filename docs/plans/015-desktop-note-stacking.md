@@ -48,7 +48,7 @@ These observations establish implementation targets, not completed regression or
   formation block order and bounded label parsing/allocation. Keep arrangement/navigation `order` separate from
   visual `zOrder`. Specify owner-qualified identity at combined boundaries and reject ambiguous routing.
 - [ ] Add optional V1 placement labels and the desk high-water mark to contracts/validation/serialization. No eager
-  rewrite or migration. Define explicit absent-label handling in Undo and strict rejection of malformed imports.
+  rewrite; prove compatible prior-layout/backup round trips under ADR-073/SPEC-007. Define explicit absent-label handling in Undo and strict rejection of malformed imports.
 - [ ] Prove reservation before profile commit: serialize allocations, acknowledge the durable desk range, then save
   the command atomically in its owner. Reconcile after an unknown outcome before admitting another allocation.
   Read the largest durable counter/placement label on reopen, including a retained or restored profile.
@@ -105,7 +105,7 @@ per-pointer-frame writes, synthetic-click double promotion, sync revision or out
 - [ ] Include only owned labels in portable layout backup/validation; rebase explicitly adopted order into a fresh
   device range, retaining other profiles' mutual order. Keep-layout imports preserve current labels; identity
   remapping and new placement rules also cover fresh identities and restore collisions. Never export the desk counter
-  or foreign note IDs, and leave all JSON formats at V1.
+  or foreign note IDs, and retain V1 with the compatible-addition evidence required by ADR-073/SPEC-007.
 
 **Deliverable:** Z08–Z10/Z12/Z13/Z17–Z23 pass, including record-store restart/fault tests and actual ZIP round trips.
 The batch journal is a targeted layout-operation requirement, not evidence that current multi-owner loops are atomic.

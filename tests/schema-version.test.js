@@ -14,22 +14,23 @@ const area = { x: 0, y: 0, width: 1000, height: 800 };
 const fixture = JSON.parse(await readFile(new URL('./fixtures/workspace-v1.json', import.meta.url), 'utf8'));
 const fails = code => error => error.code === code;
 
-test('all current data formats stay V1 and reject unsupported version labels', () => {
+test('current format constants recognize their supported version and reject unsupported labels', () => {
   for (const kind of Object.keys(schemas)) {
-    assert.equal(schemas[kind], 1); assert.equal(requireSchemaVersion({ schemaVersion: 1 }, kind), 1);
-    for (const schemaVersion of [undefined, null, true, '1', 0, -1, 1.5, 2]) {
+    const version = schemas[kind]; assert.ok(Number.isSafeInteger(version) && version > 0);
+    assert.equal(requireSchemaVersion({ schemaVersion: version }, kind), version);
+    for (const schemaVersion of [undefined, null, true, String(version), 0, -1, 1.5, version + 1]) {
       assert.throws(() => requireSchemaVersion({ schemaVersion }, kind), fails('unsupported-schema'));
     }
   }
   assert.throws(() => validateAutomaticState({ schemaVersion: 2 }, 'local'), fails('unsupported-backup-journal'));
 });
 
-test('loading V1 is read-only and ordinary edits stay V1 with one normal commit per operation', async () => {
+test('supported V1 fixture loads without mutation and preserves extension fields through ordinary edits', async () => {
   let writes = 0; const original = structuredClone(fixture);
   const workspace = new Workspace(fixture, async state => { writes++; assert.equal(state.schemaVersion, 1); });
   assert.equal(writes, 0); assert.deepEqual(fixture, original);
   assert.deepEqual(workspace.state.drafts, fixture.drafts); assert.deepEqual(workspace.state.extension, fixture.extension);
-  await workspace.createCard({ format: 'markdown', text: 'Edit V1 directly', extra: { keep: true } }, fixture.groups[0].id);
+  await workspace.createCard({ format: 'markdown', text: 'Preserve installed data', extra: { keep: true } }, fixture.groups[0].id);
   assert.equal(writes, 1); assert.equal(workspace.state.schemaVersion, 1);
   const fresh = await Workspace.create({ profileId: 'local', deviceId: 'fresh-device', area, persist: async () => {} });
   assert.equal(fresh.state.schemaVersion, 1);

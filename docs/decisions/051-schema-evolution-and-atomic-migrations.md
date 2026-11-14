@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted, revised 2026-10-17. The maintainer asked to withdraw this round's V1→V2 bump and automatic migration; this
+Superseded by [ADR-073](073-alpha-data-compatibility-and-migrations.md) on 2026-11-14. This records the historical
+policy, not current instructions. Previously accepted, revised 2026-10-17. The maintainer asked to withdraw this round's V1→V2 bump and automatic migration; this
 revision supersedes the version-bump decision made earlier the same day.
 
 ## Context

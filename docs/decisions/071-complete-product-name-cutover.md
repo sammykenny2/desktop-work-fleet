@@ -57,13 +57,13 @@ names behind. Those names are visible to maintainers and in generated products, 
 
 - Retain internal and updater aliases: rejected by the maintainer's explicit complete-renaming request.
 - Add automatic V1 migrations or silently reset existing storage: outside the authorized naming scope and contrary to
-  the current pre-store data policy.
+  the data policy applicable to that cutover; future changes follow ADR-073's installed-data protection.
 
 ## References
 
 - [ADR-069: product identity](069-pin-it-anywhere-product-identity.md).
 - [ADR-070: delivery policy](070-release-channels-and-architecture.md).
-- [ADR-051: V1 policy](051-schema-evolution-and-atomic-migrations.md).
+- [ADR-073: installed-data compatibility](073-alpha-data-compatibility-and-migrations.md).
 - [Deployment](../deployment.md), [Testing](../testing.md), [PLAN-014](../plans/014-product-identity-and-distribution.md).
 
 ---

@@ -15,9 +15,11 @@ snapshot, git history the change log, and docs/release-notes.md the per-version 
 For targeted external desktop behavior research, ask the maintainer for the reference
 project location only when required. Do not guess paths or copy its implementation.
 Older Drive/backup drafts require scope reconciliation before freezing contracts.
-Pre-store testing keeps all current note/sync/backup JSON schemas at V1. Change V1
-directly without automatic schema upgrades or migration snapshots; revisit the
-upgrade policy when store-launch planning starts, as required by root AGENTS.
+Alpha preparation follows ADR-073/SPEC-007: format changes preserve installed data
+and supported backups. Schema increases are allowed when needed; compatible optional
+fields need absence/round-trip coverage, and incompatible changes need validated,
+recoverable migrations before their new writer is enabled. Unknown future formats
+remain intact. Application release-version approval is separate.
 
 ## Workflows
 

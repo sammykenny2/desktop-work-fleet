@@ -36,7 +36,7 @@ remain separate work; preview artifact checks do not mark them passed.
 - [ ] Confirm desired Cloud project-ID availability and domain control; settle the remaining Windows/store, Linux,
   deep-link, release-file and public contact/URL identities identified by ADR-069.
 - [ ] Review V1 format freeze and backup compatibility before external beta; record a specific follow-up decision if
-  the existing data policy must change, rather than adding speculative migration machinery.
+  ADR-073's installed-data/backup compatibility requirements need format-specific migration machinery.
 - [ ] Preserve local notes and verify their recovery before retiring any old installation. For this maintainer's
   identity cutover only, preservation/restore of the old Google Drive notes was waived on 2026-11-13; use a fresh new
   project without importing them. No cloud deletion or credential revocation is needed for that transition. The

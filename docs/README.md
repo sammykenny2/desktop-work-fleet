@@ -3,14 +3,16 @@
 Updated: 2026-11-14. Read the latest specifications first; research, working defaults, completed implementation and
 passed real-world tests are kept apart.
 
-During testing, the note, sync and backup JSON schemas all stay at V1; fields change V1 directly, and version bumps and
-migrations are evaluated only when store launch is planned.
-The policy is in [SPEC-007](specs/007-schema-evolution-and-migrations.md) and [ADR-051](decisions/051-schema-evolution-and-atomic-migrations.md).
+Alpha preparation protects installed user/tester data and supported backups. Schema increases are allowed when
+needed; compatible additions require prior-data round trips, and incompatible changes require recoverable migrations.
+See [SPEC-007](specs/007-schema-evolution-and-migrations.md) and
+[ADR-073](decisions/073-alpha-data-compatibility-and-migrations.md), superseding the V1-only restriction.
 
 ## Current development handoff: read first
 
 | Document | Authority and purpose |
 |---|---|
+| [ADR-073](decisions/073-alpha-data-compatibility-and-migrations.md)/[SPEC-007](specs/007-schema-evolution-and-migrations.md)/[PLAN-007](plans/007-schema-evolution-and-migrations.md) | Accepted alpha data policy: schema evolution is allowed, with installed-data/backup compatibility and recoverable migrations where needed |
 | [ADR-072](decisions/072-persistent-desktop-note-stacking.md)/[SPEC-014](specs/014-desktop-note-stacking.md)/[PLAN-015](plans/015-desktop-note-stacking.md) | Proposed persistent desktop stacking: ordinary note interaction, explicit group raises, formation/reset and conditional Undo; design only, implementation not started |
 | [ADR-071](decisions/071-complete-product-name-cutover.md) | Complete source/project/asset/configuration/updater naming; earlier preview installations need explicit data, signing and manual-install acceptance |
 | [ADR-069](decisions/069-pin-it-anywhere-product-identity.md)/[ADR-070](decisions/070-release-channels-and-architecture.md)/[SPEC-013](specs/013-product-identity-and-distribution.md)/[PLAN-014](plans/014-product-identity-and-distribution.md) | Final product/repo/application names and accepted distribution policy; identity cutover, Release-only delivery, Windows ARM64 and mobile beta acceptance are planned, not implemented by the documentation decision |

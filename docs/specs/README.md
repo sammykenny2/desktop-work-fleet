@@ -3,7 +3,7 @@
 > This directory contains feature specifications that define *what* to build and *why*.
 
 Current behavior contract: [SPEC-003](003-desktop-cards-groups-and-formation.md).
-Pre-store data policy: [SPEC-007](007-schema-evolution-and-migrations.md). All current JSON formats remain V1; upgrades are deferred to store-launch planning.
+Alpha data policy: [SPEC-007](007-schema-evolution-and-migrations.md). Preserve installed data/backups; version incompatible formats with recoverable migrations when needed.
 Confirmed U requirements and delegated D defaults are actionable when implementation is authorized;
 ask only the Q items needed for the current work. Earlier backup/editor cuts are not approved.
 
@@ -60,7 +60,7 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 | [010-dataset-checkpoints-and-deletable-history](010-dataset-checkpoints-and-deletable-history.md) | Dataset checkpoints, manual note purge and explicit reset/recovery | Approved for implementation; remote proof gates remain | [PLAN-011](../plans/011-dataset-checkpoints-and-deletable-history.md) |
 | [009-desktop-presentation-lifecycle](009-desktop-presentation-lifecycle.md) | Desktop presentation availability and recovery | Draft; implementation approval pending | [PLAN-009](../plans/009-desktop-presentation-lifecycle.md) |
 | [008-workspace-initialization](008-workspace-initialization.md) | Workspace initialization and proof of reset completion | Approved; status in PROGRESS | [PLAN-008](../plans/008-workspace-initialization.md) |
-| [007-schema-evolution-and-migrations](007-schema-evolution-and-migrations.md) | V1 data policy during the testing phase | Implemented (revised 2026-10-17); the migration work was withdrawn | [PLAN-007](../plans/007-schema-evolution-and-migrations.md) |
+| [007-schema-evolution-and-migrations](007-schema-evolution-and-migrations.md) | Data compatibility and recoverable migrations | Approved alpha policy, 2026-11-14; per-change evidence required | [PLAN-007](../plans/007-schema-evolution-and-migrations.md) |
 | [006-desktop-window-startup-and-updates](006-desktop-window-startup-and-updates.md) | Main window placement, startup behaviour and in-app updates | Approved; Q pending; status in PROGRESS | [PLAN-006](../plans/006-desktop-window-startup-and-updates.md) |
 | [005-windows-11-compatibility](005-windows-11-compatibility.md) | Windows 11 new/classic shell and install eligibility | Approved requirements; status in PROGRESS, evidence in the git history | [PLAN-004](../plans/004-windows-11-compatibility.md) |
 | [004-revision-graph-and-file-sync](004-revision-graph-and-file-sync.md) | Immutable revisions and file sync | Accepted technical contract; status in PROGRESS | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |

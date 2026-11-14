@@ -134,12 +134,16 @@ commit as the change it describes. Nothing is recorded after the fact.
 
 ## Development Workflow
 
-Before the first Windows Store, Apple App Store or Google Play submission is planned,
-all current note, sync and backup JSON schemas stay at V1. Update V1 directly during
-testing; do not introduce schema bumps, automatic upgrade jobs, migration snapshots
-or compatibility maintenance for unreleased test formats. Revisit format freezing
-and migrations when the maintainer starts store-launch planning. This does not
-authorize deleting existing user data or changing published application versions.
+As alpha testing approaches, preserve installed user/tester data and supported
+backups when changing persisted formats. Schema increases are allowed when needed;
+classify every change for compatibility. Compatible optional additions require safe
+absence behavior and prior-format round-trip tests. Incompatible changes require
+explicit format versions, validated deterministic migrations and atomic/recoverable
+activation with failure/restart coverage before enabling the new writer. Preserve
+ownership, history, unsaved changes, attachments and pending sync intent; refuse
+unknown future formats without mutation. Follow ADR-073/SPEC-007. This does not
+authorize deleting data, claiming historical migrations are implemented, or choosing
+an application release version without the approval required below.
 
 The user has authorized direct Conventional Commits on main for this project. Commit
 changes locally; push to origin/main only when the user explicitly asks, so several

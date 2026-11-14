@@ -4,6 +4,7 @@ Updated: 2026-11-14.
 
 | Record | Status | Scope |
 |---|---|---|
+| [ADR-073](073-alpha-data-compatibility-and-migrations.md) | Accepted (2026-11-14) | Alpha data protection: allow schema evolution with compatible round trips or validated recoverable migrations; supersedes the V1-only restriction |
 | [ADR-072](072-persistent-desktop-note-stacking.md) | Proposed (2026-11-14); design only | Remember note/group raises within resident layers; separate visual and navigation order, device-wide allocation, conditional Undo and isolated backups |
 | [ADR-070](070-release-channels-and-architecture.md) | Accepted policy; implementation pending (2026-11-13) | Release-only external delivery, no public CER, signed MSIX with future native ARM64/bundle, DMG/Sparkle ZIP, DEB first and later AppImage, Play/TestFlight feedback |
 | [ADR-069](069-pin-it-anywhere-product-identity.md) | Accepted names; cutover pending (2026-11-13) | Final product, repo, Cloud and Apple/Android identifiers; naming family, the Cat Note app icon, OAuth/data boundaries and unresolved external identities |
@@ -22,7 +23,7 @@ Updated: 2026-11-14.
 | [ADR-056](056-english-first-ui-and-locale-catalogs.md) | Accepted (UI language, 2026-10-17) | English-first UI with en and zh-TW locale catalogs and a Display language setting |
 | [ADR-055](055-mobile-device-build-workflows.md) | External Android Debug delivery superseded by ADR-070; local iOS policy in ADR-057 | Existing fixed-key test-build workflow, not the future external beta distribution contract |
 | [ADR-052](052-rich-papers-and-native-attachments.md) | Accepted (note formatting and attachments) | Six heading levels, code coloring, native attachment thumbnails and opening a copy; V1 and checklists unchanged |
-| [ADR-051](051-schema-evolution-and-atomic-migrations.md) | Accepted (testing-phase V1 policy) | Current JSON schemas stay at V1; version bumps, migrations and copies are evaluated when store launch is planned |
+| [ADR-051](051-schema-evolution-and-atomic-migrations.md) | Superseded by ADR-073 (2026-11-14) | Historical V1-only testing policy; alpha requires installed-data/backup compatibility |
 | [ADR-001](001-independent-backlog-first-foundation.md) | Accepted | Name, independent development, backlog focus and bootstrap scope |
 | [ADR-002](002-validation-runtime.md) | Accepted | Validation build on AppKit/Web/Python SQLite, keeping the cross-platform packaging goal |
 | [ADR-003](003-product-architecture-boundaries.md) | Deferred | Keeps the full PM / self-hosted server architecture; not required for 1.0 |

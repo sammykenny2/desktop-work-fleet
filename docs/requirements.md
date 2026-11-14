@@ -142,11 +142,11 @@ The decision and implementation contract are in [ADR-038](decisions/038-portable
 
 ## Deferred but kept directions
 
-The user confirmed on 2026-10-17: the app is not yet offered to others for testing, and before listing on the Windows
-Store, Apple App Store and Google Play, the current note, sync and backup JSON schemas all stay at V1, with fields and
-structure changed in V1 directly.
-Per-version migrations, upgrade copies and compatibility maintenance for old test formats are deferred until formal
-store launch is planned; basic format validation and the existing data preservation boundaries are kept.
+As alpha approaches, the maintainer revised the format policy on 2026-11-14: protect installed user/tester data and
+supported backups now. Schema increases are allowed when needed. Compatible additions need safe absence behavior and
+prior-data round trips; incompatible changes need validated, recoverable migrations before enabling the new writer.
+[ADR-073](decisions/073-alpha-data-compatibility-and-migrations.md) and
+[SPEC-007](specs/007-schema-evolution-and-migrations.md) supersede the V1-only/testing exception.
 
 Full PM, Project/Item/View, a self-hosted server and multiple membership remain for later research;
 this does not mean the old Note container model must come back. The concrete 1.0 UI for a simple Todo / In Progress /

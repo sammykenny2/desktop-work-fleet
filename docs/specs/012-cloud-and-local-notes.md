@@ -155,7 +155,7 @@ covers everything except Trash. Decisions and alternatives are in
 
 ### Non-Functional Requirements
 
-- NFR1: No sync, dataset or backup format changes, and no schema bump (V1 policy).
+- NFR1: This feature changes no sync, dataset or backup schema. Later format changes follow ADR-073/SPEC-007.
 - NFR2: A collection's data never reaches another collection or account except through FR12 and FR13.
 - NFR3: A group move stays responsive: sync may land between notes, and each note is its own commit.
 - NFR4: Every interface string exists in `en` and `zh-TW`.

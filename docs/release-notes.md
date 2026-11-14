@@ -9,6 +9,20 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 omitted for an explicitly requested desktop-only preview, even though all version records advance together.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.8.0
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Desktop notes remember which paper or group you handled last, including after Done and restart. Existing layouts and supported backups stay usable. Android also includes the recent background-sync and account-display fixes.
+
+- Desktop overlap order: a completed selection, drag, quick edit or cycle step brings that paper forward; entering Adjust this group brings the eligible group forward together. Adjust all promotes only the paper you handle. Done, hide/show and restart retain the result on this device. Wallpaper, Desktop and Top remain separate resident layers, and visual order never syncs to another device.
+- Arrangement and Undo: group Stack/Spread saves a tidy front block; all-group arrangement and Reset establish a deterministic order. Reset retains the New notes' desktop size preference. Cancelled drags leave position and order untouched; Undo restores the operation while preserving newer attention raises. Cycling follows a stable reading sequence instead of chasing its changing visual order.
+- Local save safety: a failed drop returns the visible preview to the acknowledged position and order. Layout operations spanning cloud and local collections keep a recoverable journal, retain the previous scene until completion, and refuse stale recovery after newer changes or permanent deletion. Attention-only raises do not add content revisions, uploads or standalone Undo steps.
+- Compatibility and alpha data policy: saved visual order is an optional addition to supported current-record V1 layouts and dataset ZIPs. Existing placements, content, unsaved changes and supported backups remain usable without a data reset; imported layout order is rebased locally without changing unrelated collections. Schema evolution is now allowed with compatibility checks and validated, recoverable migration for incompatible changes. This does not add conversion of historical whole-workspace formats or backups.
+- Android catch-up: the last APK was 0.7.1; 0.7.2 and 0.7.3 included desktops only. This APK includes the background-sync fix that pauses automatic work while the app is backgrounded and ignores late background network failures, avoiding a stale failure toast after unlock. It also restores the cached Google name and photo before sync, retaining them through temporary network failures and vault pauses. The name/photo cache is local display data, outside notes, uploads and portable backups.
+- Updating: current application identities and preview signing configuration are retained. Install over an existing current-identity preview to keep local data; do not uninstall, sign out or reset solely for this update. An Android signed Release APK with the same application ID/key upgrades to build 800. Earlier identities, Debug signing and historical incompatible formats still need their explicit recovery route from 0.7.1. The installation instructions now distinguish those historical cutovers from normal updates.
+- Verification and scope: shared/storage regressions, actual ZIP round trips and Chromium/WebKit gesture tests cover the implementation, including rejected writes and restart. Isolated macOS native bridge/SQLite/layer probes and Linux labwc compositor overlap checks cover the available native paths. Installed Windows, Linux X11/GNOME, mixed-DPI/multiple-display behavior, signed-app update acceptance and independent review remain separate checks. Apple/Android build records advance to 800; no iOS download or store/beta submission is included.
+
 ## 0.7.3
 
 Platforms: Windows, Linux, macOS.

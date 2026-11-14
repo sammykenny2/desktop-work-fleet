@@ -48,6 +48,14 @@ a hidden main page syncs, because WebView2 runs a hidden page's interval only on
 Signing out clears only this device's credentials for that account and does not revoke the grant with Google (revised
 2026-10-15, see Status); note data stays in that account's partition.
 
+Across native platforms, the account name and photo are optional display metadata cached in the account's encrypted
+local `google-profile` control record. The renderer restores it before syncing, then refreshes it after a successful
+sync once it is at least 24 hours old. Refresh failures back off for ten minutes and keep the last usable details;
+missing photo bytes do not erase a cached photo. The cache stays outside note content, synchronization and portable
+backups. It is shown only for the current account partition, including a temporary vault pause, and never establishes
+authorization or changes sync status. Signing out hides it immediately; identity from an earlier account/session cannot
+paint or save after replacement. Existing account data and its optional display cache remain local after sign-out.
+
 ## Consequences
 
 - No note server of our own is added; the callback listener serves a single sign-in.

@@ -47,8 +47,12 @@ code, token or account.
 This listener serves no note API, binds no LAN address, uses no fixed port and does not change the external port
 registry. Google HTTPS token, userinfo and Drive requests are all sent by the native side; the renderer holds no
 credentials and no arbitrary HTTP capability.
-The account chip's name and photo come from Drive's `about.user` (`google.profile`), which the app data scope covers;
-the page asks after a sync reaches Google, and waits ten minutes after a failed read.
+The account chip's name and photo come from Drive's `about.user` (`google.profile`), which the app data scope covers.
+The shared renderer restores the `google-profile` control record from that account's local storage before syncing.
+After a sync reaches Google it refreshes metadata older than 24 hours; a failed read waits ten minutes before retrying
+and keeps the cached identity visible. A partial reply preserves the last usable name or photo. Account/session checks
+discard late replies after switching or signing out. This optional cache is outside note content, pending uploads and
+portable backups; native hosts protect it with the same encrypted record storage as the account's other local data.
 Each host fetches the photo itself from a pinned `lh3`-`lh6.googleusercontent.com` HTTPS address, without the access
 token or redirects, at most 128 KiB and only when its bytes are a PNG, JPEG, GIF or WebP image; it reaches the page as
 bytes shown from a `blob:` URL, since the page loads nothing from the network.

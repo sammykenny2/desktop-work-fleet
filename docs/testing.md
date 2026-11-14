@@ -809,9 +809,14 @@ The same file also confirms that construction does not read the vault, that lock
 that no sign-in browser starts while locked, and that a refresh forced by a 401 is kept across a vault reread and a temporary lock.
 Its `AccountDetails` tests confirm that `google.profile` reads `about.user` with the access token, fetches the photo from the
 pinned googleusercontent hosts without it, and returns only the name for any other address, a non-image body or a failed fetch.
-`node --test tests/google-profile.test.js` runs the real account chip: the email shows first and stays its tooltip, the name and
-photo replace it once a sync asks the host, a failed or refused read waits ten minutes, a reply for another account is dropped,
-and a replaced photo or leaving the account releases its blob URL.
+`node --test tests/google-profile.test.js tests/google-profile-cache.test.js` runs the real account presenter and cache:
+all three identity views restore before sync after a renderer restart, a fresh cache makes no network request, and
+metadata older than 24 hours refreshes after sync while retaining the last usable identity through failures. Tests cover
+the ten-minute retry delay, partial replies, invalid cache entries and future timestamps, unavailable storage, a vault
+pause, wrong-account status, and delayed reads/replies after account or session replacement. Unchanged photos retain
+their blob URL; replacements and leaving the account release it. Real local-record storage tests check account isolation,
+concurrent note saves, unchanged note content and pending uploads, and cache exclusion from a current-state backup ZIP.
+These synthetic checks do not establish installed Android process-recreation or real Google-network acceptance.
 `node --test tests/google-vault-pause.test.js` runs the real account UI functions and confirms that a paused sync still has retry and sign-out controls and that unlocking resumes the same account;
 it also runs the real syncGoogle function and confirms that only a manual sync calls google.unlockVault, that success continues the sync, that cancel and timeout can be retried,
 that repeated clicks during the same Prompt are not resent, and that switching accounts, going local, signing out or closing discards old results without saving or syncing the old source.

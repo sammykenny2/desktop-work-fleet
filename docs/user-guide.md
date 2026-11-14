@@ -364,8 +364,10 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
   account area at the bottom left of the sidebar opens that page. The browser preview has no Google sign-in or sync
   and only keeps local data.
 - Once signed in, the account area shows the account's name and photo; on a computer, hover over it to see the email
-  address, which the "Google account" row also shows. Until the first sync reaches Google, for example when the app
-  starts offline, it shows the email address and its first letter.
+  address, which the "Google account" row also shows. The name and photo are kept on this device and appear again when
+  you reopen the app, including offline. Older details update in the background after a successful sync; a temporary
+  connection failure keeps the previous details. Until this device first obtains them, it shows the email address and
+  its first letter. Signing out hides the account's name and photo.
 - Signing in does not send your existing Local notes or browser preview data automatically. How to move them, and the
   other account procedures, are in [Google setup](google-setup.md).
 - To overwrite everything in Google after signing in, use "Clear Google, then restore from the backup"; see

@@ -31,7 +31,7 @@ async function fixture(profileId, account, state = {}, jobs = {}) {
     maintenanceNotice: null, maintenanceFailure: null, maintenanceWork: null, nativeClosing: false,
     $, setText: (id, text) => { $(id).textContent = textOf(text); },
     clearInterval() {}, setInterval: (callback, delay) => { timers.push({ callback, delay }); return 1; }, addEventListener() {},
-    renderAccount() {}, setSync: (...args) => syncs.push(args), syncGoogle: async () => { immediate++; },
+    renderAccount() {}, restoreGoogleProfile: async () => {}, setSync: (...args) => syncs.push(args), syncGoogle: async () => { immediate++; },
     changeGoogleAccount() {}, askResumeCloudRestore() {}, askDatasetRecovery() { connections.push('recover-local-copy'); }, openSettings() {},
     NativeGoogleDatasetStore: class { constructor(bridge, info, accountId) { assert.equal(info.profileId, `google:${accountId}`); } },
     DatasetSync: class { constructor(options) { connections.push(options); } },

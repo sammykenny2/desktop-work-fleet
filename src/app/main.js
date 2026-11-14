@@ -21,6 +21,7 @@ import { checklistProgress, toggleChecklist } from './checklist.js';
 import { rankSearch } from './search.js';
 import { trashSections } from './trash.js';
 import { notifications } from './notifications.js';
+import { GoogleProfileCache } from './google-profile.js';
 import { canSetAside, causeKey, loadFailureCause, workspaceFailureCause } from './data-failure.js';
 import { revisionPanel } from './conflicts.js';
 import { backupPanel } from './backup.js';
@@ -524,6 +525,7 @@ async function showDataFailure(cause) {
 async function initializeGoogle() {
   clearInterval(syncTimer);
   googleAccount = await native.bridge.request('google.status');
+  await restoreGoogleProfile();
   const google = profileId.startsWith('google:'), connected = googleAccount.connected;
   const paused = google && googleAccount.paused === true;
   datasetStore = google && (connected || paused) ? new NativeGoogleDatasetStore(native.bridge, native.info, googleAccount.accountId) : null;
@@ -601,43 +603,60 @@ function renderGoogleAccess() {
 }
 // The account chip, the settings account card and identity say where the papers live and how syncing goes.
 function renderAccount() {
-  const connected = Boolean(googleAccount?.connected);
-  if (!connected && googleProfile) { if (googleProfile.photo) URL.revokeObjectURL(googleProfile.photo); googleProfile = null; }
-  const known =connected && googleProfile?.accountId === googleAccount.accountId ? googleProfile : null;
-  const email = connected ? googleAccount.email || '' : '';
-  const name = known?.name || (connected ? email || t('sync.account.google') : profileId.startsWith('google:') ? t('sync.account.google')
+  const accountId = googleProfileAccountId(); const identified = Boolean(accountId);
+  if (googleProfile && googleProfile.accountId !== accountId) { if (googleProfile.photo) URL.revokeObjectURL(googleProfile.photo); googleProfile = null; }
+  if (googleProfileCache?.accountId !== accountId) googleProfileCache = null;
+  const known = identified && googleProfile?.accountId === accountId ? googleProfile : null;
+  const email = identified ? googleAccount.email || '' : '';
+  const name = known?.name || (identified ? email || t('sync.account.google') : profileId.startsWith('google:') ? t('sync.account.google')
     : googleAccount?.configured ? t('sync.account.signInPrompt') : t('sync.account.localNotes'));
   for (const [avatar, initial, label] of [['#account-avatar', '#account-initial', '#account-name'], ['#identity-avatar', '#identity-initial', '#identity-name'],
     ['#settings-account-avatar', '#settings-account-initial', '#settings-account-name']]) {
     $(label).textContent = name;
-    $(initial).textContent = connected ? [...name][0].toLocaleUpperCase() : ''; $(initial).hidden = !connected || Boolean(known?.photo);
-    $(`${avatar} svg`).toggleAttribute('hidden', connected); $(avatar).classList.toggle('signed-in', connected);
+    $(initial).textContent = identified ? [...name][0].toLocaleUpperCase() : ''; $(initial).hidden = !identified || Boolean(known?.photo);
+    $(`${avatar} svg`).toggleAttribute('hidden', identified); $(avatar).classList.toggle('signed-in', identified);
     const photo = $(`${avatar} img`); photo.hidden = !known?.photo;
-    if (known?.photo) photo.src = known.photo; else photo.removeAttribute('src');
+    if (known?.photo) { if (photo.src !== known.photo) photo.src = known.photo; } else photo.removeAttribute('src');
   }
   // The name stands in for the email, which stays in the chip's tooltip and in Settings.
   if (email) $('#account-button').title = email; else $('#account-button').removeAttribute('title');
 }
-// After a sync reaches Google, the host reads the account's name and photo; until then, or without them, the chip shows
-// the email. The page loads nothing from the network, so the photo arrives as bytes and shows from a blob URL. A failed
-// read waits ten minutes before the next sync tries again.
-let googleProfile = null; let profileLoading = null; let profileRetryAt = 0;
+// Restore account-bound display metadata before syncing. Refresh it after a successful sync at most once a day;
+// temporary network/vault failures keep it visible. Photos remain native-fetched bytes displayed through blob URLs.
+let googleProfile = null; let googleProfileCache = null;
+function googleProfileAccountId() {
+  const id = googleAccount?.accountId;
+  return typeof id === 'string' && profileId === `google:${id}` && (googleAccount.connected || googleAccount.paused) ? id : null;
+}
+async function restoreGoogleProfile() {
+  const accountId = googleProfileAccountId();
+  if (!accountId || !native?.bridge) return;
+  if (googleProfileCache?.accountId !== accountId) {
+    const owner = storage;
+    const cache = new GoogleProfileCache({ accountId, storage: owner,
+      request: () => native.bridge.request('google.profile', { accountId }),
+      current: () => googleProfileCache === cache && storage === owner && googleProfileAccountId() === accountId && !accountBusy && !nativeClosing,
+      changed: result => showGoogleProfile(accountId, result),
+    });
+    googleProfileCache = cache;
+  }
+  const cache = googleProfileCache;
+  await cache.restore();
+  return cache;
+}
 function loadGoogleProfile() {
-  const accountId = googleAccount?.connected ? googleAccount.accountId : null;
-  if (!accountId || !native?.bridge || googleProfile?.accountId === accountId || profileLoading === accountId || Date.now() < profileRetryAt) return;
-  profileLoading = accountId;
-  Promise.resolve().then(() => native.bridge.request('google.profile', { accountId })).then(result => {
-    if (googleAccount?.connected && googleAccount.accountId === accountId) showGoogleProfile(accountId, result);
-  }, () => { profileRetryAt = Date.now() + 600000; }).finally(() => { if (profileLoading === accountId) profileLoading = null; });
+  if (!googleAccount?.connected || accountBusy || nativeClosing) return;
+  void restoreGoogleProfile().then(cache => { if (googleAccount?.connected) return cache?.refresh(); });
 }
 function showGoogleProfile(accountId, result) {
   const name = typeof result?.name === 'string' && result.name.length <= 256 ? result.name.trim() : '';
   const photo = result?.photo; let url = null;
   if (['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(photo?.type) && typeof photo.data === 'string' && photo.data.length <= 180000) {
-    try { url = URL.createObjectURL(new Blob([Uint8Array.from(atob(photo.data), c => c.charCodeAt(0))], { type: photo.type })); } catch { url = null; }
+    if (googleProfile?.accountId === accountId && googleProfile.image?.type === photo.type && googleProfile.image?.data === photo.data) url = googleProfile.photo;
+    else try { url = URL.createObjectURL(new Blob([Uint8Array.from(atob(photo.data), c => c.charCodeAt(0))], { type: photo.type })); } catch { url = null; }
   }
-  if (googleProfile?.photo) URL.revokeObjectURL(googleProfile.photo);
-  googleProfile = { accountId, name: name || null, photo: url };
+  if (googleProfile?.photo && googleProfile.photo !== url) URL.revokeObjectURL(googleProfile.photo);
+  googleProfile = { accountId, name: name || null, photo: url, image: url ? photo : null };
   renderAccount();
 }
 // Text and detail are host or error text, or a function that builds catalog text; relocalize() shows the last state again.

@@ -43,8 +43,8 @@ android {
         applicationId = configuredId.ifEmpty { "dev.sammykenny2.pinitanywhere" }
         minSdk = 28
         targetSdk = 36
-        versionCode = 702
-        versionName = "0.7.2"
+        versionCode = 703
+        versionName = "0.7.3"
         testInstrumentationRunner = "dev.sammykenny2.pinitanywhere.nativehost.StorageProbe"
     }
     // host.info reports versionName, which Settings shows and backups record.

@@ -9,6 +9,20 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 omitted for an explicitly requested desktop-only preview, even though all version records advance together.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.7.3
+
+Platforms: Windows, Linux, macOS.
+
+Summary: Add a Large size for new desktop notes and a bigger Tall size, explain how a layout reset sizes notes, keep your Google name and photo across restarts, and give the Windows tray and taskbar a sharp, full-size icon without the accent-coloured square behind it.
+
+- New desktop notes: Desktop notes settings offers Small (160 x 160), Medium (240 x 240, default), Large (320 x 320) and Tall (320 x 480). The sizes include the title band and border. The preference stays device-local and applies only to newly placed notes; notes already placed, including 240 x 400 notes from 0.7.2's Tall size, keep their geometry.
+- Desktop layout reset: the Settings hint and the confirmation dialogs, including the native-window variants, now say that a reset keeps the New desktop note size preference and resizes notes to the selected size, instead of implying a return to the default size. The English and Traditional Chinese user guides match.
+- Google account name and photo: they now survive restarts and page reloads instead of falling back to the email address until the next sync. They are restored from local encrypted records before syncing, refreshed after a successful sync when at least 24 hours old, and kept through network failures and temporary vault pauses. Only bounded display details are cached, outside notes, uploads and portable backups.
+- Windows tray icon: every size inside the app icon was the same 256 px image, so the notification area shrank it and its outline blurred away. The 16-64 px sizes are now drawn on the pixel grid and fill the cell like neighbouring tray icons, from 100% to 300% scaling.
+- Windows taskbar: the MSIX now carries unplated taskbar images and a resource index (`resources.pri`), so the taskbar shows the icon without a square in the Windows accent colour behind it. App Installer still shows the package tile on the accent colour.
+- Compatibility: application identities, preview signer and V1 note/sync/backup formats are unchanged from 0.7.2. A 0.7.2 installation can use its existing update path and certificate trust. Earlier identities and formats still need the manual transition described in 0.7.1.
+- Distribution and verification: this preview includes Windows, macOS and Linux only. Shared Apple/Android version records advance to 0.7.3 with build number 703; no Android APK, iOS download or store/beta submission is included. The taskbar icon was checked with locally registered test packages on a light taskbar at 150% scaling; the dark taskbar, other scales, the Start menu and an in-place update from 0.7.2 remain separate acceptance checks.
+
 ## 0.7.2
 
 Platforms: Windows, Linux, macOS.

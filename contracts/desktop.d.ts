@@ -40,10 +40,12 @@ export interface SourceRef { provider: string; accountId: string; collectionId: 
 export interface Snapshot { cards: Card[]; groups: Group[]; writable: boolean; conflicts?: unknown[] }
 export interface Placement extends Rect {
   order: number;
+  /** Device-local visual order, 32 lowercase hexadecimal characters. Absence uses the legacy arrangement order. */
+  zOrder?: string;
   visible: boolean;
 }
 export interface Grid { rows: number; columns: number; area: Rect; slots: (Id | null)[] }
-export interface Geometry extends Rect { order: number }
+export interface Geometry extends Rect { order: number; zOrder?: string }
 export interface TransferUndo {
   cardId: Id;
   fromGroupId: Id;
@@ -54,6 +56,8 @@ export interface TransferUndo {
 export interface LayoutUndo {
   kind: 'move' | 'formation' | 'transfer';
   before: Record<Id, Geometry>;
+  /** Undo restores a label only if it still equals this action's label; null represents absence. */
+  afterZ?: Record<Id, string | null>;
   gridBefore?: Grid;
   gridAfter?: Grid;
   transfer?: TransferUndo;
@@ -64,6 +68,10 @@ export interface DeviceLayout {
   revision: number;
   grid: Grid;
   placements: Record<Id, Placement>;
+  /** Standalone-owner high-water mark; the combined owner uses the desk. Excluded from portable backups. */
+  zOrderCounter?: string;
+  /** Last applied local layout-batch receipt; excluded from portable backups. */
+  layoutBatchId?: string;
   history: LayoutUndo[];
   desktopVisible: boolean;
   shortcuts: Record<string, Id>;

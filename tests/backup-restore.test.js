@@ -66,7 +66,8 @@ test('full local replacement needs no safety backup and removes old history, dra
   assert.equal(target.workspace.revisionHeads('card', s.card.id).length, 1); assert.equal(target.blobs.has(orphanId), false);
   assert.deepEqual([...target.blobs.keys()], [s.id]); assert.equal(after.revision, before.revision + 1);
   const { [s.unsavedNote.cardId]: unsavedPlace, ...savedPlaces } = s.disk().layout.placements; assert.ok(unsavedPlace);
-  assert.deepEqual(target.workspace.layout.state, after.layout); assert.deepEqual(after.layout.placements, savedPlaces);
+  assert.deepEqual(target.workspace.layout.state, after.layout);
+  for (const [id, rect] of Object.entries(savedPlaces)) assert.deepEqual({ ...after.layout.placements[id], zOrder: rect.zOrder }, rect);
   const reopened = new Workspace(after, target.persist);
   assert.deepEqual(await reopened.applyRestore(plan, { persist: target.atomic }), receipts[0]); assert.equal(target.writes(), writes + 1);
   const updated = await reopened.updateCard(s.card.id, { content: text('edit after replacement') }, s.card.revision);
@@ -127,7 +128,9 @@ test('import preview is read-only; commit maps complete identities and atomicall
   assert.notEqual(imported.groupId, s.a.id); assert.equal(after.groups.find(group => group.id === imported.groupId).name, s.a.name);
   assert.deepEqual(target.blobs.get(s.id), s.bytes); assert.equal(after.layout.deviceId, before.layout.deviceId);
   assert.equal(after.layout.mainGroupId, before.layout.mainGroupId, 'an import keeps the group this main window shows');
-  assert.deepEqual(after.layout.placements[imported.id], s.disk().layout.placements[s.card.id]);
+  const importedPlace = after.layout.placements[imported.id], sourcePlace = s.disk().layout.placements[s.card.id];
+  assert.deepEqual({ ...importedPlace, zOrder: sourcePlace.zOrder }, sourcePlace);
+  assert.ok(importedPlace.zOrder > before.layout.placements[existing.id].zOrder);
   assert.equal(after.outbox.length, before.outbox.length + s.disk().revisions.length);
   assert.deepEqual(after.restoreReceipts[receipt.jobId], receipt); assert.deepEqual(after.sync, before.sync);
   const draftId = receipt.mappings.draft[s.draft.id]; assert.equal(after.drafts[draftId].cardId, imported.id);

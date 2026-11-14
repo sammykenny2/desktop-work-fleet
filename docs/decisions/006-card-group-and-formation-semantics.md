@@ -7,9 +7,9 @@ Parts that the user authorized to be planned by best practice are marked D in
 [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md); feature scope not yet decided is marked Q. This ADR
 does not accept a specific framework or sync protocol, and does not mean anything is implemented.
 
-[ADR-072](072-persistent-desktop-note-stacking.md) proposes replacing decision 7's temporary relative order with
-remembered desktop note/group raises. It is design only; it does not change the temporary resident-layer lift in
-decision 10 or claim implementation/acceptance.
+[ADR-072](072-persistent-desktop-note-stacking.md) supersedes decision 7's temporary relative order with remembered
+desktop note/group raises, approved 2026-11-14. It preserves decision 10's temporary resident-layer lift. Native
+acceptance is tracked separately in PLAN-015.
 
 ## Context
 

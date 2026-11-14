@@ -332,8 +332,9 @@ test('a reset clears each profile and lays the six default regions out from the 
   const state = combined.layout.state;
   assert.equal(state.desktopVisible, true); assert.equal(state.quickMove, undefined);
   assert.deepEqual(state.grid.slots.filter(Boolean), [group[0].id, group[1].id, group[2].id]);
-  assert.deepEqual(state.placements, {}); assert.equal(state.groupLayers[group[1].id], 'wallpaper');
-  assert.deepEqual(profiles[1].workspace.layout.state.placements, {});
+  assert.deepEqual(Object.keys(state.placements), [note.id]); assert.equal(state.groupLayers[group[1].id], 'wallpaper');
+  assert.deepEqual(profiles[1].workspace.layout.state.placements[note.id], state.placements[note.id]);
+  assert.deepEqual(profiles[1].workspace.layout.state.history, []);
   await combined.layout.placeNew(combined.working, [area]); assert.ok(combined.layout.state.placements[note.id]);
 });
 
@@ -384,7 +385,7 @@ test('a group new to this device that finds no free region is reported once; one
 });
 
 test('Versions and conflicts opens on a collection that has something to show', () => {
-  const state = conflicts => ({ state: { conflicts, drafts: {} } });
+  const state = conflicts => ({ state: { conflicts, drafts: {} }, layout: { setOrderAuthority() {} } });
   const combined = new CombinedWorkspace([{ id: 'google:a', workspace: state([]) }, { id: 'local', workspace: state([{}]) }], null);
   assert.equal(combined.attentionCount(), 1); assert.equal(combined.firstNeedingAttention(), 'local');
   assert.equal(new CombinedWorkspace([{ id: 'local', workspace: state([]) }], null).firstNeedingAttention(), null);

@@ -1,4 +1,4 @@
-import { activeGroups, compareId, containsRect, copy, defaultGrid, eligible,
+import { activeGroups, compareCards, compareId, containsRect, copy, defaultGrid, eligible,
   gridRegions, groupKey, membershipKey, requireValue, validRect } from '../core/contracts.js';
 import { defaultShortcuts, validateShortcuts } from '../core/shortcuts.js';
 import { maximalAreas, overlaps, subtract } from './formation.js';
@@ -9,6 +9,7 @@ import { validOpacity } from './opacity.js';
 import { paperDimensions, validPaperSize } from './paper-size.js';
 import { schemas } from '../core/schema.js';
 import { t } from '../i18n/index.js';
+import { isFront, layoutHighWater, maxOrder, orderRange, paperGeometry, restorePaper, visualOrder } from './stacking.js';
 
 /** How the main window shows a group's papers on this device; a layout without a choice shows the board. */
 export const mainViews = Object.freeze(['board', 'list']);
@@ -18,7 +19,7 @@ export const mainGroup = (layout, groups) => groups.some(group => group.id === l
 /** Whether this device makes the group's notes stand out; any number of groups can. */
 export const groupHighlighted = (layout, groupId) => layout.groupHighlights?.[groupId] === true;
 
-const geometry = rect => Object.fromEntries(['x', 'y', 'width', 'height', 'order'].map(key => [key, rect[key]]));
+const geometry = paperGeometry;
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createLayout(deviceId, groups, area) {
@@ -122,10 +123,12 @@ export class LayoutStore {
   #state;
   #persist;
   #tail = Promise.resolve();
+  #orderAuthority = null; #reserved;
   whenIdle() { return this.#tail; }
 
   constructor(state, persist) {
     requireValue(typeof persist === 'function', 'missing-storage', t('errors.core.layoutStorageRequired'));
+    this.#reserved = layoutHighWater(state); // Refuse corrupt labels without modifying an installed layout.
     this.#state = copy(state);
     this.#persist = persist;
   }
@@ -133,6 +136,44 @@ export class LayoutStore {
   get state() { return copy(this.#state); }
   /** This profile's list order, without copying its placements. */
   get slots() { return [...this.#state.grid.slots]; }
+  setOrderAuthority(authority) { this.#orderAuthority = authority; }
+  #front(draft, ids) {
+    return this.#orderAuthority ? this.#orderAuthority.isFront(ids)
+      : isFront(visualOrder(Object.keys(draft.placements).map(id => ({ id })), draft).map(card => card.id), ids);
+  }
+  async #reserve(draft, count) {
+    if (this.#orderAuthority) return this.#orderAuthority.reserve(count, layoutHighWater(draft));
+    const labels = orderRange(maxOrder(layoutHighWater(draft), this.#reserved), count);
+    if (labels.length) this.#reserved = draft.zOrderCounter = labels.at(-1);
+    return labels;
+  }
+  async #raise(draft, ids) {
+    if (this.#front(draft, ids)) return false;
+    const labels = await this.#reserve(draft, ids.length);
+    ids.forEach((id, index) => { draft.placements[id].zOrder = labels[index]; });
+    return true;
+  }
+  /** Attention changes only this device's placement, not content or Undo history. */
+  raise(ids) {
+    ids = [...ids];
+    return this.#transaction(async draft => {
+      requireValue(new Set(ids).size === ids.length && ids.every(id => draft.placements[id]),
+        'missing-placement', t('errors.core.placementMissing'));
+      return this.#raise(draft, ids);
+    });
+  }
+  raiseGroup(groupId, snapshot) {
+    const layout = this.state;
+    return this.raise(visualOrder(snapshot.cards.filter(card => card.groupId === groupId && eligible(card, layout)
+      && layout.placements[card.id]), layout).map(card => card.id));
+  }
+  /** Called inside the restore's existing owner transaction, never as a separate layout commit. */
+  async rebaseRestored(layout, ids) {
+    this.#orderAuthority?.check?.();
+    const papers = visualOrder(ids.filter(id => layout.placements[id]).map(id => ({ id })), layout);
+    const labels = await this.#reserve(layout, papers.length);
+    papers.forEach((paper, index) => { layout.placements[paper.id].zOrder = labels[index]; });
+  }
 
   /** Serialize a source transaction with device writes; the callback atomically persists both states. */
   integrateSource(persist) {
@@ -145,8 +186,9 @@ export class LayoutStore {
     return operation;
   }
 
-  #transaction(change, persist = this.#persist, force = false) {
+  #transaction(change, persist = this.#persist, force = false, batch = false) {
     const operation = this.#tail.then(async () => {
+      if (!batch) this.#orderAuthority?.check?.();
       const draft = copy(this.#state);
       const result = await change(draft);
       if (!force && same(draft, this.#state)) return result;
@@ -259,17 +301,20 @@ export class LayoutStore {
       const deferred = [];
       let order = Math.max(0, ...Object.values(draft.placements).map(rect => rect.order)) + 1;
       const fresh = snapshot.cards.filter(card => !card.deleted && !draft.placements[card.id] && !desk?.hidden[card.groupId])
-        .sort((a, b) => compareId(a.id, b.id));
+        .sort(compareCards);
       // Placements outlive deleted, archived and hidden papers; only papers on the desktop take up room.
       const view = desk ? { ...draft, completedVisible: desk.completedVisible, hiddenGroups: desk.hidden } : draft;
       const shown = [...desk?.occupied ?? [], ...snapshot.cards.filter(card => draft.placements[card.id] && eligible(card, view))
         .map(card => draft.placements[card.id])];
+      const placeable = fresh.filter(card => knownIds.has(card.groupId));
+      const labels = await this.#reserve(draft, placeable.length); let labelIndex = 0;
       for (const card of fresh) {
         if (checkpoint) await checkpoint();
         if (!knownIds.has(card.groupId)) { deferred.push(card.id); continue; }
         const region = regions.find(region => region.groupId === card.groupId) || draft.grid.area;
         const size = fitNewPaper(startingSize, region);
-        draft.placements[card.id] = rescueRect({ ...newPaperPosition(size, region, shown), ...size, order: order++, visible: true }, workAreas);
+        draft.placements[card.id] = rescueRect({ ...newPaperPosition(size, region, shown), ...size, order: order++,
+          zOrder: labels[labelIndex++], visible: true }, workAreas);
         if (eligible(card, view)) shown.push(draft.placements[card.id]);
       }
       return { deferred, groupOverflow: groups.length > 9, groups: groupKey(snapshot) };
@@ -279,21 +324,26 @@ export class LayoutStore {
   async move(cardId, position, expectedRevision) {
     position = copy(position);
     requireValue(Number.isFinite(position.x) && Number.isFinite(position.y), 'invalid-position', t('errors.core.positionInvalid'));
-    return this.#transaction(draft => {
+    return this.#transaction(async draft => {
       requireValue(expectedRevision === undefined || expectedRevision === draft.revision, 'stale-layout', t('errors.common.layoutChanged'));
       const rect = draft.placements[cardId];
       requireValue(rect, 'missing-placement', t('errors.core.placementMissing'));
-      if (rect.x === position.x && rect.y === position.y) return;
-      draft.history.push({ kind: 'move', at: stamp(), before: { [cardId]: geometry(rect) } });
+      const before = geometry(rect), raised = await this.#raise(draft, [cardId]);
+      if (rect.x === position.x && rect.y === position.y && !raised) return;
+      draft.history.push({ kind: 'move', at: stamp(), before: { [cardId]: before }, afterZ: { [cardId]: rect.zOrder ?? null } });
       Object.assign(rect, { x: position.x, y: position.y });
     });
   }
 
   async transfer(cardId, position, expectedRevision, transfer, persist) {
     position = copy(position); transfer = copy(transfer);
-    return this.#transaction(draft => {
+    return this.#transaction(async draft => {
       requireValue(expectedRevision === undefined || expectedRevision === draft.revision, 'stale-layout', t('errors.common.layoutChanged'));
       recordTransferLayout(draft, cardId, position, transfer);
+      if (position) {
+        await this.#raise(draft, [cardId]);
+        draft.history.at(-1).afterZ = { [cardId]: draft.placements[cardId].zOrder ?? null };
+      }
     }, persist);
   }
 
@@ -304,17 +354,19 @@ export class LayoutStore {
 
   async applyFormation(plan, getSnapshot) {
     plan = copy(plan);
-    return this.#transaction(draft => {
+    return this.#transaction(async draft => {
       requireValue(plan.layoutRevision === draft.revision
         && plan.membership === membershipKey(getSnapshot(), draft),
       'stale-plan', t('errors.core.arrangePlanStale'));
       requireValue(plan.allowResize || plan.resized.length === 0, 'resize-consent', t('errors.core.resizeNotAllowed'));
       const before = {};
+      const labels = await this.#reserve(draft, Object.keys(plan.changes).length); let index = 0; const afterZ = {};
       for (const [id, rect] of Object.entries(plan.changes)) {
         before[id] = geometry(draft.placements[id]);
-        Object.assign(draft.placements[id], geometry(rect));
+        Object.assign(draft.placements[id], geometry(rect), { zOrder: labels[index++] });
+        afterZ[id] = draft.placements[id].zOrder;
       }
-      draft.history.push({ kind: 'formation', at: stamp(), before, gridBefore: copy(draft.grid), gridAfter: copy(plan.grid) });
+      draft.history.push({ kind: 'formation', at: stamp(), before, afterZ, gridBefore: copy(draft.grid), gridAfter: copy(plan.grid) });
       draft.grid = copy(plan.grid);
       return { membership: plan.membership };
     });
@@ -323,10 +375,11 @@ export class LayoutStore {
   /** A moved note's position comes with it; repeating this after a crash changes nothing. */
   async adoptPlacement(cardId, rect) {
     rect = copy(rect);
-    return this.#transaction(draft => {
+    return this.#transaction(async draft => {
       if (draft.placements[cardId]) return;
       const order = Math.max(0, ...Object.values(draft.placements).map(item => item.order)) + 1;
-      draft.placements[cardId] = { ...rect, order };
+      const [zOrder] = await this.#reserve(draft, 1);
+      draft.placements[cardId] = { ...rect, order, zOrder };
     });
   }
 
@@ -334,15 +387,30 @@ export class LayoutStore {
   async applyChanges(changes, batch) {
     changes = copy(changes);
     return this.#transaction(draft => {
-      const before = {};
+      const before = {}, afterZ = {};
       for (const [id, rect] of Object.entries(changes)) {
         // A paper purged since the plan was made has nothing left to arrange.
         if (!draft.placements[id]) continue;
         before[id] = geometry(draft.placements[id]);
         Object.assign(draft.placements[id], geometry(rect));
+        afterZ[id] = draft.placements[id].zOrder ?? null;
       }
-      draft.history.push({ kind: 'formation', at: stamp(), batch, before });
+      draft.history.push({ kind: 'formation', at: stamp(), batch, before, afterZ });
     });
+  }
+
+  /** The batch journal supplies a validated owner-local layout; the receipt is atomic with that layout. */
+  commitBatch(id, step, getSnapshot) {
+    step = copy(step);
+    return this.#transaction(draft => {
+      if (draft.layoutBatchId === id) return;
+      requireValue(draft.revision === step.revision && step.membership === membershipKey(getSnapshot(), draft),
+        'stale-layout-batch', t('errors.core.arrangePlanStale'));
+      layoutHighWater(step.after);
+      for (const key of Object.keys(draft)) delete draft[key];
+      Object.assign(draft, step.after, { layoutBatchId: id });
+      return { membership: step.membership };
+    }, this.#persist, false, true);
   }
 
   async undo(getSnapshot, workAreas, persist, undoRevision) {
@@ -358,7 +426,7 @@ export class LayoutStore {
         if (!live.has(id) || !draft.placements[id]) continue;
         const restored = rescueRect(previous, workAreas);
         if (restored.x !== previous.x || restored.y !== previous.y) rescued.push(id);
-        Object.assign(draft.placements[id], restored);
+        restorePaper(draft.placements[id], restored, entry.afterZ?.[id]);
       }
       if (entry.gridBefore && same(entry.gridAfter, draft.grid)) {
         // A newer settings edit or remote group change must not be undone as an old layout side effect.

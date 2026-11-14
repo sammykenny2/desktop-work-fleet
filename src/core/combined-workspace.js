@@ -1,13 +1,15 @@
-import { activeGroups, copy, defaultGrid, eligible, PinItAnywhereError, gridRegions, groupKey, membershipKey, requireValue } from './contracts.js';
+import { activeGroups, compareCards, compareId, copy, defaultGrid, eligible, PinItAnywhereError, gridRegions, groupKey, membershipKey, requireValue } from './contracts.js';
 import { resolveGroupId } from './groups.js';
 import { validateShortcuts } from './shortcuts.js';
 import { deskFields, deskKey, DeskStore, hiddenGroups, seedDesk, settledColors, settleDesk } from '../layout/desk.js';
 import { swapGroupColor, validColor } from '../layout/colors.js';
 import { orderedGroups } from '../layout/order.js';
 import { groupLayer } from '../layout/stages.js';
-import { mainViews } from '../layout/store.js';
+import { LayoutStore, mainViews } from '../layout/store.js';
 import { paperDimensions, validPaperSize } from '../layout/paper-size.js';
 import { t } from '../i18n/index.js';
+import { isFront, layoutHighWater, maxOrder, orderRange, visualOrder, zeroOrder } from '../layout/stacking.js';
+import { LayoutBatchJournal } from '../layout/batch.js';
 
 const pick = (object, keep) => Object.fromEntries(Object.entries(object).filter(([key]) => keep(key)));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -17,29 +19,54 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
  * looks. Writes go to whichever holds the value, and each profile's layout stays the atomic partner of its content.
  */
 class CombinedLayout {
-  #combined; #desk; #arrivedOff = [];
-  constructor(combined, desk) { this.#combined = combined; this.#desk = desk; }
+  #combined; #desk; #arrivedOff = []; #journal; #tail = Promise.resolve();
+  constructor(combined, desk) {
+    this.#combined = combined; this.#desk = desk;
+    this.#journal = new LayoutBatchJournal(this.#profiles, desk);
+    for (const { workspace } of this.#profiles) workspace.layout.setOrderAuthority({
+      reserve: (count, floor) => desk.reserveOrders(count, maxOrder(this.#highWater(), floor)),
+      isFront: ids => {
+        const layout = this.state;
+        return isFront(visualOrder(this.#combined.working.cards.filter(card => eligible(card, layout)
+          && layout.placements[card.id]), layout).map(card => card.id), ids);
+      },
+      check: () => requireValue(!this.#journal.blocked, 'layout-batch-pending', t('errors.core.layoutBatchPending')),
+    });
+  }
+  recoverBatch() { return this.#journal.recover(); }
+  #perform(work) {
+    const pending = this.#tail.then(async () => { await this.#journal.recover(); return work(); });
+    this.#tail = pending.catch(() => {}); return pending;
+  }
+  async #simulate(profile, work) {
+    const before = profile.workspace.layout.state, snapshot = profile.workspace.working;
+    const layout = new LayoutStore(before, async () => {});
+    const value = await work(layout, snapshot);
+    return { step: { owner: profile.id, before, revision: before.revision, membership: membershipKey(snapshot, before), after: layout.state }, value };
+  }
+  #highWater() { return maxOrder(...this.#profiles.map(({ workspace }) => layoutHighWater(workspace.layout.state))); }
   get #profiles() { return this.#combined.profiles; }
   get desk() { return this.#desk; }
 
   get state() {
-    const desk = this.#desk.state; const groups = this.#combined.groups();
+    const desk = this.#journal.beforeDesk(this.#desk.state); const groups = this.#combined.groups();
     const known = pick(hiddenGroups(desk, groups), id => desk.known[id] !== undefined);
     // A key for a region reserved for a collection that is not open acts on nothing, so shortcuts read the live slots.
     const open = new Set(groups.map(group => group.id));
     const merged = { schemaVersion: 1, revision: desk.revision, grid: desk.grid, liveSlots: desk.grid.slots.map(id => open.has(id) ? id : null), groupColors: desk.groupColors, hiddenGroups: known,
-      placements: {}, history: [], groupLayers: {}, groupOpacity: {}, groupHighlights: {} };
+      placements: {}, owners: {}, history: [], groupLayers: {}, groupOpacity: {}, groupHighlights: {} };
     for (const key of deskFields) if (desk[key] !== undefined) merged[key] = desk[key];
-    for (const { workspace } of this.#profiles) {
-      const layout = workspace.layout.state;
+    for (const { id, workspace } of this.#profiles) {
+      const layout = this.#journal.before(id) ?? workspace.layout.state;
       merged.deviceId ??= layout.deviceId; merged.revision += layout.revision;
       Object.assign(merged.placements, layout.placements); merged.history.push(...layout.history);
+      for (const cardId of Object.keys(layout.placements)) merged.owners[cardId] = id;
       Object.assign(merged.groupLayers, layout.groupLayers); Object.assign(merged.groupOpacity, layout.groupOpacity);
       Object.assign(merged.groupHighlights, layout.groupHighlights);
     }
     return merged;
   }
-  whenIdle() { return Promise.all([this.#desk.whenIdle(), ...this.#profiles.map(({ workspace }) => workspace.layout.whenIdle())]); }
+  whenIdle() { return Promise.all([this.#tail, this.#journal.whenIdle(), this.#desk.whenIdle(), ...this.#profiles.map(({ workspace }) => workspace.layout.whenIdle())]); }
   /** Read for every note drawn, so it skips merging the placements. */
   get groupColors() { return this.#desk.state.groupColors; }
 
@@ -63,13 +90,16 @@ class CombinedLayout {
   /** Groups new to this device that found no free region since the last call, so that the page can say so. */
   takeArrivedOffDesktop() { return this.#arrivedOff.splice(0); }
 
-  async placeNew(_snapshot, workAreas, paperSize = undefined, checkpoint = null) {
+  placeNew(_snapshot, workAreas, paperSize = undefined, checkpoint = null) {
+    return this.#perform(() => this.#placeNew(workAreas, paperSize, checkpoint));
+  }
+  async #placeNew(workAreas, paperSize, checkpoint) {
     await this.settle();
     const desk = this.#desk.state; const results = [];
     paperSize ??= paperDimensions(desk);
     const regions = gridRegions(desk.grid, []).filter(region => region.groupId);
     const hidden = hiddenGroups(desk, this.#combined.groups());
-    for (const { workspace } of this.#profiles) {
+    for (const { workspace } of [...this.#profiles].sort((a, b) => compareId(a.id, b.id))) {
       const view = this.state;
       const occupied = this.#combined.working.cards.filter(card => view.placements[card.id] && eligible(card, view) && !workspace.holdsCard(card.id))
         .map(card => view.placements[card.id]);
@@ -80,6 +110,7 @@ class CombinedLayout {
   }
 
   async configure(patch, snapshot) {
+    await this.#journal.recover();
     patch = copy(patch);
     const allowed = ['grid', 'desktopVisible', 'completedVisible', 'quickMove', 'newPaperSize', 'shortcuts', 'mainView'];
     requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', t('errors.core.layoutSettingUnknown'));
@@ -145,42 +176,98 @@ class CombinedLayout {
   }
 
   async move(cardId, position, expectedRevision) {
-    requireValue(expectedRevision === undefined || expectedRevision === this.state.revision, 'stale-layout', t('errors.common.layoutChanged'));
-    return this.#ofCard(cardId).layout.move(cardId, position);
+    return this.#perform(() => {
+      requireValue(expectedRevision === undefined || expectedRevision === this.state.revision, 'stale-layout', t('errors.common.layoutChanged'));
+      return this.#ofCard(cardId).layout.move(cardId, position);
+    });
+  }
+  raise(ids) {
+    if (!ids.length) return Promise.resolve(false);
+    const owners = new Set(ids.map(id => this.#ofCard(id)));
+    requireValue(owners.size === 1, 'other-collection', t('errors.core.otherCollection'));
+    return this.#perform(() => [...owners][0].layout.raise(ids));
+  }
+  raiseGroup(groupId, snapshot) {
+    const layout = this.state;
+    return this.raise(visualOrder(snapshot.cards.filter(card => card.groupId === groupId && eligible(card, layout)
+      && layout.placements[card.id]), layout).map(card => card.id));
   }
 
   /** A formation is one action to the user, so it undoes as one even when it moved papers of several profiles. */
   async applyFormation(plan, getSnapshot) {
+    plan = copy(plan);
+    return this.#perform(() => this.#formation(plan, getSnapshot));
+  }
+  async #formation(plan, getSnapshot) {
     plan = copy(plan); const state = this.state;
     requireValue(plan.layoutRevision === state.revision && plan.membership === membershipKey(getSnapshot(), state), 'stale-plan', t('errors.core.arrangePlanStale'));
     requireValue(plan.allowResize || plan.resized.length === 0, 'resize-consent', t('errors.core.resizeNotAllowed'));
-    const batch = crypto.randomUUID();
-    for (const { workspace } of this.#profiles) {
-      const changes = pick(plan.changes, id => workspace.holdsCard(id));
-      if (Object.keys(changes).length) await workspace.layout.applyChanges(changes, batch);
+    const batch = crypto.randomUUID(), steps = [];
+    const labels = await this.#desk.reserveOrders(Object.keys(plan.changes).length, this.#highWater());
+    requireValue(this.state.revision === plan.layoutRevision && membershipKey(getSnapshot(), this.state) === plan.membership,
+      'stale-plan', t('errors.core.arrangePlanStale'));
+    Object.values(plan.changes).forEach((rect, index) => { rect.zOrder = labels[index]; });
+    for (const profile of this.#profiles) {
+      const changes = pick(plan.changes, id => profile.workspace.holdsCard(id));
+      if (Object.keys(changes).length) steps.push((await this.#simulate(profile, layout => layout.applyChanges(changes, batch))).step);
     }
-    if (!same(plan.grid, state.grid)) await this.#desk.update(draft => { draft.grid = copy(plan.grid); });
+    const desk = same(plan.grid, state.grid) ? null : { before: { grid: state.grid }, after: { grid: plan.grid } };
+    requireValue(this.state.revision === plan.layoutRevision && membershipKey(getSnapshot(), this.state) === plan.membership,
+      'stale-plan', t('errors.core.arrangePlanStale'));
+    await this.#journal.run(steps, desk, batch);
     return { membership: plan.membership };
   }
 
   /** The newest action across profiles comes first, also after a restart; a formation across profiles undoes as one. */
   async undo(workAreas) {
+    return this.#perform(() => this.#undo(workAreas));
+  }
+  async #undo(workAreas) {
     const tops = this.#profiles.map(({ workspace }) => ({ workspace, top: workspace.layout.state.history.at(-1) })).filter(item => item.top)
       .sort((a, b) => (b.top.at ?? 0) - (a.top.at ?? 0));
     if (!tops.length) return { kind: 'empty', rescued: [] };
-    const { batch } = tops[0].top; let result;
-    for (const { workspace } of batch ? tops.filter(item => item.top.batch === batch) : tops.slice(0, 1)) result = await workspace.undo(workAreas);
+    const { batch } = tops[0].top;
+    if (!batch) return tops[0].workspace.undo(workAreas);
+    const steps = []; let result;
+    for (const item of tops.filter(item => item.top.batch === batch)) {
+      const profile = this.#profiles.find(profile => profile.workspace === item.workspace);
+      const simulated = await this.#simulate(profile, (layout, snapshot) => layout.undo(() => snapshot, workAreas));
+      steps.push(simulated.step); result = simulated.value;
+    }
+    await this.#journal.run(steps);
     return result;
   }
 
   async reset(_snapshot, area, layer = null) {
-    for (const { workspace } of this.#profiles) await workspace.layout.reset(workspace.snapshot, area, layer, { listOnly: true });
-    // The default six regions start over from the list; groups past that stay off the desktop.
-    const groups = this.#combined.orderedGroups();
-    await this.#desk.update(draft => {
-      // Forgetting what it has seen lets a group of a collection not open now take a free region when it returns.
-      draft.grid = defaultGrid(groups.slice(0, 9), area); draft.desktopVisible = true; draft.known = {};
-      delete draft.completedVisible; delete draft.quickMove;
+    return this.#perform(async () => {
+      const previous = this.#desk.state, groups = this.#combined.orderedGroups(), grid = defaultGrid(groups.slice(0, 9), area);
+      const regions = gridRegions(grid), models = new Map(), bases = new Map(), occupied = [];
+      for (const profile of this.#profiles) {
+        const before = profile.workspace.layout.state;
+        bases.set(profile.id, { owner: profile.id, before, revision: before.revision, membership: membershipKey(profile.workspace.working, before) });
+        const layout = new LayoutStore(before, async () => {});
+        layout.setOrderAuthority({ reserve: count => Promise.resolve(orderRange(zeroOrder, count)), isFront: () => false });
+        await layout.reset(profile.workspace.working, area, layer, { listOnly: true }); models.set(profile.id, layout);
+      }
+      const hidden = Object.fromEntries(groups.filter(group => !grid.slots.includes(group.id)).map(group => [group.id, true]));
+      const sequence = [];
+      for (const region of regions.filter(region => region.groupId)) {
+        const profile = this.#combined.ownerOfGroup(region.groupId), layout = models.get(profile.id);
+        const snapshot = profile.workspace.working;
+        snapshot.cards = snapshot.cards.filter(card => card.groupId === region.groupId);
+        await layout.placeNew(snapshot, [area], paperDimensions(this.#desk.state), null, { regions, hidden, occupied, completedVisible: false });
+        for (const card of snapshot.cards.sort(compareCards)) if (layout.state.placements[card.id]) {
+          sequence.push([profile.id, card.id]);
+          if (eligible(card, layout.state)) occupied.push(layout.state.placements[card.id]);
+        }
+      }
+      const labels = await this.#desk.reserveOrders(sequence.length, this.#highWater());
+      const after = new Map([...models].map(([id, layout]) => [id, layout.state]));
+      sequence.forEach(([owner, id], index) => { after.get(owner).placements[id].zOrder = labels[index]; });
+      const steps = this.#profiles.map(profile => ({ ...bases.get(profile.id), after: after.get(profile.id) }));
+      const fields = ['grid', 'desktopVisible', 'known', 'completedVisible', 'quickMove'];
+      await this.#journal.run(steps, { before: Object.fromEntries(fields.map(key => [key, previous[key] ?? null])),
+        after: { grid, desktopVisible: true, known: {} }, unset: ['completedVisible', 'quickMove'] });
     });
   }
 
@@ -214,12 +301,19 @@ export class CombinedWorkspace {
     const copies = await Promise.all(profiles.map(profile => profile.storage.getControl(deskKey).catch(() => null)));
     const later = (a, b) => (a.changedAt ?? 0) - (b.changedAt ?? 0) || a.revision - b.revision;
     for (const value of copies) if (value && (!saved || later(value, saved) > 0)) saved = value;
+    const high = maxOrder(...copies.filter(Boolean).map(value => value.zOrderCounter),
+      ...profiles.map(({ workspace }) => layoutHighWater(workspace.layout.state)));
+    if (saved) saved = { ...saved, zOrderCounter: high };
     if (saved) await Promise.all(profiles.map((profile, index) => JSON.stringify(copies[index]) === JSON.stringify(saved) ? null : profile.storage.putControl(deskKey, saved).catch(() => {})));
-    const desk = new DeskStore(saved ?? seedDesk(primary.workspace.layout.state), async value => {
+    const desk = new DeskStore(saved ?? { ...seedDesk(primary.workspace.layout.state), zOrderCounter: high }, async (value, { reservation = false } = {}) => {
       const results = await Promise.allSettled(profiles.map(profile => profile.storage.putControl(deskKey, value)));
+      const canonical = Math.max(0, profiles.findIndex(profile => profile.id === 'local'));
+      if (reservation && results[canonical].status === 'rejected') throw results[canonical].reason;
       if (results.every(result => result.status === 'rejected')) throw results[0].reason;
     });
     const combined = new CombinedWorkspace(profiles, desk);
+    // An unreadable/incomplete layout batch must not prevent unrelated note capture or sync.
+    await combined.layout.recoverBatch().catch(() => {});
     await combined.layout.settle();
     return combined;
   }

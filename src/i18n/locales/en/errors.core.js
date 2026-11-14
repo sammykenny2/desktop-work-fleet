@@ -24,6 +24,9 @@ export default {
   'errors.core.shortcutTargetMissing': "The shortcut's group no longer exists.",
 
   // Data format
+  'errors.core.stackingInvalid': 'The saved note order is invalid. Your data is kept; reopen the app or restore a compatible backup.',
+  'errors.core.stackingExhausted': 'The note order cannot be saved because its range is exhausted. Your data is kept.',
+  'errors.core.layoutBatchPending': 'The layout operation is incomplete. Retry after the affected collection is available; your notes are kept.',
   'errors.core.schemaUnsupported': "This data format version isn't supported. The original data is kept.",
   'errors.core.kindUnknown': 'Unknown data kind.',
 

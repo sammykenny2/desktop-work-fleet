@@ -223,7 +223,7 @@ export class Workspace {
       }
       const draft = this.currentFormat && options.draftsOnly
         ? { ...this.#state, drafts: { ...this.#state.drafts } } : copy(this.#state);
-      const result = change(draft);
+      const result = await change(draft);
       const additions = draft.revisions.slice(this.#state.revisions.length);
       const Graph = this.currentFormat ? CurrentRevisions : RevisionGraph;
       const graph = replaceGraph ? new Graph(draft.revisions) : additions.length ? this.#graph.fork(additions) : this.#graph;
@@ -257,8 +257,11 @@ export class Workspace {
     return this.#layout.integrateSource(() => {
       cancelled(); const existing = plan.existing(this.#state);
       if (existing) return { layout: this.#state.layout, value: existing };
-      return this.#commit(state => {
+      return this.#commit(async state => {
         cancelled(); const next = plan.materialize(state, safetyBackup);
+        const inserted = Object.keys(next.layout.placements).filter(id => !state.layout.placements[id]);
+        await this.#layout.rebaseRestored(next.layout, [...new Set([...plan.adoptedPlacements, ...inserted])]);
+        cancelled();
         if (replaceGraph) for (const key of Object.keys(state)) delete state[key];
         Object.assign(state, next);
         return { layout: state.layout, value: plan.receipt };

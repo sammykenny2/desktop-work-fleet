@@ -70,6 +70,7 @@ test('full local snapshot retains history, all card/group states, unsaved change
   assert.deepEqual(document.data.records, before.revisions); assert.deepEqual(document.data.drafts, Object.values(before.drafts));
   assert.deepEqual(document.data.drafts.filter(draft => draft.cardId === f.card.id).map(draft => draft.id), ['later-edit']);
   const saved = copy(before.layout); assert.ok(saved.placements[f.unsaved.cardId]); delete saved.placements[f.unsaved.cardId];
+  delete saved.zOrderCounter; delete saved.layoutBatchId;
   assert.deepEqual(document.data.layout, saved, 'a note never saved has no place in a backup');
   assert.deepEqual(document.data.local.membershipRebases, before.membershipRebases);
   assert.deepEqual(document.data.local.cards, before.cards.map(({ id, revision }) => ({ id, revision })));
@@ -154,6 +155,8 @@ test('valid hashes cannot disguise duplicate revisions, bad selected heads, inva
     files => edit(files, 'layout.json', value => { value.mainGroupId = null; }),
     files => edit(files, 'layout.json', value => { value.completedVisible = 'no'; }),
     files => edit(files, 'layout.json', value => { value.quickMove = 'yes'; }),
+    files => edit(files, 'layout.json', value => { Object.values(value.placements)[0].zOrder = 42; }),
+    files => edit(files, 'layout.json', value => { Object.values(value.placements)[0].zOrder = 'F'.repeat(32); }),
     files => edit(files, 'layout.json', value => { value.groupColors = { ...value.groupColors, 'missing-group': 0 }; }),
     files => edit(files, 'layout.json', value => { value.groupColors = Object.fromEntries(Object.keys(value.groupColors).map(id => [id, 9])); }),
     files => edit(files, 'layout.json', value => { value.groupOpacity = { 'missing-group': 0.5 }; }),

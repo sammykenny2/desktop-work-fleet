@@ -43,6 +43,7 @@ export function remapLayout(layout, ids) {
   const grid = value => { value.slots = value.slots.map(id => id === null ? null : ids.group(id)); };
   const geometry = value => Object.fromEntries(Object.entries(value).map(([id, rect]) => [ids.card(id), rect]));
   grid(result.grid); result.placements = geometry(result.placements);
+  delete result.zOrderCounter; delete result.layoutBatchId;
   if (result.mainGroupId !== undefined) result.mainGroupId = ids.group(result.mainGroupId);
   if (result.groupLayers) result.groupLayers = Object.fromEntries(Object.entries(result.groupLayers).map(([id, layer]) => [ids.group(id), layer]));
   if (result.groupColors) result.groupColors = Object.fromEntries(Object.entries(result.groupColors).map(([id, index]) => [ids.group(id), index]));
@@ -51,6 +52,7 @@ export function remapLayout(layout, ids) {
   for (const key of Object.keys(result.shortcuts)) if (!result.shortcuts[key].startsWith('@')) result.shortcuts[key] = ids.group(result.shortcuts[key]);
   for (const undo of result.history) {
     undo.before = geometry(undo.before);
+    if (undo.afterZ) undo.afterZ = geometry(undo.afterZ);
     if (undo.gridBefore) grid(undo.gridBefore); if (undo.gridAfter) grid(undo.gridAfter);
     if (undo.transfer) {
       const item = undo.transfer; item.cardId = ids.card(item.cardId);
@@ -135,11 +137,13 @@ export async function saveSafetyBackup({ workspace, storage, save, ...options })
 
 /** Opaque immutable plan. Getters expose copies; only a verified BackupDocument can produce a plan. */
 export class RestorePlan {
-  #state; #document; #preview; #receipt; #verify;
-  constructor(key, state, document, preview, receipt, verify = async () => {}) {
+  #state; #document; #preview; #receipt; #verify; #adopted;
+  constructor(key, state, document, preview, receipt, verify = async () => {}, adopted = []) {
     requireValue(key === planKey, 'invalid-restore-plan', t('errors.backup.restorePlanRequired'));
     this.#state = state; this.#document = document; this.#preview = preview; this.#receipt = receipt; this.#verify = verify;
+    this.#adopted = [...adopted];
   }
+  get adoptedPlacements() { return [...this.#adopted]; }
   get preview() { return copy(this.#preview); }
   get receipt() { return copy(this.#receipt); }
   get attachments() { return this.#document.attachmentIds.map(id => ({ id, bytes: this.#document.attachment(id) })); }
@@ -181,7 +185,7 @@ export async function prepareLocalRestore({ workspace, document, ...options }) {
   const preview = { ...restore.preview, mode: 'local-replace', revision: current.revision, requiresSafetyBackup: false,
     removed: { cards: current.cards.length, groups: current.groups.length, drafts: Object.keys(current.drafts).length,
       revisions: current.revisions.length } };
-  return new RestorePlan(planKey, next, document, preview, receipt);
+  return new RestorePlan(planKey, next, document, preview, receipt, undefined, restore.adoptedPlacements);
 }
 
 export async function prepareRestore({ workspace, document, mode = 'import', layout = 'preserve', workAreas,
@@ -343,5 +347,6 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
     requiresSafetyBackup: mode === 'replace' };
   if (current) preview.recoveredAsNew = Object.keys(imported.mappings.card ?? {}).filter(id => affected.has(id)).length;
   await checkpoint(); checkCancelled(signal);
-  return new RestorePlan(planKey, next, document, preview, receipt, verify);
+  const adopted = layout === 'backup' ? Object.keys(restoredLayout.placements).filter(id => mode !== 'import' || !existingCards.has(id)) : [];
+  return new RestorePlan(planKey, next, document, preview, receipt, verify, adopted);
 }

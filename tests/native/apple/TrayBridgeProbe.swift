@@ -99,6 +99,54 @@ enum PinItAnywhereKeychain {
         }
         _ = try await value("document.querySelector('#close-editor-button').click(); true")
         try await until("The synthetic editor must close") { try await self.value("!document.querySelector('#editor-dialog').open") }
+        _ = try await value("document.querySelector('#compose').click(); true")
+        try await until("The second synthetic editor must open") { try await self.value("document.querySelector('#editor-dialog').open") }
+        _ = try await value("{ const field=document.querySelector('#editor-text'); field.value='Second synthetic stacking note'; field.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#editor-form').requestSubmit(); } true")
+        try await until("The second note must save") { try await self.value("!document.querySelector('#editor-dialog').open && document.querySelectorAll('.note-paper').length === 2") }
+        try choose("@toggle") // The earlier toggle hid desktop notes; show them before checking resident order.
+        try choose("@all")
+        try await until("Stacking adjustment must start") { self.desktop?.adjusting == true }
+        guard let desktop, let views = Mirror(reflecting: desktop).children.first(where: { $0.label == "views" })?.value as? [PinItAnywhereSceneSurface],
+              let floating = views.first(where: { $0.layer == "floating" }), let wallpaper = views.first(where: { $0.layer == "wallpaper" }) else {
+            throw NSError(domain: "TrayBridgeProbe", code: 6, userInfo: [NSLocalizedDescriptionKey: "Missing native stacking surfaces"])
+        }
+        try await until("Both papers must reach the real WKWebView") { floating.downloading?.cards.count == 2 && floating.applied == floating.downloading?.sequence }
+        let cards = floating.downloading!.cards, rear = cards[0], front = cards[1]
+        let info = try floating.dispatch!(floating, "scene.info", [:]) as! [String: Any]
+        var serial = 10000
+        func command(_ method: String, _ args: [String: Any]) async throws {
+            serial += 1
+            _ = try floating.dispatch!(floating, "scene.command", ["topology": info["topology"]!, "command": [
+                "id": PinItAnywhereProtocol.uuid(), "sessionId": info["sessionId"]!, "serial": serial, "method": method, "args": args]])
+            try await until("The native owner must settle \(method)") {
+                Mirror(reflecting: desktop).children.first(where: { $0.label == "commands" }).map { Mirror(reflecting: $0.value).children.isEmpty } == true
+            }
+        }
+        func drag(_ paper: PinItAnywhereSceneFrame.Card, _ target: NSPoint, returning: Bool = false) async throws {
+            let id = PinItAnywhereProtocol.uuid(), start = NSPoint(x: paper.rect.minX + 30, y: paper.rect.minY + 16)
+            func point(_ p: NSPoint) -> [String: Any] { ["x": p.x, "y": p.y] }
+            let common: [String: Any] = ["gestureId": id, "pointerId": 1]
+            try await command("pointer.down", common.merging(["cardId": paper.id, "point": point(start)]) { _, new in new })
+            try await command("pointer.move", common.merging(["point": point(target), "labels": []]) { _, new in new })
+            try await command("pointer.up", common.merging(["point": point(returning ? start : target), "labels": []]) { _, new in new })
+        }
+        // Move one paper exactly onto another through the production native mailbox/controller/SQLite path.
+        try await drag(front, NSPoint(x: rear.rect.minX + 30, y: rear.rect.minY + 16))
+        try await command("card.select", ["cardId": rear.id])
+        try await until("A selected rear paper must become frontmost") { floating.downloading?.cards.last?.id == rear.id }
+        let back = floating.downloading!.cards.first(where: { $0.id == front.id })!
+        try await drag(back, NSPoint(x: back.rect.minX + 50, y: back.rect.minY + 16), returning: true)
+        try await until("An order-only drag must become frontmost") { floating.downloading?.cards.last?.id == front.id && floating.applied == floating.downloading?.sequence }
+        let hit = "document.elementFromPoint(\(rear.rect.midX - floating.viewport.minX),\(rear.rect.minY + 16 - floating.viewport.minY))?.closest('.card')?.dataset.cardId"
+        let painted = try await floating.web.evaluateJavaScript(hit) as? String
+        guard painted == front.id else { throw NSError(domain: "TrayBridgeProbe", code: 7, userInfo: [NSLocalizedDescriptionKey: "WKWebView paint/hit order differs from the saved order"]) }
+        try await command("interaction.done", [:])
+        try await until("Done must preserve the front paper on the resident Wallpaper layer") {
+            desktop.adjusting == false && wallpaper.downloading?.cards.last?.id == front.id && wallpaper.applied == wallpaper.downloading?.sequence
+        }
+        let top = try await wallpaper.web.evaluateJavaScript("[...document.querySelectorAll('.card')].sort((a,b)=>Number(a.style.zIndex)-Number(b.style.zIndex)).at(-1)?.dataset.cardId") as? String
+        guard top == front.id else { throw NSError(domain: "TrayBridgeProbe", code: 8, userInfo: [NSLocalizedDescriptionKey: "Resident WKWebView lost the completed drag order"]) }
+        print("PASS macOS stacking: real native mailbox, renderer, encrypted SQLite, overlap hit order and persistence after Done")
     }
 }
 

@@ -265,6 +265,17 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   "Done" or a desktop shortcut before using the main window again.
 - In the main window, "This group" and "All" move the matching notes to the Top layer for the time being; "Done"
   returns them to their group's layer.
+- Desktop papers remember their overlap order on this device, including after Done, hide/show and reopening the app.
+  Clicking or dragging in Adjust all brings only that paper forward; entering This group brings the eligible group
+  forward together, preserving its internal order. A successful key-drag, quick-edit entry or cycle step also brings
+  that one paper forward. Lower resident layers still stay below higher ones. Merely reading, hovering, using a
+  checklist/attachment or receiving a sync does not promote an existing paper.
+- A cancelled drag keeps its saved position and order. Stack/Spread save a tidy order for their scope; Reset rebuilds
+  it deterministically and keeps the New notes' desktop size preference. Undo restores the move/arrangement's order
+  with its geometry, while retaining any newer attention raises; attention-only clicks do not add Undo steps.
+- If a layout operation spanning collections is interrupted, its previous view stays until recovery completes and
+  the failure is reported. Reopening or retrying resumes the saved operation; notes are retained. A stale operation
+  cannot overwrite newer changes or revive a permanently deleted note. The main-window board/list order is separate.
 - Dragging only moves a note. It changes groups only when you drop it on another group's receiving label, or hold
   Shift and drop it into another group's region.
 - "Stack" and "Spread" (Arrange) show a preview first, and "Apply arrangement" applies it. Resizing notes has to be

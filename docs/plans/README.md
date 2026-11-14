@@ -57,7 +57,7 @@ Use [000-template.md](./000-template.md) as the starting point for new plans.
 
 | Plan | Title | Status | Related Spec |
 |------|-------|--------|--------------|
-| [015-desktop-note-stacking](015-desktop-note-stacking.md) | Persist attention order, integrate gestures and prove native overlap/recovery | Draft; implementation not started or authorized by the plan | [SPEC-014](../specs/014-desktop-note-stacking.md) |
+| [015-desktop-note-stacking](015-desktop-note-stacking.md) | Persist attention order, integrate gestures and prove native overlap/recovery | Shared implementation complete; native acceptance and independent review partly open | [SPEC-014](../specs/014-desktop-note-stacking.md) |
 | [014-product-identity-and-distribution](014-product-identity-and-distribution.md) | Identity cutover, signing, Release delivery, ARM64 and mobile beta | In progress; final build IDs/local Google settings applied, signing and service acceptance pending | [SPEC-013](../specs/013-product-identity-and-distribution.md) |
 | [012-efficient-idle-sync](012-efficient-idle-sync.md) | Measured idle fast path, native connection reuse and status | In progress: metadata-only local commit; native/provider proof pending | [SPEC-011](../specs/011-efficient-idle-sync.md) |
 | [013-cloud-and-local-notes](013-cloud-and-local-notes.md) | Cloud and local notes side by side, moves across, chosen regions, Trash and search | In progress |

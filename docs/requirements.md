@@ -4,11 +4,11 @@ Updated: 2026-11-14. The interaction contract is [SPEC-003](specs/003-desktop-ca
 That specification lists U (confirmed), D (authorized working defaults) and Q (open) items; research candidates must not
 be treated as approved features.
 
-The maintainer requested a design for remembering desktop note-to-note order after ordinary interaction and group
+The maintainer approved remembered desktop note-to-note order through ordinary interaction and explicit group
 adjustment. [ADR-072](decisions/072-persistent-desktop-note-stacking.md),
-[SPEC-014](specs/014-desktop-note-stacking.md) and [PLAN-015](plans/015-desktop-note-stacking.md) propose that revision,
-including its exact changes to the temporary-order rules below. The proposal is not implemented; resident system
-layers and temporary floating remain separate from saved relative order.
+[SPEC-014](specs/014-desktop-note-stacking.md) and [PLAN-015](plans/015-desktop-note-stacking.md) own that revision and
+its exact changes to earlier temporary-order rules. Resident system layers and temporary floating remain separate
+from saved relative order; implementation and native acceptance are distinguished in the plan.
 
 ## Confirmed product direction
 
@@ -27,8 +27,9 @@ layers and temporary floating remain separate from saved relative order.
   into a group region or an action changes a card's group.
 - An explicit formation can recall and arrange cards globally or per group; a stack shows each card's first line, a spread
   lays out whole papers. Regions are not hard containers.
-- Cycling only changes the stacking order temporarily; the group being operated is above the other groups and the
-  selected card is frontmost within its group, without moving any card.
+- Desktop visual order is remembered per device: later note interaction promotes that note; explicitly adjusting or
+  arranging one group promotes its eligible papers together. Cycling promotes the target without moving/resizing it,
+  and traverses a separate stable sequence (SPEC-014). Done retains completed order and restores resident layers.
 - Paper size normally stays stable; when needed, formation resizes papers only with consent, and without consent they
   may overflow the group region.
 - At most nine groups; the grid has rows ≤3 and columns ≤4, with a product ≤9. 2 rows × 4 columns and 3 rows × 3
@@ -140,7 +141,7 @@ the known copy. The existing replace and the full Google overwrite keep their sa
 The decision and implementation contract are in [ADR-038](decisions/038-portable-local-and-cloud-backup-flows.md) and
 [SPEC-002](specs/002-portable-backup-and-restore.md).
 
-## Deferred but kept directions
+## Data compatibility and deferred directions
 
 As alpha approaches, the maintainer revised the format policy on 2026-11-14: protect installed user/tester data and
 supported backups now. Schema increases are allowed when needed. Compatible additions need safe absence behavior and

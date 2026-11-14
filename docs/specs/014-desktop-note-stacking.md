@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft design requested by the maintainer; implementation not started or authorized by this document |
+| Status | Approved, 2026-11-14; shared behavior implemented, native acceptance boundaries in PLAN-015 |
 | Owner | Project maintainer |
 | Reviewer | Independent review and native-host acceptance pending |
 | Decision | [ADR-072](../decisions/072-persistent-desktop-note-stacking.md) |
@@ -32,8 +32,8 @@ predictable order too. These are local layout effects that survive Done and rest
 
 ## Authority and changes to earlier contracts
 
-The maintainer's 2026-11-14 request establishes the direction below. Defaults resolve the remaining design details;
-they are proposals to evaluate, not claims that the maintainer specified every interaction.
+The maintainer approved the design and implementation on 2026-11-14. U identifies the requested direction; D
+identifies the accepted defaults, without claiming that every default was specified verbatim by the maintainer.
 
 | Kind | Requirement |
 |---|---|
@@ -46,9 +46,9 @@ they are proposals to evaluate, not claims that the maintainer specified every i
 | D03 | Adjust-mode clicks, cycle steps and quick-edit entry count as deliberate attention; passive reading and child controls do not. |
 | D04 | A cancelled drag changes neither saved position nor saved visual order. Attention actions do not clutter layout Undo. |
 
-If accepted, the following specific earlier rules change; unrelated requirements stay in force:
+The following specific earlier rules are replaced; unrelated requirements stay in force:
 
-| Existing owner | Proposed replacement |
+| Existing owner | Accepted replacement |
 |---|---|
 | ADR-006 decision 7; SPEC-003 U12, interaction table and relative stacking rules | Cycle/selection raises are remembered; active-group/selected-card flags no longer impose permanent sorting overrides. |
 | SPEC-003 C14/C17 and all-groups focus behavior | Explicit group entry promotes the block; an individual action in All promotes only the note, with All remaining operable. |
@@ -56,7 +56,7 @@ If accepted, the following specific earlier rules change; unrelated requirements
 | SPEC-003 quick-move End and C50/C55/C56 | Drop saves position and visual order together; Cancel restores both; Undo covers both conditionally. |
 | SPEC-003 C35 and the desktop handoff's temporary-order statements | Scope, native floating and selection end; completed visual order remains, including after restart. |
 
-This proposal does not reinterpret U18 as permanently floating a group above other applications.
+U18 still requires only temporarily floating a group above other applications.
 
 ## Functional requirements
 
@@ -288,10 +288,18 @@ All sequences below are back to front; native cases use overlapping test papers 
 
 ## Dependencies and open questions
 
-The behavioral defaults and ADR-072's representation await maintainer evaluation; this design request does not start
-implementation. No external reference checkout, OAuth change, new permission or release is needed to implement it.
-Native availability determines which Z24 environments can actually be accepted. PLAN-015's persistence/fault proof is
-a prerequisite for integration, especially counter replication and interrupted multi-profile layout operations.
+The maintainer approved the behavior and representation; no product question blocks the shared implementation.
+No external reference checkout, OAuth change, new permission or release is needed. Native availability determines
+which Z24 environments can be accepted; PLAN-015 distinguishes implemented behavior from native acceptance.
+
+### Compatibility for alpha updates
+
+This is a compatible optional-field addition to supported current-record V1 layouts and dataset backup ZIPs.
+Pre-label layouts use their old arrangement order until explicitly handled; opening does not rewrite their notes.
+Tests cover opening/editing/reopening, retained extension fields and unsaved text, plus importing a pre-label ZIP.
+No shared cloud format changes or application-version increase is needed. Historical whole-workspace formats remain
+outside this compatibility claim. Pre-stacking apps can ignore the new labels; downgrade does not promise the new
+visual ordering, even though note content stays unchanged.
 
 ## References
 

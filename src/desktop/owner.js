@@ -73,7 +73,16 @@ export class DesktopOwner {
       // Keep the scene's drag preview until the native mailbox contains the committed or cancelled geometry.
       if (command.method === 'pointer.up' || command.method === 'pointer.cancel') await this.whenPublished();
       await this.#reply(message.ticket, true, result);
-    } catch (error) { if (!this.#closed) { this.#error(error); await this.#reply(message.ticket, false, error).catch(this.#error); } }
+    } catch (error) {
+      if (!this.#closed) {
+        // The controller has discarded the held preview on a failed save too. Publish that authoritative position
+        // and order before the scene releases its preview; otherwise the last in-flight frame can look saved.
+        if (command.method === 'pointer.up' || command.method === 'pointer.cancel') {
+          this.#changed(); await this.whenPublished().catch(this.#error);
+        }
+        this.#error(error); await this.#reply(message.ticket, false, error).catch(this.#error);
+      }
+    }
   }
   publish() {
     if (this.#sealed || this.#closed) return;

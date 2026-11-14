@@ -3,7 +3,7 @@ import { CURRENT_WORKSPACE_FORMAT } from '../core/workspace.js';
 import { canonicalJson } from '../sources/json.js';
 import { sha256, validDigest } from '../sources/files.js';
 import { t } from '../i18n/index.js';
-import { RECORD_LIMITS, recordTransaction } from './records.js';
+import { RECORD_LIMITS, recordDigest, recordTransaction, sameRecordCommit } from './records.js';
 
 const omitted = new Set(['revision', 'groups', 'cards', 'revisions', 'drafts', 'outbox', 'conflicts']);
 const equal = (a, b) => a === b || (a !== undefined && b !== undefined && canonicalJson(a) === canonicalJson(b));
@@ -34,7 +34,19 @@ export class WorkspaceRecordStorage {
     const expected = this.#receipt?.revision ?? null;
     const transaction = recordTransaction(this.#profile, expected,
       puts.map(row => ({ ...row, ordinal: row.collection === 'outbox' ? row.ordinal : (expected ?? -1) + 1 })), deletes, undefined, attachmentDeletes);
-    this.#receipt = await this.#store.commit(transaction, expected, { attachments });
+    try { this.#receipt = await this.#store.commit(transaction, expected, { attachments }); }
+    catch (error) {
+      // Layout/counter writes need read-back before the owner can publish a promotion. Other job protocols retain
+      // their own existing unknown-outcome recovery paths.
+      const layoutWrite = puts.some(row => row.collection === 'control' && ['desk', 'desktop-layout-batch'].includes(row.key)
+        || row.collection === 'meta' && row.key.endsWith(':layout') && (row.value?.zOrderCounter !== undefined
+          || row.value?.layoutBatchId !== undefined || Object.values(row.value?.placements ?? {}).some(rect => rect.zOrder !== undefined)));
+      if (!layoutWrite) throw error;
+      // Only this exact commit, including its digest, proves success.
+      const receipt = await this.#status().catch(() => null);
+      if (!sameRecordCommit(receipt, transaction, await recordDigest(transaction))) throw error;
+      this.#receipt = receipt;
+    }
   }
   async #status() {
     const status = await this.#store.status(this.#profile);

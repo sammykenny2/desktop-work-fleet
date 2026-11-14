@@ -3,6 +3,7 @@ import { activeGroups, containsPoint, copy, eligible, PinItAnywhereError, gridRe
 import { groupLayer } from '../layout/stages.js';
 import { reachable, rescueRect } from '../layout/store.js';
 import { t } from '../i18n/index.js';
+import { visualOrder } from '../layout/stacking.js';
 
 export const idleInteraction = () => ({ operationScope: { kind: 'none' }, activeGroupId: null,
   selectedCardId: null, editingCardId: null, dragSession: null });
@@ -42,9 +43,8 @@ const quickEditHolds = (card, layout) => layout.quickMove === true && layout.des
 /** Back-to-front within a native layer. Hosts split layers without changing these card identities. */
 export function sceneOrder(cards, layout, state) {
   const drag = state.dragSession; const front = drag && (!drag.quick || drag.dragging) ? drag.cardId : null;
-  const rank = card => front === card.id ? 3
-    : state.selectedCardId === card.id ? 2 : state.activeGroupId === card.groupId ? 1 : 0;
-  return stableCards(cards, layout).sort((a, b) => rank(a) - rank(b));
+  const rank = card => front === card.id ? 2 : state.editingCardId === card.id ? 1 : 0;
+  return visualOrder(cards, layout).sort((a, b) => rank(a) - rank(b));
 }
 
 export function resolveDropTarget(point, shiftKey, labels, regions, groups) {
@@ -113,6 +113,7 @@ export class InteractionController {
       await this.#flush();
       const previous = this.#state.operationScope;
       const toggleOff = previous.kind === scope.kind && previous.groupId === scope.groupId;
+      if (!toggleOff && scope.kind === 'group') await this.#layout.raiseGroup(scope.groupId, this.#getSnapshot());
       await this.#finishEdit();
       this.#state.dragSession = null;
       this.#state.operationScope = toggleOff ? { kind: 'none' } : copy(scope);
@@ -135,6 +136,7 @@ export class InteractionController {
       if (this.#state.editingCardId && this.#state.editingCardId !== cardId) {
         await this.#flush(); await this.#finishEdit();
       }
+      await this.#layout.raise([cardId]);
       this.#state.selectedCardId = cardId;
       this.#state.activeGroupId = card.groupId;
       return true;
@@ -160,6 +162,7 @@ export class InteractionController {
     this.#busy = true;
     try {
       if (this.#state.editingCardId) { await this.#flush(); await this.#finishEdit(); }
+      await this.#layout.raise([cardId]);
       this.#state.editingCardId = cardId;
       return true;
     } finally { this.#busy = false; }
@@ -180,7 +183,7 @@ export class InteractionController {
     return this.activate({ kind: 'none' });
   }
 
-  cycle(groupId, direction = 1) {
+  async cycle(groupId, direction = 1) {
     this.#assertIdle();
     if (this.#state.editingCardId || this.#composing || this.#state.dragSession) return false;
     const cards = this.#participating(groupId);
@@ -188,9 +191,13 @@ export class InteractionController {
     const index = cards.findIndex(card => card.id === this.#state.selectedCardId);
     const next = index < 0 ? (direction < 0 ? cards.length - 1 : 0)
       : (index + (direction < 0 ? -1 : 1) + cards.length) % cards.length;
-    this.#state.activeGroupId = groupId;
-    this.#state.selectedCardId = cards[next].id;
-    return true;
+    this.#busy = true;
+    try {
+      await this.#layout.raise([cards[next].id]);
+      this.#state.activeGroupId = groupId;
+      this.#state.selectedCardId = cards[next].id;
+      return true;
+    } finally { this.#busy = false; }
   }
 
   // A quick move drags one resting paper outside adjust mode; it is only ever an ordinary move. With lift it rides the

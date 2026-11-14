@@ -8,6 +8,7 @@ import { schemas, requireSchemaVersion } from '../core/schema.js';
 import { mainViews } from '../layout/store.js';
 import { validColor } from '../layout/colors.js';
 import { validOpacity } from '../layout/opacity.js';
+import { validZOrder } from '../layout/stacking.js';
 import { BACKUP_LIMITS, backupScheduler, checkCancelled, entryLimit, packZip, unpackZip } from './archive.js';
 import { decryptBackup, encryptBackup } from './encryption.js';
 import { CURRENT_WORKSPACE_FORMAT } from '../core/workspace.js';
@@ -43,9 +44,10 @@ function validateDraft(draft, graph, references) {
 // against the backup's revisions, and such notes take a new place after a restore.
 function savedLayout(layout, cards) {
   const saved = new Set(cards.map(card => card.id)); const result = copy(layout);
+  delete result.zOrderCounter; delete result.layoutBatchId;
   const keep = rects => Object.fromEntries(Object.entries(rects).filter(([id]) => saved.has(id)));
   result.placements = keep(result.placements);
-  for (const undo of result.history) undo.before = keep(undo.before);
+  for (const undo of result.history) { undo.before = keep(undo.before); if (undo.afterZ) undo.afterZ = keep(undo.afterZ); }
   return result;
 }
 
@@ -66,7 +68,8 @@ function validateLayout(layout, snapshot, graph) {
   validateGrid(layout.grid, groups);
   // Retired/cyclic targets remain recoverable preferences. Source reconciliation repairs them explicitly.
   validateShortcuts(layout.shortcuts, snapshot.groups);
-  const geometry = value => validRect(value) && Number.isFinite(value.order);
+  const geometry = value => validRect(value) && Number.isFinite(value.order)
+    && (value.zOrder === undefined || validZOrder(value.zOrder));
   const layers = ['desktop', 'wallpaper', 'floating'];
   for (const [id, rect] of Object.entries(layout.placements)) fail(cards.has(id) && geometry(rect)
     && typeof rect.visible === 'boolean' && (rect.readOnlySelect === undefined || typeof rect.readOnlySelect === 'boolean')
@@ -88,6 +91,8 @@ function validateLayout(layout, snapshot, graph) {
   for (const undo of layout.history) {
     fail(object(undo) && ['move', 'formation', 'transfer'].includes(undo.kind) && object(undo.before));
     for (const [id, rect] of Object.entries(undo.before)) fail(cards.has(id) && geometry(rect));
+    fail(undo.afterZ === undefined || object(undo.afterZ) && Object.entries(undo.afterZ)
+      .every(([id, value]) => cards.has(id) && (value === null || validZOrder(value))));
     if (undo.gridBefore) validateGrid(undo.gridBefore, groups);
     if (undo.gridAfter) validateGrid(undo.gridAfter, groups);
     if (undo.kind === 'transfer') {

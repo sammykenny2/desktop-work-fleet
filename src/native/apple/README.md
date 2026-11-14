@@ -239,3 +239,11 @@ Ordinary opening or building does not need it. The portable project decision is 
   languages. `host.language.set` stores it in both places and re-resolves the locale.
 - The preference is never part of a profile, a backup or Google data; `auto` follows the system's preferred languages.
   The rules are in [Internationalization](../../../docs/i18n.md).
+
+## Desktop stacking acceptance
+
+macOS renders the shared saved order inside each effective layer; Done removes the temporary adjustment lift while
+retaining note-to-note order ([SPEC-014](../../../docs/specs/014-desktop-note-stacking.md)). The disposable native
+bridge test exercises WKWebView, encrypted SQLite and overlap hit order with synthetic data. Physical gestures,
+installed signed-app updates, multiple displays and mixed DPI remain separate acceptance; see
+[testing](../../../docs/testing.md#persistent-desktop-order).

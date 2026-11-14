@@ -24,7 +24,7 @@ The product centres on quickly capturing ideas and seeing what is still unhandle
 in groups. Users place notes freely; only an explicit formation authorizes rearranging positions in bulk.
 Normally desktop notes are read-only and click-through. Activating a given group or all groups floats them above
 ordinary apps for a while: first in drag mode, then, explicitly, into editing a single card. Group membership, card
-position and temporary stacking order are separate data.
+position, saved visual order and temporary system-layer presentation are separate data.
 
 This document is the normative entry point for this interaction work. The 2026-10-03 MVP assumptions (plain text only,
 a Note as a container of several independent Items, no groups and no formation) cannot override it.
@@ -34,9 +34,9 @@ Passing model tests do not mean that the renderer, the native hosts and sync are
 
 ## Authority and reading rules
 
-The 2026-11-14 design proposal [SPEC-014](014-desktop-note-stacking.md) defines remembered desktop visual order and
-lists the exact temporary-order clauses it would replace. It is a draft, not implemented or an approval to start
-implementation; this document's existing interaction/layer rules otherwise remain in force.
+The maintainer approved [SPEC-014](014-desktop-note-stacking.md) on 2026-11-14. It owns remembered desktop visual
+order and supersedes the earlier temporary-order clauses identified there. This document's unrelated interaction,
+resident-layer and input rules remain in force; native acceptance boundaries are in PLAN-015.
 
 - **U (User confirmed)**: the user has explicitly confirmed it. Implementation must follow it, and answered questions
   are not asked again.
@@ -72,7 +72,7 @@ addendum "adjust mode arranges, quick edit edits".
 | U09 | Formation can arrange all groups or a single group; a group formation recalls that group's cards that were dragged away |
 | U10 | Stack/spread change positions and overlap; no accordion and no expanding content height card by card |
 | U11 | A stack formation should expose each card's first-line summary; spread arranges whole, uncovered papers |
-| U12 | Cycling only adjusts the stacking order temporarily; the current group is above the other groups, and the selected card is frontmost in its group |
+| U12 | Under SPEC-014 (2026-11-14), cycling remembers a single-paper visual raise; explicit group adjustment/formation remembers a group block raise, without changing geometry or resident layer |
 | U13 | Card size is normally stable; formation may adjust it with the user's consent, and without consent cards may extend beyond the group region |
 | U14 | A new card's initial position defaults to its own group region; adding or syncing does not rearrange existing cards |
 | U15 | Formation can be undone |
@@ -307,16 +307,16 @@ Cards of other groups inside the group region must not be moved along when this 
    plan.
 2. Compute positions, base stacking order and whether sizes must change first; cards do not move during this step.
 3. Choosing a formation authorizes repositioning; size is controlled separately by the option in the next section.
-4. A successful run is saved as one local layout transaction and creates one undoable operation.
-5. A group formation makes that group the current group of attention and clears single-card temporary raises that
-   would break a neat stack. Arranging does not open text editing by itself; if desktop operation was not activated,
+4. A successful run is one undoable layout action; SPEC-014 requires recoverable batches across profile databases.
+5. A group formation saves that group as a front block in tidy arrangement order (SPEC-014), without a selection
+   override that would break the stack. Arranging does not open text editing by itself; if desktop operation was not activated,
    cards stay read-only and click-through on their resident system layer.
 6. A global formation rebuilds the base stacking order of all participating cards and clears old temporary selection
    and cycling overrides. If a group operation is still in progress, only that scope's floating permission is kept,
    not selection overrides that break the new arrangement.
 7. Afterwards there is no background layout guard; users can again drag, cycle or move cards to other groups freely.
 
-The temporary group raise of a single-group formation only changes the relative order of notes. "Floating above
+The saved group raise of a single-group formation only changes the relative order of notes. "Floating above
 ordinary apps" is still decided by whether an operation scope is active; the two kinds of raise must not be merged
 into one switch. If a card is being edited, its unsaved changes are reliably kept and editing ends before the formation
 is committed; if keeping them fails, no text is lost and nothing is rearranged.
@@ -414,17 +414,17 @@ together. activeGroupId can be set by read-only cycling; by itself it does not g
 
 | Event | Precondition | Result |
 |---|---|---|
-| ActivateGroup(A) | A exists and has presentable content | scope=A, activeGroup=A; selections outside A are cleared; A floats temporarily, without moving or resizing |
+| ActivateGroup(A) | A exists and has presentable content | scope=A, activeGroup=A; selections outside A are cleared; A floats temporarily, and its eligible papers form a saved front block without moving or resizing |
 | ActivateAll | There is presentable content | scope=All; every group can be operated; no formation runs |
 | Pressing the same scope shortcut again | No IME or child dialog is handling it | Safely ends editing and the operation, and restores the resident policy |
 | Activating another scope | The current unsaved changes can be kept | Ends the old scope, then starts the new one; switches do not accumulate |
-| Single click on a card | The card is in scope, no drag | Selects the card and its group and raises them temporarily; does not enter editing |
+| Single click on a card | The card is in scope, no drag | Selects and saves a single-paper raise; active group is attention state only; does not enter editing |
 | Double click or Enter on an adjusted card | — | Nothing: adjust mode only arranges (2026-10-24) |
 | Key + double click on a resting card (quick edit) | The quick move switch is on, nothing is adjusted, the card takes clicks and is editable, no child-control gesture | Single-card editing on the Top layer; size unchanged (2026-10-24 addendum) |
 | Esc (while editing) | Not consumed first by the IME or a menu | Reliably keeps changed text as unsaved changes (per U23), leaves editing, stays in that scope |
 | Esc (while dragging) | A dragSession exists | Cancels this drag and group transfer and restores the starting geometry; does not leave the whole scope |
 | Esc (scope only) | No inner operation | Ends the scope, keeping the moves and edits the user completed |
-| Cycle next/previous | A group was explicitly chosen | All participating cards of the logical group cycle in stable order; only the temporary stacking order changes |
+| Cycle next/previous | A group was explicitly chosen | All participating cards of the logical group cycle in stable arrangement order; the target visual raise is saved (SPEC-014) |
 | App restart / sign-out | — | Operation scope, selection and highlight are not restored; persisted unsaved changes and layout remain |
 
 Esc does not discard changed text; only unsaved changes with nothing to keep under U23 are removed when editing ends.
@@ -447,18 +447,13 @@ is unconfirmed (2026-10-06).
 
 ### Relative stacking order rules
 
-Within one effective system layer, from back to front: other groups in base stacking order → the active group's other
-cards → the selected card.
-Implementations can express this as a sort tuple; they must not keep increasing an integer z-index until it overflows,
-and must not write the selection into shared data.
-When the active group changes, the old group's temporary raise is removed; ending the operation or cycling can restore
-the base order. A card being dragged stays visible until the gesture ends; it must not drop a layer while held because
-of a group-transfer preview. Group cycling includes the group's cards that were dragged into other regions; their
-physical position does not drop them from the cycle.
-A highlighted candidate drop target does not thereby become the active group, become editable or take keyboard focus.
-If cards have different fixed resident system layers, temporary floating presentation ensures the order inside the
-active operated group. The full priority rules across system layers belong to Q03; it must not be claimed that every
-OS offers the same window z-order.
+[SPEC-014](014-desktop-note-stacking.md) owns the remembered back-to-front sequence: promote one paper for a
+completed note action and a stable block for an explicit group action. Active-group/selected-card flags alone no
+longer override that sequence. A held drag/editor still has temporary presentation protection; cancellation discards
+only the preview. Done and restart retain acknowledged order while restoring resident layers and click-through.
+Cycling traverses stable arrangement order, independent of the saved visual labels. Group cycling includes papers
+physically placed outside their region. Hint targets do not gain scope, selection or keyboard focus merely by hover.
+Native fallbacks are resolved before comparing same-layer peers; lower resident layers cannot cover higher ones.
 
 ## Dragging and group transfer
 
@@ -613,10 +608,10 @@ The table below is the acceptance contract to implement, not a list of passed te
 | C11 | Undo after allowing this formation to resize | Original positions, sizes and base stacking order return; text does not roll back |
 | C12 | A stack completes and fits | Every card's first line is visible, not hidden by vertically centred text |
 | C13 | Cycle to a card at the back after a stack | Card positions and sizes are completely unchanged; parts of some summaries may be covered |
-| C14 | Operate A and select A2 | All A cards are above the other groups; A2 is frontmost in A |
+| C14 | Explicitly adjust group A and select A2 | The saved A block is above its same-layer peers; A2 is frontmost; in All, selecting A2 promotes only A2 (SPEC-014) |
 | C15 | An A card was dragged far into another region; cycle A | It is still reached by cycling and is not recalled automatically |
 | C16 | Activate single-group operation | Only the given group can be dragged and floats above ordinary apps; no formation ran |
-| C17 | Activate All, then click A | All groups can still be operated; group A is raised relatively |
+| C17 | Activate All, then click A | All groups stay operable; only the selected A paper is raised and its order saved (SPEC-014) |
 | C18 | Single click / double click on an adjusted card | The first selects, the second does not edit; paper size is unchanged |
 | C19 | Tiny pointer jitter / release after a real drag | The first can count as a click; the second does not open the editor afterwards |
 | C20 | Drag-select text while editing | Text selection does not move the card |
@@ -635,7 +630,7 @@ The table below is the acceptance contract to implement, not a list of passed te
 | C32 | A remote device moves a card that has a position to B | The local position stays; only a B formation recalls it |
 | C33 | Leaving editing / switching groups while editing, and the disk save fails | The text and its unsaved changes are kept, the failure is visible, no false report of a successful save |
 | C34 | Esc handled during Chinese IME composition or candidate selection | Does not unexpectedly leave the whole operation mode |
-| C35 | Ending the floating operation / app restart | Resident layer and click-through return; temporary focus and highlight are not restored |
+| C35 | Ending the floating operation / app restart | Resident layer and click-through return; focus/highlight end while acknowledged visual order remains (SPEC-014) |
 | C36 | Background sync while typing continuously in another app | No automatic floating, focus change or rearrangement |
 | C37 | Device A runs a formation while device B is online | B's local geometry is unchanged |
 | C38 | Restack a group while B's cards cover the target region | Only A is arranged; A is raised relatively; B's coordinates are not changed behind the user's back |
@@ -733,7 +728,7 @@ is not planned.
   no adjust controls, and the main window stays where it is.
 - **End.** Releasing the button saves the new position as one move in this device's undo history, in the local
   operation order, so adjust mode's Undo takes it back. A drop that would leave the paper's title out of reach puts the
-  paper at the nearest reachable position, as display changes do. The base stacking order does not change.
+  paper at the nearest reachable position, as display changes do. The drop saves a single-paper visual promotion in the same operation; Undo restores it conditionally (SPEC-014).
 - **Cancel.** The paper returns to where it started and nothing is saved on Esc (where the paper's window receives
   keys), pointer cancel or lost capture, a display change, the paper leaving the desktop or changing layer (for
   example through sync), another change moving the same paper, adjust mode or editing starting, or the switch being

@@ -17,7 +17,7 @@ await workspace.layout.setGroupLayer(group.id, 'wallpaper', workspace.snapshot);
 await workspace.layout.setGroupLayer(other.id, 'wallpaper', workspace.snapshot);
 const controller = new InteractionController({ getSnapshot: () => workspace.working, layout: workspace.layout, commands: workspace, saveDraft: async () => {} });
 const scenarios = []; const sessionId = crypto.randomUUID();
-const capture = (name, notice = null) => scenarios.push({ name, primary: card.id, secondary: second.id,
+const capture = (name, notice = null, primary = card.id) => scenarios.push({ name, primary, secondary: second.id,
   frame: projectDesktop({ snapshot: workspace.working, layout: workspace.layout.state, interaction: controller.state,
     sessionId, sequence: scenarios.length + 1, workspaceRevision: workspace.state.revision, layers: ['desktop', 'floating', 'wallpaper'], notice }) });
 capture('wallpaper');
@@ -32,4 +32,10 @@ await workspace.layout.setCardPolicy(second.id, { visible: false }); capture('hi
 await workspace.layout.setCardPolicy(card.id, { visible: true }); capture('shown-again');
 // With no topmost paper, a stage notice alone keeps the topmost scene up, and it never takes the mouse.
 capture('notice', { id: 1, rect: { x: 700, y: 400, width: 400, height: 200 }, title: 'Synthetic layer probe', text: 'Top layer', step: 3, steps: 4 });
+// Overlapping papers from different groups: the compositor pixel must follow the saved renderer order after Done.
+await workspace.layout.setCardPolicy(second.id, { visible: true });
+await workspace.layout.move(second.id, { x: 100, y: 100 }); capture('stacking-second-front', null, second.id);
+await workspace.layout.move(card.id, { x: 100, y: 100 }); capture('stacking-first-front');
+await controller.activate({ kind: 'all' }); await controller.select(second.id); capture('stacking-select-second', null, second.id);
+await controller.activate({ kind: 'none' }); capture('stacking-after-done', null, second.id);
 await writeFile(process.argv[2], JSON.stringify(scenarios) + '\n');

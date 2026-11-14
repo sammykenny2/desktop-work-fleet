@@ -301,16 +301,19 @@ test('C11: consent applies to one preview; undo restores geometry without rewind
   assert.equal(plan(f).allowResize, false);
 });
 
-test('C13–C15/C17: cycling raises group and selection without geometry changes or narrowing All', async () => {
+test('Z11/C13–C15/C17: cycling remembers the selected paper without geometry changes or narrowing All', async () => {
   const f = await fixture(); await f.workspace.layout.move(f.a1.id, { x: 950, y: 500 });
   await f.controller.activate({ kind: 'all' });
   const before = f.disk();
-  f.controller.cycle(f.a.id); f.controller.cycle(f.a.id);
+  await f.controller.cycle(f.a.id); await f.controller.cycle(f.a.id);
   const order = sceneOrder(f.workspace.snapshot.cards, f.workspace.layout.state, f.controller.state).map(c => c.id);
   assert.deepEqual(order, [f.b1.id, f.a1.id, f.a2.id]);
   assert.equal(f.controller.state.operationScope.kind, 'all');
-  assert.deepEqual(f.disk(), before);
-  f.controller.cycle(f.a.id);
+  for (const [id, rect] of Object.entries(before.layout.placements)) {
+    assert.deepEqual({ ...f.disk().layout.placements[id], zOrder: rect.zOrder }, rect);
+  }
+  assert.deepEqual(f.disk().outbox, before.outbox);
+  await f.controller.cycle(f.a.id);
   assert.equal(f.controller.state.selectedCardId, f.a1.id);
 });
 
@@ -322,7 +325,10 @@ test('C16/C18: group policy enables only that group and editing never changes pa
   await f.controller.beginEdit(f.a1.id);
   assert.equal(cardPolicy(f.a1, before, f.controller.state).editing, true);
   assert.equal(cardPolicy(f.b1, before, f.controller.state).draggable, false);
-  assert.deepEqual(f.workspace.layout.state, before);
+  const after = f.workspace.layout.state;
+  for (const [id, rect] of Object.entries(before.placements)) assert.deepEqual({ ...after.placements[id], zOrder: rect.zOrder }, rect);
+  assert.ok(after.placements[f.a1.id].zOrder > before.placements[f.a1.id].zOrder);
+  assert.deepEqual(after.history, before.history);
 });
 
 test('C19/C20: jitter stays a click, text selection is not dragging, real drag suppresses double click', async () => {
@@ -405,7 +411,9 @@ test('C49–C54/C56: quick move is off by default and, once on, moves one restin
   assert.equal(f.controller.state.dragSession.target, null); assert.equal(f.controller.state.operationScope.kind, 'none');
   assert.equal((await f.controller.pointerUp({ x: 630, y: 20 }, { labels, shiftKey: true })).kind, 'moved');
   assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.a1.id).groupId, f.a.id);
-  assert.deepEqual(f.workspace.layout.state.placements[f.a1.id], { ...start, x: start.x + 610 });
+  const moved = f.workspace.layout.state.placements[f.a1.id];
+  assert.ok(moved.zOrder > start.zOrder);
+  assert.deepEqual(moved, { ...start, zOrder: moved.zOrder, x: start.x + 610 });
   assert.equal(f.disk().layout.placements[f.a1.id].x, start.x + 610);
   assert.deepEqual(f.workspace.layout.state.history.map(entry => entry.kind), ['move']);
   await f.workspace.undo(workAreas);
@@ -484,7 +492,9 @@ test('a lifted quick move rides the Top layer only while it drags, letting click
   // Riding the Top layer is not a change of layer: reconcile keeps it, and the drop saves an ordinary move.
   await f.controller.reconcile(); assert.equal(f.controller.state.dragSession?.lift, true);
   assert.equal((await f.controller.pointerUp({ x: 120, y: 40 })).kind, 'moved');
-  assert.deepEqual(f.workspace.layout.state.placements[f.a1.id], { ...start, x: start.x + 100, y: start.y + 20 });
+  const moved = f.workspace.layout.state.placements[f.a1.id];
+  assert.ok(moved.zOrder > start.zOrder);
+  assert.deepEqual(moved, { ...start, zOrder: moved.zOrder, x: start.x + 100, y: start.y + 20 });
   assert.deepEqual([policy().layer, policy().interactive], ['desktop', true]);
   // Without lift a quick move stays on its layer while it drags.
   f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true }); f.controller.pointerMove({ x: 120, y: 40 });
@@ -648,7 +658,7 @@ test('C34: IME and consumed keys cannot close editing or scope', async () => {
   f.controller.setComposing(true);
   assert.equal(await f.controller.escape(), false);
   assert.equal(await f.controller.activate({ kind: 'all' }), false);
-  assert.equal(f.controller.cycle(f.a.id), false);
+  assert.equal(await f.controller.cycle(f.a.id), false);
   f.controller.setComposing(false);
   assert.equal(await f.controller.escape({ consumed: true }), false);
   assert.equal(f.controller.state.editingCardId, f.a1.id);

@@ -5,7 +5,7 @@ Updated: 2026-11-14.
 | Record | Status | Scope |
 |---|---|---|
 | [ADR-073](073-alpha-data-compatibility-and-migrations.md) | Accepted (2026-11-14) | Alpha data protection: allow schema evolution with compatible round trips or validated recoverable migrations; supersedes the V1-only restriction |
-| [ADR-072](072-persistent-desktop-note-stacking.md) | Proposed (2026-11-14); design only | Remember note/group raises within resident layers; separate visual and navigation order, device-wide allocation, conditional Undo and isolated backups |
+| [ADR-072](072-persistent-desktop-note-stacking.md) | Accepted (2026-11-14) | Remember note/group raises within resident layers; separate visual and navigation order, device-wide allocation, conditional Undo and isolated backups |
 | [ADR-070](070-release-channels-and-architecture.md) | Accepted policy; implementation pending (2026-11-13) | Release-only external delivery, no public CER, signed MSIX with future native ARM64/bundle, DMG/Sparkle ZIP, DEB first and later AppImage, Play/TestFlight feedback |
 | [ADR-069](069-pin-it-anywhere-product-identity.md) | Accepted names; cutover pending (2026-11-13) | Final product, repo, Cloud and Apple/Android identifiers; naming family, the Cat Note app icon, OAuth/data boundaries and unresolved external identities |
 | [ADR-068](068-operation-results-use-toasts.md) | Accepted (2026-11-05) | Session-only toasts for operation results, errors and progress; modal ownership, action lifetime and no replay of completed cleanup |

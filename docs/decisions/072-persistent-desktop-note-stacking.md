@@ -2,14 +2,13 @@
 
 ## Status
 
-Proposed, 2026-11-14. The maintainer requested this design, specification and implementation plan; this document
-does not authorize or claim implementation. The requested direction is recorded separately from proposed defaults
-in [SPEC-014](../specs/014-desktop-note-stacking.md). Work is ordered in
+Accepted, 2026-11-14, with implementation explicitly authorized by the maintainer. Behavior is in
+[SPEC-014](../specs/014-desktop-note-stacking.md); implementation and remaining native acceptance are tracked in
 [PLAN-015](../plans/015-desktop-note-stacking.md).
 
-If accepted, this partially supersedes ADR-006 decision 7 and SPEC-003's temporary relative-order rules, including
-the quick-move rule that a completed move leaves the base order unchanged. It preserves the resident-layer,
-geometry, input, content and account-isolation contracts. Until then those documents describe existing behavior.
+This partially supersedes ADR-006 decision 7 and SPEC-003's temporary relative-order rules, including the quick-move
+rule that a completed move leaves the base order unchanged. Resident layers, geometry, input, content and account
+isolation remain independent. ADR-073 supersedes the original V1-only policy referenced during design.
 
 ## Context
 
@@ -74,7 +73,9 @@ the affected profile commits the labels with that command's geometry, membership
 labels are nearer the front. A block receives a consecutive range in its intended internal order. The counter is
 not a timestamp, native window level or CSS z-index. Rendered CSS indices remain dense, small integers per frame.
 
-The counter lives with the existing replicated device desk, outside synced note data. It must never be reused after
+The counter lives with the existing replicated device desk, outside synced note data. A reservation must be
+acknowledged by the open local profile (otherwise the primary), so signing out of Google cannot lose the device
+high-water mark merely because only the cloud copy accepted a write. It must never be reused after
 restart, an ambiguous write, profile reopening or backup adoption. Reconcile the highest durable desk/placement
 label before allocation, acknowledge the reservation before publishing, and leave unused reservations as harmless
 gaps. A failed or uncertain reservation cannot be followed by an unfenced allocation. Refuse exhaustion or malformed
@@ -84,7 +85,7 @@ or formation preview merely because its own range was reserved. Validate the rel
 intent under the shared command barrier; keep storage receipt versions distinct from visual-state fingerprints.
 
 This bounded label avoids rewriting unrelated profiles just to raise one note. Its physical representation is an
-implementation default of this proposal, not a new user-facing concept. This compatible optional-field addition retains V1 with prior-layout/backup tests under ADR-073.
+accepted implementation detail, not a new user-facing concept. This compatible optional-field addition retains V1 with prior-layout/backup tests under ADR-073.
 
 Cycling reads the stable arrangement sequence, not the changing visual labels. Persisting a cycle step therefore
 cannot change which paper Next or Previous visits next. Formation explicitly establishes a new tidy visual order
@@ -161,4 +162,4 @@ existing confirmation and clearing of layout history; this proposal does not add
 
 ---
 
-*Proposed: 2026-11-14*
+*Decision made: 2026-11-14*

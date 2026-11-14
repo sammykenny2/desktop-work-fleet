@@ -1,6 +1,6 @@
 # Progress
 
-Snapshot rewritten 2026-11-13.
+Snapshot rewritten 2026-11-14.
 
 This file is a short snapshot of the current state: what works, where it was verified, and what is still open.
 It is not a log. History lives in the git log (Conventional Commits with descriptive bodies),
@@ -39,7 +39,9 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 
 ### Shared core and interaction
 
-- Implemented: cards, groups, formation (stack, spread, undo), adjust mode, unsaved changes per note shown with a dot
+- Implemented: cards, groups, formation (stack, spread, undo), adjust mode, remembered desktop visual order through
+  note/group attention and moves (ADR-072), with conditional order Undo, device-wide reservation and recoverable
+  multi-profile layout batches; unsaved changes per note shown with a dot
   (ADR-061), Markdown with checklists and attachments,
   complete/archive/delete, group merge, region shortcuts that step a group through its desktop layers, one settings window;
   checklist steps ticked on desktop papers that take clicks, a per-device Top-layer opacity per group, ranked search,
@@ -55,6 +57,8 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   papers that cannot scroll end with "…"; attachments sit in a thumbnail strip under the text; H1–H6 sizes and code colouring;
   operation results, errors and progress use session-only toasts over modal dialogs, with Undo/Retry and no replay of old cleanup results (ADR-068).
 - Verified with model tests, Edge/Chromium browser and scene probes, and the Windows native UI probes.
+- Persistent desktop stacking has its own acceptance boundary in [testing](docs/testing.md#persistent-desktop-order);
+  Windows/X11, multi-display and installed-update acceptance remain open for that feature.
 - The application uses record-level IndexedDB/native SQLite persistence, bounded current heads, draft deltas and
   paged history/outbox. Older local formats require an explicit local discard; no migration runs. Versions loads
   remote bodies on selection. Trash offers Delete forever and Empty Trash with resumable cleanup; unpublished

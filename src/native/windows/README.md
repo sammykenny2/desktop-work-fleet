@@ -94,3 +94,11 @@ The bundled runtime patch and its licence record are in [ADR-036](../../../docs/
 updating it requires releasing the app again.
 The full instructions are in [setup](../../../docs/setup-guide.md), [testing](../../../docs/testing.md) and
 [deployment](../../../docs/deployment.md).
+
+## Desktop stacking acceptance
+
+Saved paper order comes from the shared renderer within the effective system layer
+([SPEC-014](../../../docs/specs/014-desktop-note-stacking.md)). The existing Desktop-layer lifted quick move still
+returns to its resident layer at drop. Shared controller/authority tests cover order persistence and cancellation;
+these new overlap cases have not been accepted in an installed WPF/WebView2 app, including mixed DPI and display loss.
+See [testing](../../../docs/testing.md#persistent-desktop-order).

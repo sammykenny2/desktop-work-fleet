@@ -1,6 +1,6 @@
 # Builds, tests and evidence
 
-Updated: 2026-11-13. This document holds the verification procedures and the verified and unverified boundaries.
+Updated: 2026-11-14. This document holds the verification procedures and the verified and unverified boundaries.
 Current status is in [PROGRESS.md](../PROGRESS.md); the history and the evidence of individual runs are in the git history.
 Evidence for the existing 0.1.0 prototype is in the [validation report](validation/2026-10-03-validation-report.md).
 
@@ -74,6 +74,46 @@ The public probe verifies real response framing only; authenticated deletion and
 separate from these isolated adapter/renderer regressions.
 
 ## Acceptance routing for the new interaction
+
+### Persistent desktop order
+
+[SPEC-014 Z01–Z24](specs/014-desktop-note-stacking.md) owns stacking acceptance. Run
+`node --test tests/stacking.test.js tests/stacking-integration.test.js tests/desktop-core.test.js tests/desktop-authority.test.js tests/combined-workspace.test.js tests/backup-payload.test.js tests/backup-restore.test.js`.
+The shared scenarios cover remembered note/group raises, stable cycling, cancellation and order-only moves,
+conditional Undo after newer attention, deterministic formation/Reset, layer fallback and record-store reopening.
+The production record-store adapter runs over `MemoryRecordStore` for injected before-write/lost-reply failures,
+counter replica recovery, interrupted multi-owner formation/Undo/Reset, and a permanent purge during recovery.
+These synthetic faults do not claim physical power-loss or disk-full acceptance on every native filesystem.
+
+Alpha compatibility: a supported current-record V1 layout with no visual labels opens without an eager rewrite;
+note content, extension fields and unsaved text survive saving/reopening. An actual pre-label dataset ZIP is opened
+and imported, and an ordered ZIP round trip verifies that only owned labels travel: no foreign profile IDs, desk
+counter or layout-batch receipt. Explicit adoption rebases internal order without changing other profiles' order.
+This is a compatible addition under ADR-073, not migration support for the historical whole-workspace formats.
+Pre-stacking clients do not implement the new visual order; downgrade order retention is not promised.
+
+After `npm run build` and the documented loopback preview, run
+`node scripts/testing/stacking-probe.mjs --url http://127.0.0.1:PORT --browser chromium` and repeat with `webkit`.
+This uses isolated synthetic IndexedDB profiles and actual UI pointer/keyboard events to check overlap hit testing,
+saved drag order, cancellation, conditional Undo, stable cycling, Done and renderer reload. Images are written to
+the ignored `build/stacking-checks` directory. It is a browser preview, not installed-host acceptance.
+The browser probe also refuses one real IndexedDB layout commit after its counter reservation and verifies that
+both position and visual order return to the acknowledged state. `tests/desktop-transport.test.js` verifies that a
+failed drop publishes its rollback frame before returning the failure to the native scene.
+
+`python3 -B -m unittest discover -s tests -p 'test_macos_tray_bridge.py' -v` now also exercises two overlapping notes
+through the real native mailbox, WKWebView, production controller and encrypted SQLite with a disposable app and
+synthetic key/Google SDK. Direct typed scene commands perform selection, drag and an order-only drag; the real
+WKWebView hit-test and resident scene retain the result after Done. It does not inject a physical mouse gesture,
+access the user's Keychain/data, or verify an installed signed-app update. The layer probe's full-viewport assertion
+keeps exact size while tolerating at most 0.5pt origin snapping observed with an odd-height work area on this Mac.
+
+The existing Linux layer-shell command below consumes four added overlap frames from
+`tests/native/desktop-scenarios.mjs`. Real GTK/WebKit/labwc compositor pixels verify both foreground directions,
+selection and retained order after Done, including native layer/input-region checks. The frame fixture is generated
+by the production shared core; this probe does not exercise a complete Linux persistence owner. Windows installed
+WPF/WebView2, Linux X11/GNOME fallback with these new overlap cases, native mixed DPI/multiple displays and actual
+OS sleep/recovery remain unverified for this feature. Independent implementation review was not performed.
 
 The requirements for the new cards, groups and formation are in [SPEC-003 C01–C48](specs/003-desktop-cards-groups-and-formation.md);
 the layered strategy is in [PLAN-003](plans/003-desktop-interaction-implementation.md).

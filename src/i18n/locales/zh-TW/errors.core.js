@@ -24,6 +24,9 @@ export default {
   'errors.core.shortcutTargetMissing': '快捷鍵的目標群組已不存在。',
 
   // Data format
+  'errors.core.stackingInvalid': '保存的便箋順序無效。資料仍保留；請重新開啟程式或還原相容的備份。',
+  'errors.core.stackingExhausted': '便箋排序值已達上限，無法保存順序；資料仍保留。',
+  'errors.core.layoutBatchPending': '佈局操作尚未完成。請在相關資料集可用後重試；便箋仍保留。',
   'errors.core.schemaUnsupported': '資料格式版本不受支援；原資料仍保留。',
   'errors.core.kindUnknown': '未知的資料種類。',
 

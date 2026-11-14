@@ -84,8 +84,11 @@ test('desktop projection separates resident policy, temporary floating and conte
   assert.equal(frame.cards.find(c => c.id === f.card.id).layer, 'floating');
   assert.equal(frame.cards.find(c => c.id === f.other.id).draggable, false);
   assert.equal(frame.cards.find(c => c.id === f.other.id).layer, 'desktop');
-  assert.deepEqual(f.workspace.state, before);
-  frame.cards[0].rect.x += 500; assert.deepEqual(f.workspace.state, before);
+  const after = f.workspace.state;
+  for (const field of ['cards', 'groups', 'revisions', 'outbox', 'drafts', 'sync']) assert.deepEqual(after[field], before[field]);
+  assert.ok(after.layout.placements[f.card.id].zOrder >= before.layout.placements[f.card.id].zOrder);
+  assert.equal(frame.cards.at(-1).id, f.card.id, 'already frontmost group entry is a valid no-op');
+  frame.cards[0].rect.x += 500; assert.deepEqual(f.workspace.state, after);
   await f.workspace.layout.setGroupLayer(f.b.id, 'wallpaper', f.workspace.snapshot);
   frame = f.frame();
   assert.deepEqual(frame.fallbacks, [{ cardId: f.other.id, requested: 'wallpaper', effective: 'desktop' }]);
@@ -136,8 +139,10 @@ test('wallpaper projections stay passive, float only their operated group, then 
   assert.equal(frame.cards.find(card => card.id === f.card.id).draggable, true);
   assert.equal(frame.cards.find(card => card.id === f.other.id).layer, 'wallpaper');
   assert.equal(frame.cards.find(card => card.id === f.other.id).interactive, false);
-  assert.deepEqual(f.workspace.layout.state.placements[f.card.id], saved);
+  const raised = f.workspace.layout.state.placements[f.card.id];
+  assert.deepEqual({ ...raised, zOrder: saved.zOrder }, saved);
   await f.controller.activate({ kind: 'none' });
+  assert.deepEqual(f.workspace.layout.state.placements[f.card.id], raised);
   assert.ok(project().cards.every(card => card.layer === 'wallpaper' && !card.interactive));
   await f.controller.activate({ kind: 'all' });
   await f.workspace.layout.setGroupLayer(f.a.id, 'desktop', f.workspace.snapshot);

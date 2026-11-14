@@ -115,7 +115,11 @@ complete snapshot / ZIP / encryption]
 ```
 
 - The shared Card/Group is the stable data identity; native windows or machines do not replace groups.
-- Position, size, base stacking order, grid and undo are per-device data; scope, focus and drag target are transient.
+- Position, size, saved visual order, grid and Undo are per-device data; scope, focus and drag target are transient.
+  [ADR-072](decisions/072-persistent-desktop-note-stacking.md) separates stable arrangement/navigation order from
+  optional 128-bit visual labels. A device desk reserves labels before atomic owner-local commands; a bounded local
+  journal recovers multi-owner layout batches and keeps incomplete geometry out of published scenes. Backups contain
+  only owned placement labels, never the device counter or batch journal.
 - FormationPlanner produces a plan that can be previewed and is then committed explicitly; sync, cycling and adding a
   card must never trigger a global arrangement by themselves.
 - InteractionController handles single click, double click, drag, Shift and cancel; a group transfer sends a conditional

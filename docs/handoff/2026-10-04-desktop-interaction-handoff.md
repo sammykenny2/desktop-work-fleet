@@ -25,6 +25,11 @@ Without authorization, do not buy certificates, set up accounts, submit to store
 8. For Google / backup work, read the current contracts in SPEC-004 / ADR-012 and SPEC-002 / ADR-013; the construction order is in PLAN-002.
    ADR-004 / 005 remain as historical background; the early exclusion lists do not apply.
 
+The 2026-11-14 accepted [SPEC-014](../specs/014-desktop-note-stacking.md) supersedes this historical handoff's
+temporary note-order statements: completed note/group raises are remembered, while resident-layer floating remains
+temporary. [ADR-073](../decisions/073-alpha-data-compatibility-and-migrations.md) also replaces the V1-only exception
+with alpha installed-data/backup compatibility requirements.
+
 ## Core that must not drift
 
 - One card per thing; the first version centres on backlog / idea capture and does not force a PM / agent execution workflow.

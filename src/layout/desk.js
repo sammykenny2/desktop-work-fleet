@@ -1,5 +1,6 @@
 import { copy } from '../core/contracts.js';
 import { settleGroupColors } from './colors.js';
+import { maxOrder, orderRange, zeroOrder } from './stacking.js';
 
 /**
  * What one computer has one value of, whatever collections are open (ADR-066): the group regions, shortcuts, display
@@ -75,10 +76,24 @@ export function hiddenGroups(desk, groups) {
 
 /** Single writer per device, in the same way as a profile's layout; `persist` saves the whole record or rejects. */
 export class DeskStore {
-  #state; #persist; #tail = Promise.resolve();
+  #state; #persist; #tail = Promise.resolve(); #reserved = zeroOrder;
   constructor(state, persist) { this.#state = copy(state); this.#persist = persist; }
   get state() { return copy(this.#state); }
   whenIdle() { return this.#tail; }
+  /** Counter receipts do not change visual layout revision or make a drag/formation stale. */
+  reserveOrders(count, floor = zeroOrder) {
+    const operation = this.#tail.then(async () => {
+      const labels = orderRange(maxOrder(this.#state.zOrderCounter, this.#reserved, floor), count);
+      if (!labels.length) return labels;
+      // An uncertain write may have persisted: skip its range even before read-back/restart.
+      this.#reserved = labels.at(-1);
+      const next = { ...copy(this.#state), zOrderCounter: this.#reserved };
+      await this.#persist(copy(next), { reservation: true }); this.#state = next;
+      return labels;
+    });
+    this.#tail = operation.catch(() => {});
+    return operation;
+  }
   update(change) {
     const operation = this.#tail.then(async () => {
       const draft = copy(this.#state); const result = await change(draft);

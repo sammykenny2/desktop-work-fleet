@@ -39,6 +39,28 @@ for (const method of ['pointer.up', 'pointer.cancel']) test(`${method} keeps the
   assert.deepEqual(errors, []); owner.close();
 });
 
+test('Z22: a failed drop publishes authoritative geometry/order before returning the failure to its scene', async () => {
+  const transport = bridge(), publishing = deferred(), release = deferred(), received = [], errors = [];
+  const base = transport.request;
+  transport.request = async (method, args) => {
+    await base(method, args);
+    if (method === 'desktop.frame.begin') return { token: 'rollback-frame' };
+    if (method === 'desktop.frame.append') return { offset: args.offset + Buffer.from(args.base64, 'base64').length };
+    if (method === 'desktop.frame.publish') { publishing.resolve(); await release.promise; }
+    if (method === 'desktop.reply') received.push(args);
+    return {};
+  };
+  const failure = Object.assign(new Error('local save failed'), { code: 'native-write' });
+  const owner = new DesktopOwner({ bridge: transport, authority: { request: async () => { throw failure; }, whenIdle: async () => {}, close() {} },
+    editor: () => null, project: sequence => ({ sequence, rect: { x: 12, y: 12 }, order: 'original-order' }),
+    changed: () => owner.publish(), error: error => errors.push(error), lost() {}, dismiss() {} });
+  transport.event('desktop-command', { ticket: 'failed-drop', viewId: 'view', command: { method: 'pointer.up' } });
+  await publishing.promise; assert.deepEqual(received, []);
+  release.resolve(); await owner.whenIdle(); await tick();
+  assert.deepEqual(received, [{ ticket: 'failed-drop', ok: false, error: { code: 'native-write', message: 'local save failed' } }]);
+  assert.deepEqual(errors, [failure]); owner.close();
+});
+
 test('a language change publishes a fresh frame to every scene until the owner closes', async () => {
   const transport = bridge(); const baseRequest = transport.request; const frames = [];
   transport.request = async (name, args) => {

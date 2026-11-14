@@ -313,3 +313,10 @@ input methods in WebKitGTK.
 Real Google sign-in and Drive sync: the Desktop client shared with Windows has existed since 2026-10-06, and user reports
 from 2026-10-15 to 2026-10-17 show real sign-in and sync in use on the Pi and other Linux installs. No structured
 cross-device acceptance is recorded.
+
+## Desktop stacking acceptance
+
+The shared renderer orders papers within each effective native layer ([SPEC-014](../../../docs/specs/014-desktop-note-stacking.md)).
+Headless labwc/GTK/WebKit compositor tests cover overlapping frame fixtures and retained order after Done; they do
+not establish full Linux owner persistence or installed X11/GNOME/multi-display acceptance. GNOME XWayland retains
+its existing resting-input limitations. See [testing](../../../docs/testing.md#persistent-desktop-order).

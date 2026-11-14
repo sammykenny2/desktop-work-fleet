@@ -278,8 +278,10 @@ async function initialize() {
       try { await workspace.discardUnneededDraft(draft.id); } catch (error) { status(t('app.status.draftCleanupFailed', { error: error.message }), true); }
     } });
   // The regions move to today's primary display before new papers take a place in them.
-  if (desktopInfo) await workspace.layout.recoverDisplays(workAreas(), screenArea());
-  await workspace.layout.placeNew(workspace.working, workAreas());
+  try {
+    if (desktopInfo) await workspace.layout.recoverDisplays(workAreas(), screenArea());
+    await workspace.layout.placeNew(workspace.working, workAreas());
+  } catch (error) { status(error.message, true); }
   if (desktopInfo) initializeDesktop();
   setText('#storage-note', () => native ? t('sync.storage.device') : t('sync.storage.browser'));
   renderAccount(); setSync('off', () => native ? t('sync.status.deviceOnly') : t('sync.status.browserOnly'));
@@ -3271,12 +3273,13 @@ function previewGrid(reshape = false, apply = false) {
 function point(event) { const bounds = $('#stage').getBoundingClientRect(); return { x: event.clientX - bounds.left, y: event.clientY - bounds.top }; }
 function dragPaint(drag) {
   if (!drag) return;
+  const front = $('#stage').querySelectorAll('.card').length + 5;
   const paper = [...$('#stage').querySelectorAll('.card')].find(node => node.dataset.cardId === drag.cardId);
-  if (paper && drag.dragging) { rectStyle(paper, drag.position); paper.classList.add('dragging'); paper.style.zIndex = '100'; }
+  if (paper && drag.dragging) { rectStyle(paper, drag.position); paper.classList.add('dragging'); paper.style.zIndex = String(front); }
   $('#stage').querySelectorAll('.region').forEach(node => { node.classList.toggle('dragging', drag.dragging); node.classList.toggle('target', node.dataset.groupId === drag.target?.groupId); });
   $('#stage').querySelectorAll('.region-label').forEach(node => {
     const target = node.dataset.groupId === drag.target?.groupId;
-    node.classList.toggle('receiving', target); node.style.zIndex = drag.dragging ? '101' : '1';
+    node.classList.toggle('receiving', target); node.style.zIndex = drag.dragging ? String(front + 1) : '1';
     const name = groupName(activeGroups(workspace.snapshot).find(group => group.id === node.dataset.groupId));
     node.textContent = target ? t('app.stage.moveTo', { group: name }) : name;
   });
@@ -3451,8 +3454,8 @@ function bindEvents() {
   $('#operate-group').onclick = () => adjust({ kind: 'group', groupId: activeGroupId });
   $('#operate-all').onclick = () => adjust({ kind: 'all' });
   $('#stop-operation').onclick = () => adjust({ kind: 'none' });
-  $('#cycle-prev').onclick = () => run(() => { controller.cycle(activeGroupId, -1); render(); });
-  $('#cycle-next').onclick = () => run(() => { controller.cycle(activeGroupId, 1); render(); });
+  $('#cycle-prev').onclick = () => run(async () => { await controller.cycle(activeGroupId, -1); render(); });
+  $('#cycle-next').onclick = () => run(async () => { await controller.cycle(activeGroupId, 1); render(); });
   $('#stack').onclick = () => run(() => openFormation('stack')); $('#spread').onclick = () => run(() => openFormation('spread'));
   $('#undo').onclick = () => run(async () => { await workspace.undo(workAreas()); await controller.reconcile(); render(); status(t('app.status.undone')); });
   $('#formation-scope').onchange = updateFormation; $('#allow-resize').onchange = updateFormation;
@@ -3578,11 +3581,13 @@ function bindEvents() {
   };
   stage.onpointermove = event => dragPaint(controller.pointerMove(point(event), { pointerId: event.pointerId, shiftKey: event.shiftKey, labels: groupLabels }));
   stage.onpointerup = event => stageRun(async () => {
-    const id = event.target.closest('.card')?.dataset.cardId;
-    const result = await controller.pointerUp(point(event), { pointerId: event.pointerId, shiftKey: event.shiftKey, labels: groupLabels });
-    if (result.kind === 'click' && id) { await controller.select(id, { gesture: true }); renderSelection(); }
-    else if (result.kind !== 'ignored') { if (controller.state.activeGroupId) activeGroupId = controller.state.activeGroupId; render(); }
-    if (result.kind === 'transferred') status(t('app.status.movedToGroup'));
+    try {
+      const id = event.target.closest('.card')?.dataset.cardId;
+      const result = await controller.pointerUp(point(event), { pointerId: event.pointerId, shiftKey: event.shiftKey, labels: groupLabels });
+      if (result.kind === 'click' && id) { await controller.select(id, { gesture: true }); renderSelection(); }
+      else if (result.kind !== 'ignored') { if (controller.state.activeGroupId) activeGroupId = controller.state.activeGroupId; render(); }
+      if (result.kind === 'transferred') status(t('app.status.movedToGroup'));
+    } catch (error) { render(); throw error; }
   });
   stage.onpointercancel = () => { controller.cancelDrag(); render(); };
   stage.addEventListener('lostpointercapture', () => { if (controller.cancelDrag()) render(); });

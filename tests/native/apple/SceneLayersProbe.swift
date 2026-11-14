@@ -95,7 +95,10 @@ import AppKit
         floating.apply(PinItAnywhereSceneFrame(sequence: 2, topology: 0, cards: [], adjusting: true))
         try check(floating.panel.isVisible && floating.panel.canBecomeKey, "Adjustment must show an empty monitor and accept Esc")
         let overlays = NSApplication.shared.windows.filter { $0.isVisible && $0 is PinItAnywhereScenePanel && $0.contentView is PinItAnywhereSceneInput }
-        try check(overlays.count == 1 && overlays[0].frame == inputBounds, "Adjustment must receive input across the whole viewport")
+        // An odd work-area height gives a half-point origin; AppKit snaps this borderless panel to a point on this Mac.
+        let coversViewport = overlays.count == 1 && overlays[0].frame.size == inputBounds.size
+            && abs(overlays[0].frame.minX - inputBounds.minX) <= 0.5 && abs(overlays[0].frame.minY - inputBounds.minY) <= 0.5
+        try check(coversViewport, "Adjustment must receive input across the whole viewport: count=\(overlays.count), frames=\(overlays.map { NSStringFromRect($0.frame) }), expected=\(NSStringFromRect(inputBounds))")
         floating.apply(PinItAnywhereSceneFrame(sequence: 3, topology: 0, cards: []))
         try check(!floating.panel.isVisible && !floating.panel.canBecomeKey, "Leaving adjustment must release the overlay and keyboard")
         try check(!overlays[0].isVisible, "Leaving adjustment must remove the full-screen input panel")
